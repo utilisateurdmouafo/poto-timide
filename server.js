@@ -352,6 +352,8 @@ setInterval(() => {
   }
 }, 60 * 60 * 1000);
 
+const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+
 app.use(
   session({
     name: "poto.sid",
@@ -359,11 +361,13 @@ app.use(
     secret: process.env.SESSION_SECRET || "poto-timide-secret-change-in-production",
     resave: false,
     saveUninitialized: false,
+    rolling: true,
     cookie: {
       httpOnly: true,
       sameSite: "lax",
       secure: isProduction,
-      maxAge: 7 * 24 * 60 * 60 * 1000,
+      maxAge: SESSION_MAX_AGE_MS,
+      path: "/",
     },
   })
 );
@@ -415,14 +419,20 @@ app.post("/api/auth/login", (req, res) => {
   req.session.memberName = member.name;
   req.session.isAdmin = isAdminId(user.id);
   req.session.mustChangePassword = Boolean(user.must_change_password);
+  req.session.lastSeen = Date.now();
 
-  res.json({
-    member: {
-      id: member.id,
-      name: member.name,
-      isAdmin: req.session.isAdmin,
-    },
-    mustChangePassword: req.session.mustChangePassword,
+  req.session.save((err) => {
+    if (err) {
+      return res.status(500).json({ error: "Impossible de créer la session" });
+    }
+    res.json({
+      member: {
+        id: member.id,
+        name: member.name,
+        isAdmin: req.session.isAdmin,
+      },
+      mustChangePassword: req.session.mustChangePassword,
+    });
   });
 });
 
@@ -445,14 +455,19 @@ app.get("/api/auth/session", (req, res) => {
 
   const user = db.prepare("SELECT must_change_password FROM users WHERE id = ?").get(req.session.userId);
 
+  req.session.isAdmin = isAdminId(member.id);
+  req.session.memberName = member.name;
+  req.session.mustChangePassword = Boolean(user?.must_change_password);
+  req.session.lastSeen = Date.now();
+
   res.json({
     loggedIn: true,
     member: {
       id: member.id,
       name: member.name,
-      isAdmin: isAdminId(member.id),
+      isAdmin: req.session.isAdmin,
     },
-    mustChangePassword: Boolean(user?.must_change_password),
+    mustChangePassword: req.session.mustChangePassword,
   });
 });
 
@@ -484,6 +499,26 @@ app.post("/api/auth/change-password", requireAuth, (req, res) => {
 
   req.session.mustChangePassword = false;
   res.json({ ok: true });
+});
+
+app.post("/api/admin/ensure-user/:memberId", requireAuth, requireAdmin, (req, res) => {
+  const { memberId } = req.params;
+  const member = findMemberById(memberId);
+
+  if (!member) {
+    return res.status(404).json({ error: "Membre introuvable" });
+  }
+
+  const existed = Boolean(db.prepare("SELECT id FROM users WHERE id = ?").get(memberId));
+  ensureUserForMember(member, false);
+
+  res.json({
+    ok: true,
+    created: !existed,
+    message: existed
+      ? `Le compte de ${member.name} existe déjà.`
+      : `Compte créé pour ${member.name} (mot de passe : ${DEFAULT_PASSWORD})`,
+  });
 });
 
 app.post("/api/admin/reset-password/:memberId", requireAuth, requireAdmin, (req, res) => {
@@ -565,18 +600,19 @@ function applySyncPayload(payload, users) {
 
   if (Array.isArray(users)) {
     users.forEach((user) => {
-      if (!user?.id || !user?.username || !user?.password_hash) return;
+      if (!user?.id || !user?.username) return;
       const mustChange = user.must_change_password ? 1 : 0;
-      const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(user.id);
+      const existing = db.prepare("SELECT * FROM users WHERE id = ?").get(user.id);
       if (existing) {
-        db.prepare(
-          "UPDATE users SET username = ?, password_hash = ?, must_change_password = ? WHERE id = ?"
-        ).run(user.username, user.password_hash, mustChange, user.id);
-      } else {
-        db.prepare(
-          "INSERT INTO users (id, username, password_hash, must_change_password) VALUES (?, ?, ?, ?)"
-        ).run(user.id, user.username, user.password_hash, mustChange);
+        if (existing.username !== user.username) {
+          db.prepare("UPDATE users SET username = ? WHERE id = ?").run(user.username, user.id);
+        }
+        return;
       }
+      if (!user.password_hash) return;
+      db.prepare(
+        "INSERT INTO users (id, username, password_hash, must_change_password) VALUES (?, ?, ?, ?)"
+      ).run(user.id, user.username, user.password_hash, mustChange);
     });
   }
 

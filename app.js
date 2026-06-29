@@ -868,6 +868,10 @@ function canDecidePrets() {
 function openLoginModal() {
   loginError.hidden = true;
   loginForm.reset();
+  const remembered = typeof getRememberedLoginName === "function" ? getRememberedLoginName() : "";
+  if (remembered && loginNameInput) {
+    loginNameInput.value = remembered;
+  }
   loginModal.classList.add("open");
   appEl.classList.add("app-blurred");
   loginNameInput.focus();
@@ -4041,7 +4045,7 @@ function clearRole(roleId) {
   }
 }
 
-function addMember(name) {
+async function addMember(name) {
   if (!requireGroupAdmin("ajouter des membres")) return;
 
   const trimmed = name.trim();
@@ -4057,13 +4061,30 @@ function addMember(name) {
     return;
   }
 
-  members.push({
+  const newMember = {
     id: generateId(),
     name: trimmed,
     createdAt: new Date().toISOString(),
-  });
+  };
 
+  members.push(newMember);
   saveMembers();
+
+  if (authState.loggedIn) {
+    try {
+      if (typeof potoFlushSync === "function") await potoFlushSync();
+      const result = await apiEnsureMemberUser(newMember.id);
+      if (result?.created) {
+        console.log(result.message);
+      }
+    } catch (err) {
+      console.warn("Compte non créé immédiatement :", err.message);
+      alert(
+        `Membre ajouté, mais le compte n'a pas pu être créé tout de suite.\nRéessayez ou réinitialisez le mot de passe depuis la liste.`
+      );
+    }
+  }
+
   memberForm.reset();
   memberNameInput.focus();
 }

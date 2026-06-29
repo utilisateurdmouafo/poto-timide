@@ -64,6 +64,7 @@ async function apiLogin(username, password) {
     method: "POST",
     body: JSON.stringify({ username, password }),
   });
+  rememberLoginName(username);
   authState = {
     loggedIn: true,
     member: data.member,
@@ -88,6 +89,21 @@ async function apiChangePassword(currentPassword, newPassword) {
 
 async function apiResetMemberPassword(memberId) {
   return apiFetch(`/api/admin/reset-password/${memberId}`, { method: "POST" });
+}
+
+async function apiEnsureMemberUser(memberId) {
+  return apiFetch(`/api/admin/ensure-user/${memberId}`, { method: "POST" });
+}
+
+const LAST_USER_KEY = "poto-last-user";
+
+function rememberLoginName(username) {
+  const normalized = String(username || "").trim();
+  if (normalized) localStorage.setItem(LAST_USER_KEY, normalized);
+}
+
+function getRememberedLoginName() {
+  return localStorage.getItem(LAST_USER_KEY) || "";
 }
 
 function getLocalDataPayload() {
