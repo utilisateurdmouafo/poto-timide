@@ -653,30 +653,30 @@ body::before {
 
 .bureau-panel {
   width: 100%;
-  padding: 1rem 1.15rem 1.1rem;
-  margin-bottom: 0.75rem;
+  padding: 1.4rem 1.5rem 1.45rem;
+  margin-bottom: 0.85rem;
 }
 
 .bureau-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
+  gap: 1rem;
+  margin-bottom: 1rem;
 }
 
 .bureau-panel h2 {
   margin: 0;
-  font-size: 1.125rem;
+  font-size: 1.45rem;
 }
 
 .bureau-edit-toggle {
-  padding: 0.4rem 0.75rem;
+  padding: 0.55rem 1rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-btn);
   background: var(--bg);
   font-family: inherit;
-  font-size: 0.78rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: var(--primary);
   cursor: pointer;
@@ -689,26 +689,26 @@ body::before {
 }
 
 .bureau-assign {
-  margin-bottom: 0.75rem;
+  margin-bottom: 1rem;
 }
 
 .bureau-assign-form {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.65rem;
   width: 100%;
 }
 
 .bureau-assign-form select {
   min-width: 0;
-  padding: 0.55rem 0.7rem;
+  padding: 0.7rem 0.85rem;
   background: var(--bg-elevated);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   color: var(--text);
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   outline: none;
 }
 
@@ -719,8 +719,8 @@ body::before {
 
 .btn-compact {
   flex-shrink: 0;
-  padding: 0.55rem 0.9rem;
-  font-size: 0.82rem;
+  padding: 0.7rem 1.1rem;
+  font-size: 0.92rem;
   font-weight: 700;
   border-radius: var(--radius-sm);
   min-height: auto;
@@ -730,8 +730,8 @@ body::before {
 .bureau-grid {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
   width: 100%;
   margin: 0;
   padding: 0;
@@ -742,12 +742,12 @@ body::before {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.35rem;
+  gap: 0.5rem;
   min-width: 0;
-  min-height: 4.25rem;
-  padding: 0.7rem 0.75rem;
+  min-height: 6.25rem;
+  padding: 1rem 1.1rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius);
   background: var(--bg-elevated);
   transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
@@ -768,12 +768,12 @@ body::before {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 0.2rem;
-  line-height: 1.2;
+  gap: 0.35rem;
+  line-height: 1.25;
 }
 
 .bureau-card-name {
-  font-size: 0.95rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--text);
   white-space: nowrap;
@@ -788,10 +788,10 @@ body::before {
 }
 
 .bureau-card-role {
-  font-size: 0.72rem;
+  font-size: 0.92rem;
   font-weight: 500;
   color: var(--text-muted);
-  line-height: 1.25;
+  line-height: 1.3;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -809,15 +809,15 @@ body::before {
 
 .btn-bureau-clear {
   flex-shrink: 0;
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.65rem;
+  height: 1.65rem;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 1rem;
+  font-size: 1.15rem;
   line-height: 1;
-  border-radius: 6px;
+  border-radius: 8px;
   background: transparent;
   color: var(--text-muted);
   border: 1px solid transparent;
@@ -2557,9 +2557,9 @@ body::before {
 
 /* === Responsive — tablettes et smartphones === */
 
-@media (max-width: 1024px) {
+@media (min-width: 1200px) {
   .bureau-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
   }
 }
 
@@ -2675,20 +2675,28 @@ body::before {
 
   .bureau-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.45rem;
+    gap: 0.65rem;
   }
 
   .bureau-panel {
-    padding: 0.85rem 1rem;
+    padding: 1.1rem 1.15rem;
+  }
+
+  .bureau-panel h2 {
+    font-size: 1.2rem;
   }
 
   .bureau-card {
-    min-height: 3.75rem;
-    padding: 0.6rem 0.65rem;
+    min-height: 5.5rem;
+    padding: 0.85rem 0.9rem;
   }
 
   .bureau-card-name {
-    font-size: 0.88rem;
+    font-size: 1.1rem;
+  }
+
+  .bureau-card-role {
+    font-size: 0.82rem;
   }
 
   .bureau-assign-form {
