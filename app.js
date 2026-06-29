@@ -281,18 +281,40 @@ function saveAdminIds(shouldRender = true) {
   if (shouldRender) render();
 }
 
+function getOwnerMember() {
+  return members.find((member) => member.name.toLowerCase() === ADMIN_NAME.toLowerCase()) || null;
+}
+
+function isOwnerMember(memberOrId) {
+  const owner = getOwnerMember();
+  if (!owner) return false;
+  const memberId = typeof memberOrId === "string" ? memberOrId : memberOrId?.id;
+  return memberId === owner.id;
+}
+
 function ensureDefaultAdmin() {
   adminIds = adminIds.filter((id) => members.some((member) => member.id === id));
+  ensureOwnerAdmin();
   if (adminIds.length > 0) return;
 
-  const dario = members.find((member) => member.name.toLowerCase() === ADMIN_NAME.toLowerCase());
-  if (dario) {
-    adminIds = [dario.id];
+  const owner = getOwnerMember();
+  if (owner) {
+    adminIds = [owner.id];
+    saveAdminIds(false);
+  }
+}
+
+function ensureOwnerAdmin() {
+  const owner = getOwnerMember();
+  if (!owner) return;
+  if (!adminIds.includes(owner.id)) {
+    adminIds = [owner.id, ...adminIds.filter((id) => id !== owner.id)];
     saveAdminIds(false);
   }
 }
 
 function isMemberAdmin(memberId) {
+  if (isOwnerMember(memberId)) return true;
   return adminIds.includes(memberId);
 }
 
@@ -928,6 +950,11 @@ async function resetMemberPassword(memberId) {
   const member = getMemberById(memberId);
   if (!member || !isGroupAdmin()) return;
 
+  if (isOwnerMember(memberId) && !isOwnerMember(getCurrentMember())) {
+    alert("Le mot de passe du propriétaire ne peut pas être réinitialisé par un autre admin.");
+    return;
+  }
+
   if (
     !confirm(
       `Réinitialiser le mot de passe de ${member.name} à 1234 ?\nIl devra le changer à la prochaine connexion.`
@@ -1165,17 +1192,20 @@ function renderAdminList() {
       const member = getMemberById(id);
       if (!member) return "";
 
-      const canRemove = adminIds.length > 1;
+      const isOwner = isOwnerMember(member);
+      const canRemove = adminIds.length > 1 && !isOwner;
       return `
         <li class="admin-item">
           <div>
-            <p class="admin-item-name">${escapeHtml(member.name)}</p>
-            <p class="admin-item-meta">Accès complet au groupe</p>
+            <p class="admin-item-name">${escapeHtml(member.name)}${isOwner ? ' <span class="tag-admin">Propriétaire</span>' : ""}</p>
+            <p class="admin-item-meta">${isOwner ? "Créateur du site — droits permanents" : "Accès complet au groupe"}</p>
           </div>
           ${
-            canRemove
-              ? `<button type="button" class="btn-clear btn-remove-admin" data-id="${member.id}">Retirer</button>`
-              : `<span class="admin-only-note">Unique</span>`
+            isOwner
+              ? `<span class="admin-only-note">Protégé</span>`
+              : canRemove
+                ? `<button type="button" class="btn-clear btn-remove-admin" data-id="${member.id}">Retirer</button>`
+                : `<span class="admin-only-note">Unique</span>`
           }
         </li>
       `;
@@ -1205,6 +1235,11 @@ function assignAdmin(memberId) {
 
 function removeAdmin(memberId) {
   if (!requireGroupAdmin("retirer un administrateur")) return;
+
+  if (isOwnerMember(memberId)) {
+    alert("Le propriétaire du site ne peut pas perdre ses droits administrateur.");
+    return;
+  }
 
   if (adminIds.length <= 1) {
     alert("Il doit rester au moins un administrateur.");
@@ -1351,8 +1386,10 @@ function renderMemberList() {
         <span class="member-num">#${index + 1}</span>
         ${
           isGroupAdmin()
-            ? `<button type="button" class="btn-clear btn-reset-pwd" data-id="${member.id}" title="Réinitialiser le mot de passe">Réinit. MDP</button>
-               <button class="btn-delete" data-id="${member.id}" title="Supprimer">Supprimer</button>`
+            ? `${isOwnerMember(member)
+                ? `<span class="admin-only-note">Propriétaire</span>`
+                : `<button type="button" class="btn-clear btn-reset-pwd" data-id="${member.id}" title="Réinitialiser le mot de passe">Réinit. MDP</button>
+                   <button class="btn-delete" data-id="${member.id}" title="Supprimer">Supprimer</button>`}`
             : ""
         }
       </div>
@@ -4081,7 +4118,8 @@ function purgeMemberReferences(memberId) {
   });
 
   notifications = notifications.filter((notif) => notif.memberId !== memberId);
-  adminIds = adminIds.filter((adminId) => adminId !== memberId);
+  adminIds = adminIds.filter((adminId) => adminId !== memberId || isOwnerMember(adminId));
+  ensureOwnerAdmin();
   autreArgent = autreArgent.filter((entry) => entry.memberId !== memberId);
 
   localStorage.setItem(ROLES_KEY, JSON.stringify(roles));
@@ -4101,6 +4139,11 @@ function deleteMember(id) {
 
   const member = members.find((m) => m.id === id);
   if (!member) return;
+
+  if (isOwnerMember(member)) {
+    alert("Le propriétaire du site ne peut pas être supprimé.");
+    return;
+  }
 
   if (
     !confirm(

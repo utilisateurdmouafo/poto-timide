@@ -33,6 +33,7 @@ const STORAGE_KEYS = [
 const MEMBERS_KEY = "poto-timide-members";
 const ADMIN_IDS_KEY = "poto-timide-admin-ids";
 const ADMIN_NAME = "Dario";
+const OWNER_NAME = process.env.POTO_OWNER_NAME || ADMIN_NAME;
 
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
@@ -115,14 +116,93 @@ function ensureUserForMember(member, forceReset = false) {
   }
 }
 
+function findOwnerInMembers(members) {
+  if (!Array.isArray(members)) return null;
+  return (
+    members.find((member) => member.name?.toLowerCase() === OWNER_NAME.toLowerCase()) || null
+  );
+}
+
+function getOwnerFallbackMember() {
+  return findOwnerInMembers(getDefaultMembers());
+}
+
+function getOwnerId() {
+  const members = getData(MEMBERS_KEY) || [];
+  return findOwnerInMembers(members)?.id || getOwnerFallbackMember()?.id || null;
+}
+
+function isOwnerId(memberId) {
+  const ownerId = getOwnerId();
+  return Boolean(ownerId && memberId === ownerId);
+}
+
+function sortMembers(members) {
+  return [...members].sort((a, b) =>
+    a.name.localeCompare(b.name, "fr", { sensitivity: "base" })
+  );
+}
+
+function sanitizePayloadForOwner(payload) {
+  const sanitized = { ...payload };
+  const ownerFallback = getOwnerFallbackMember();
+
+  if (Array.isArray(sanitized[MEMBERS_KEY]) && ownerFallback) {
+    const hasOwner = Boolean(findOwnerInMembers(sanitized[MEMBERS_KEY]));
+    if (!hasOwner) {
+      sanitized[MEMBERS_KEY] = sortMembers([...sanitized[MEMBERS_KEY], ownerFallback]);
+    }
+  }
+
+  if (sanitized[ADMIN_IDS_KEY] !== undefined) {
+    const members = Array.isArray(sanitized[MEMBERS_KEY])
+      ? sanitized[MEMBERS_KEY]
+      : getData(MEMBERS_KEY) || [];
+    const owner = findOwnerInMembers(members) || ownerFallback;
+    if (owner) {
+      const adminIds = Array.isArray(sanitized[ADMIN_IDS_KEY])
+        ? sanitized[ADMIN_IDS_KEY]
+        : [];
+      if (!adminIds.includes(owner.id)) {
+        sanitized[ADMIN_IDS_KEY] = [owner.id, ...adminIds.filter((id) => id !== owner.id)];
+      }
+    }
+  }
+
+  return sanitized;
+}
+
+function enforceOwnerSafeguards() {
+  const ownerFallback = getOwnerFallbackMember();
+  if (!ownerFallback) return;
+
+  let members = getData(MEMBERS_KEY);
+  if (!Array.isArray(members)) return;
+
+  let owner = findOwnerInMembers(members);
+  if (!owner) {
+    members = sortMembers([...members, ownerFallback]);
+    setData(MEMBERS_KEY, members);
+    ensureUserForMember(ownerFallback, false);
+    owner = ownerFallback;
+  }
+
+  let adminIds = getData(ADMIN_IDS_KEY) || [];
+  if (!adminIds.includes(owner.id)) {
+    adminIds = [owner.id, ...adminIds.filter((id) => id !== owner.id)];
+    setData(ADMIN_IDS_KEY, adminIds);
+  }
+}
+
 function syncUsersFromMembers(members) {
   if (!Array.isArray(members)) return;
 
   const memberIds = new Set(members.map((member) => member.id));
+  const ownerId = getOwnerId();
   members.forEach((member) => ensureUserForMember(member, false));
 
   db.prepare("SELECT id FROM users").all().forEach((user) => {
-    if (!memberIds.has(user.id)) {
+    if (!memberIds.has(user.id) && user.id !== ownerId) {
       db.prepare("DELETE FROM users WHERE id = ?").run(user.id);
     }
   });
@@ -158,6 +238,8 @@ function seedDatabase() {
   } else {
     syncUsersFromMembers(getData(MEMBERS_KEY));
   }
+
+  enforceOwnerSafeguards();
 }
 
 seedDatabase();
@@ -206,6 +288,7 @@ function findMemberById(id) {
 }
 
 function isAdminId(memberId) {
+  if (isOwnerId(memberId)) return true;
   const adminIds = getData(ADMIN_IDS_KEY) || [];
   return adminIds.includes(memberId);
 }
@@ -311,6 +394,10 @@ app.post("/api/admin/reset-password/:memberId", requireAuth, requireAdmin, (req,
     return res.status(404).json({ error: "Membre introuvable" });
   }
 
+  if (isOwnerId(memberId) && !isOwnerId(req.session.userId)) {
+    return res.status(403).json({ error: "Le propriétaire du site ne peut pas être réinitialisé par un autre admin" });
+  }
+
   ensureUserForMember(member, true);
   res.json({
     ok: true,
@@ -328,7 +415,7 @@ app.get("/api/data", requireAuth, (req, res) => {
 });
 
 app.put("/api/data", requireAuth, (req, res) => {
-  const payload = req.body || {};
+  const payload = sanitizePayloadForOwner(req.body || {});
 
   Object.entries(payload).forEach(([key, value]) => {
     if (STORAGE_KEYS.includes(key)) {
@@ -340,20 +427,23 @@ app.put("/api/data", requireAuth, (req, res) => {
     syncUsersFromMembers(payload[MEMBERS_KEY]);
   }
 
+  enforceOwnerSafeguards();
   res.json({ ok: true });
 });
 
 const SYNC_SECRET = process.env.POTO_SYNC_SECRET;
 
 function applySyncPayload(payload, users) {
-  Object.entries(payload).forEach(([key, value]) => {
+  const safePayload = sanitizePayloadForOwner(payload);
+
+  Object.entries(safePayload).forEach(([key, value]) => {
     if (STORAGE_KEYS.includes(key)) {
       setData(key, value);
     }
   });
 
-  if (payload[MEMBERS_KEY]) {
-    syncUsersFromMembers(payload[MEMBERS_KEY]);
+  if (safePayload[MEMBERS_KEY]) {
+    syncUsersFromMembers(safePayload[MEMBERS_KEY]);
   }
 
   if (Array.isArray(users)) {
@@ -372,6 +462,8 @@ function applySyncPayload(payload, users) {
       }
     });
   }
+
+  enforceOwnerSafeguards();
 }
 
 app.post("/api/sync", (req, res) => {
@@ -386,6 +478,32 @@ app.post("/api/sync", (req, res) => {
 
   applySyncPayload(data || {}, users);
   res.json({ ok: true });
+});
+
+app.post("/api/owner/recover", (req, res) => {
+  if (!SYNC_SECRET) {
+    return res.status(503).json({ error: "Récupération non configurée sur le serveur" });
+  }
+
+  const { secret } = req.body || {};
+  if (secret !== SYNC_SECRET) {
+    return res.status(403).json({ error: "Clé de synchronisation invalide" });
+  }
+
+  enforceOwnerSafeguards();
+
+  const owner = findOwnerInMembers(getData(MEMBERS_KEY) || []) || getOwnerFallbackMember();
+  if (!owner) {
+    return res.status(500).json({ error: "Propriétaire introuvable" });
+  }
+
+  ensureUserForMember(owner, false);
+
+  res.json({
+    ok: true,
+    owner: { id: owner.id, name: owner.name },
+    message: `${owner.name} est garanti administrateur. Utilisez sync-vers-render.bat pour restaurer vos mots de passe locaux.`,
+  });
 });
 
 app.use(express.static(__dirname));

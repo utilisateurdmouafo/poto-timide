@@ -14,5 +14,3 @@ services:
         value: "20"
       - key: SESSION_SECRET
         generateValue: true
-      - key: POTO_SYNC_SECRET
-        value: poto-sync-7f3a9c2e1b8d4f6a
