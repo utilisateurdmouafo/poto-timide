@@ -1,5 +1,6 @@
 const express = require("express");
 const session = require("express-session");
+const SessionStore = session.Store;
 const bcrypt = require("bcryptjs");
 const Database = require("better-sqlite3");
 const path = require("path");
@@ -9,6 +10,7 @@ const PORT = process.env.PORT || 8080;
 const DEFAULT_PASSWORD = "1234";
 const DATA_DIR = path.join(__dirname, "data");
 const DB_PATH = path.join(DATA_DIR, "poto-timide.db");
+const BACKUP_PATH = path.join(DATA_DIR, "backup-latest.json");
 
 const DEFAULT_MEMBER_NAMES = [
   "Yves", "Quentin", "Donald", "Hugo", "Elysée", "Ferlin", "William", "Luc",
@@ -53,7 +55,91 @@ db.exec(`
     value TEXT NOT NULL,
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+  CREATE TABLE IF NOT EXISTS sessions (
+    sid TEXT PRIMARY KEY,
+    sess TEXT NOT NULL,
+    expired INTEGER NOT NULL
+  );
 `);
+
+class SqliteSessionStore extends SessionStore {
+  constructor(database) {
+    super();
+    this.db = database;
+  }
+
+  get(sid, callback) {
+    try {
+      const row = this.db
+        .prepare("SELECT sess FROM sessions WHERE sid = ? AND expired > ?")
+        .get(sid, Date.now());
+      if (!row) return callback(null, null);
+      return callback(null, JSON.parse(row.sess));
+    } catch (err) {
+      return callback(err);
+    }
+  }
+
+  set(sid, sess, callback) {
+    try {
+      const maxAge = sess?.cookie?.maxAge || 7 * 24 * 60 * 60 * 1000;
+      this.db
+        .prepare(
+          "INSERT INTO sessions (sid, sess, expired) VALUES (?, ?, ?) ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expired = excluded.expired"
+        )
+        .run(sid, JSON.stringify(sess), Date.now() + maxAge);
+      return callback?.(null);
+    } catch (err) {
+      return callback?.(err);
+    }
+  }
+
+  destroy(sid, callback) {
+    try {
+      this.db.prepare("DELETE FROM sessions WHERE sid = ?").run(sid);
+      return callback?.(null);
+    } catch (err) {
+      return callback?.(err);
+    }
+  }
+
+  touch(sid, sess, callback) {
+    this.set(sid, sess, callback);
+  }
+}
+
+function backupDatabase() {
+  try {
+    const payload = {};
+    STORAGE_KEYS.forEach((key) => {
+      const value = getData(key);
+      if (value !== null) payload[key] = value;
+    });
+    fs.writeFileSync(BACKUP_PATH, JSON.stringify(payload));
+  } catch (err) {
+    console.warn("Sauvegarde locale impossible :", err.message);
+  }
+}
+
+function restoreFromBackupIfNeeded() {
+  if (getData(MEMBERS_KEY)) return false;
+  if (!fs.existsSync(BACKUP_PATH)) return false;
+
+  try {
+    const backup = JSON.parse(fs.readFileSync(BACKUP_PATH, "utf8"));
+    if (!backup[MEMBERS_KEY]) return false;
+    Object.entries(backup).forEach(([key, value]) => {
+      if (STORAGE_KEYS.includes(key)) setData(key, value);
+    });
+    if (backup[MEMBERS_KEY]) syncUsersFromMembers(backup[MEMBERS_KEY]);
+    enforceOwnerSafeguards();
+    console.log("Données restaurées depuis backup-latest.json");
+    return true;
+  } catch (err) {
+    console.warn("Restauration backup impossible :", err.message);
+    return false;
+  }
+}
 
 function getData(key) {
   const row = db.prepare("SELECT value FROM app_data WHERE key = ?").get(key);
@@ -69,6 +155,7 @@ function setData(key, value) {
   db.prepare(
     "INSERT INTO app_data (key, value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at"
   ).run(key, JSON.stringify(value));
+  backupDatabase();
 }
 
 function normalizeUsername(name) {
@@ -209,6 +296,8 @@ function syncUsersFromMembers(members) {
 }
 
 function seedDatabase() {
+  restoreFromBackupIfNeeded();
+
   if (!getData(MEMBERS_KEY)) {
     const members = getDefaultMembers();
     setData(MEMBERS_KEY, members);
@@ -253,9 +342,20 @@ if (isProduction) {
 
 app.use(express.json({ limit: "5mb" }));
 
+const sessionStore = new SqliteSessionStore(db);
+
+setInterval(() => {
+  try {
+    db.prepare("DELETE FROM sessions WHERE expired <= ?").run(Date.now());
+  } catch {
+    /* ignore */
+  }
+}, 60 * 60 * 1000);
+
 app.use(
   session({
     name: "poto.sid",
+    store: sessionStore,
     secret: process.env.SESSION_SECRET || "poto-timide-secret-change-in-production",
     resave: false,
     saveUninitialized: false,
@@ -402,6 +502,23 @@ app.post("/api/admin/reset-password/:memberId", requireAuth, requireAdmin, (req,
   res.json({
     ok: true,
     message: `Mot de passe de ${member.name} réinitialisé à ${DEFAULT_PASSWORD}`,
+  });
+});
+
+app.get("/api/data/status", requireAuth, (req, res) => {
+  const members = getData(MEMBERS_KEY) || [];
+  const roles = getData("poto-timide-roles") || {};
+  const cotisations = getData("poto-timide-cotisations") || {};
+  const tournee = getData("poto-timide-tournee") || { years: {} };
+  res.json({
+    memberCount: members.length,
+    roleCount: Object.keys(roles).length,
+    cotisationCount: Object.keys(cotisations).length,
+    tourneeYears: Object.keys(tournee.years || {}),
+    looksEmpty:
+      Object.keys(roles).length === 0 &&
+      Object.keys(cotisations).length === 0 &&
+      Object.keys(tournee.years || {}).length === 0,
   });
 });
 

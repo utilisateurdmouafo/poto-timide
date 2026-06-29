@@ -902,6 +902,7 @@ async function loginMember(name, password) {
     await apiLogin(name.trim(), password);
     await loadDataFromServer();
     reloadFromStorage();
+    if (typeof potoStartPeriodicSync === "function") potoStartPeriodicSync();
     ensureDefaultAdmin();
     if (authState.member) {
       authState.member.isAdmin = isMemberAdmin(authState.member.id);
@@ -976,6 +977,7 @@ async function resetMemberPassword(memberId) {
 async function logoutMember() {
   cancelEditAmende();
   try {
+    if (typeof potoFlushSync === "function") await potoFlushSync();
     await apiLogout();
   } catch {
     /* ignore */
@@ -4390,6 +4392,8 @@ document.querySelectorAll(".tournee-sort-btn").forEach((button) => {
 });
 
 async function initApp() {
+  reloadFromStorage();
+
   try {
     await checkServerSession();
 
@@ -4400,6 +4404,7 @@ async function initApp() {
       if (authState.member) {
         authState.member.isAdmin = isMemberAdmin(authState.member.id);
       }
+      if (typeof potoStartPeriodicSync === "function") potoStartPeriodicSync();
 
       loginModal.classList.remove("open");
 
@@ -4413,8 +4418,10 @@ async function initApp() {
     }
   } catch (err) {
     console.error(err);
+    reloadFromStorage();
     openLoginModal();
-    loginError.textContent = "Serveur indisponible. Relancez l'application.";
+    loginError.textContent =
+      "Serveur indisponible — vos données locales sont conservées. Reconnectez-vous.";
     loginError.hidden = false;
   }
 
