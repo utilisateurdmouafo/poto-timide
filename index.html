@@ -46,7 +46,33 @@
           Seul un <strong>administrateur</strong> peut nommer les membres de l'équipe administrative.
         </p>
 
-
+        <section class="panel bureau-panel" aria-label="Équipe administrative">
+          <div class="bureau-head">
+            <h2>Équipe administrative</h2>
+            <button type="button" class="bureau-edit-toggle" id="bureauAssignToggle" hidden>
+              Attribuer un poste
+            </button>
+          </div>
+          <div class="bureau-assign admin-section" id="rolesPanel" hidden>
+            <form id="roleForm" class="bureau-assign-form">
+              <select id="roleMember" required aria-label="Membre">
+                <option value="">Choisir un membre…</option>
+              </select>
+              <select id="rolePost" required aria-label="Poste">
+                <option value="">Choisir un poste…</option>
+                <option value="president">Président</option>
+                <option value="vice-president">Vice président</option>
+                <option value="censeur">Censeur</option>
+                <option value="tresorier">Financier</option>
+                <option value="vice-tresorier">Vice financier</option>
+                <option value="charge-affaires">Chargé d'activité</option>
+                <option value="vice-charge-affaires">Vice chargé d'activité</option>
+              </select>
+              <button type="submit" class="btn-compact btn-primary">Attribuer</button>
+            </form>
+          </div>
+          <ul class="bureau-grid" id="bureauList"></ul>
+        </section>
 
         <section class="panel admin-section" id="adminRolesPanel" hidden>
           <h2>Administrateurs du groupe</h2>
@@ -103,34 +129,6 @@
         <section class="panel list-panel">
           <h2>Liste des membres</h2>
           <ul class="member-list" id="memberList"></ul>
-        </section>
-
-        <section class="bureau-block" aria-label="Équipe administrative">
-          <div class="bureau-head">
-            <span class="bureau-label">Équipe administrative</span>
-            <button type="button" class="bureau-edit-toggle" id="bureauAssignToggle" hidden>
-              Attribuer
-            </button>
-          </div>
-          <div class="bureau-assign admin-section" id="rolesPanel" hidden>
-            <form id="roleForm" class="bureau-assign-form">
-              <select id="roleMember" required aria-label="Membre">
-                <option value="">Membre…</option>
-              </select>
-              <select id="rolePost" required aria-label="Poste">
-                <option value="">Poste…</option>
-                <option value="president">Président</option>
-                <option value="vice-president">Vice président</option>
-                <option value="censeur">Censeur</option>
-                <option value="tresorier">Financier</option>
-                <option value="vice-tresorier">Vice financier</option>
-                <option value="charge-affaires">Chargé d'activité</option>
-                <option value="vice-charge-affaires">Vice chargé d'activité</option>
-              </select>
-              <button type="submit" class="btn-compact btn-primary">OK</button>
-            </form>
-          </div>
-          <ul class="bureau-compact" id="bureauList"></ul>
         </section>
       </div>
 

@@ -651,89 +651,88 @@ body::before {
   border-color: var(--primary);
 }
 
-.bureau-block {
-  margin: 0.25rem 0 0;
-  padding: 0.5rem 0.15rem 0.15rem;
-  border-top: 1px solid var(--border);
-  background: transparent;
-  box-shadow: none;
+.bureau-panel {
+  width: 100%;
+  padding: 1rem 1.15rem 1.1rem;
+  margin-bottom: 0.75rem;
 }
 
 .bureau-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.4rem;
-  margin-bottom: 0.3rem;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
 }
 
-.bureau-label {
-  font-size: 0.62rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
-  text-transform: uppercase;
-  color: var(--text-muted);
+.bureau-panel h2 {
+  margin: 0;
+  font-size: 1.125rem;
 }
 
 .bureau-edit-toggle {
-  padding: 0;
-  border: none;
-  background: none;
+  padding: 0.4rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-btn);
+  background: var(--bg);
   font-family: inherit;
-  font-size: 0.62rem;
+  font-size: 0.78rem;
   font-weight: 600;
-  color: var(--text-muted);
+  color: var(--primary);
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
+  white-space: nowrap;
 }
 
 .bureau-edit-toggle:hover {
-  color: var(--primary);
+  background: var(--primary-light);
+  border-color: rgba(0, 113, 235, 0.25);
 }
 
 .bureau-assign {
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.75rem;
 }
 
 .bureau-assign-form {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
   align-items: center;
-  gap: 0.3rem;
+  gap: 0.5rem;
+  width: 100%;
 }
 
 .bureau-assign-form select {
-  flex: 1;
   min-width: 0;
-  padding: 0.22rem 0.35rem;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 4px;
+  padding: 0.55rem 0.7rem;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   color: var(--text);
   font-family: inherit;
-  font-size: 0.68rem;
+  font-size: 0.85rem;
   outline: none;
 }
 
 .bureau-assign-form select:focus {
   border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-light);
 }
 
 .btn-compact {
   flex-shrink: 0;
-  padding: 0.22rem 0.4rem;
-  font-size: 0.65rem;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  border-radius: 4px;
+  border-radius: var(--radius-sm);
   min-height: auto;
   white-space: nowrap;
 }
 
-.bureau-compact {
+.bureau-grid {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
-  gap: 0.3rem;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.5rem;
+  width: 100%;
   margin: 0;
   padding: 0;
 }
@@ -742,16 +741,25 @@ body::before {
   position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 0.15rem;
+  justify-content: space-between;
+  gap: 0.35rem;
   min-width: 0;
-  padding: 0.28rem 0.32rem 0.26rem;
+  min-height: 4.25rem;
+  padding: 0.7rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 5px;
-  background: var(--bg);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+}
+
+.bureau-card:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-card);
 }
 
 .bureau-card.is-vacant {
-  opacity: 0.5;
+  opacity: 0.55;
+  background: var(--bg);
 }
 
 .bureau-card-body {
@@ -759,13 +767,14 @@ body::before {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.05rem;
-  line-height: 1.15;
+  justify-content: center;
+  gap: 0.2rem;
+  line-height: 1.2;
 }
 
 .bureau-card-name {
-  font-size: 0.72rem;
-  font-weight: 600;
+  font-size: 0.95rem;
+  font-weight: 700;
   color: var(--text);
   white-space: nowrap;
   overflow: hidden;
@@ -779,48 +788,47 @@ body::before {
 }
 
 .bureau-card-role {
-  font-size: 0.58rem;
+  font-size: 0.72rem;
   font-weight: 500;
   color: var(--text-muted);
-  white-space: nowrap;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .bureau-empty {
   grid-column: 1 / -1;
-  font-size: 0.65rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
   font-style: italic;
+  padding: 1rem 0;
+  text-align: center;
 }
 
 .btn-bureau-clear {
   flex-shrink: 0;
-  width: 0.85rem;
-  height: 0.85rem;
-  margin-top: -0.05rem;
+  width: 1.35rem;
+  height: 1.35rem;
   padding: 0;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.7rem;
+  font-size: 1rem;
   line-height: 1;
-  border-radius: 3px;
+  border-radius: 6px;
   background: transparent;
-  color: transparent;
-  border: none;
-  cursor: pointer;
-  transition: color 0.12s, background 0.12s;
-}
-
-.bureau-card:hover .btn-bureau-clear,
-.bureau-card:focus-within .btn-bureau-clear {
   color: var(--text-muted);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s, border-color 0.12s;
 }
 
 .btn-bureau-clear:hover {
   background: var(--danger-light);
   color: var(--danger);
+  border-color: rgba(217, 48, 37, 0.2);
 }
 
 .btn-clear {
@@ -2549,6 +2557,12 @@ body::before {
 
 /* === Responsive — tablettes et smartphones === */
 
+@media (max-width: 1024px) {
+  .bureau-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 768px) {
   .panel {
     padding: 0.75rem 0.8rem;
@@ -2659,29 +2673,36 @@ body::before {
     align-items: flex-start;
   }
 
-  .bureau-compact {
+  .bureau-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.25rem;
+    gap: 0.45rem;
+  }
+
+  .bureau-panel {
+    padding: 0.85rem 1rem;
+  }
+
+  .bureau-card {
+    min-height: 3.75rem;
+    padding: 0.6rem 0.65rem;
+  }
+
+  .bureau-card-name {
+    font-size: 0.88rem;
   }
 
   .bureau-assign-form {
-    flex-wrap: wrap;
+    grid-template-columns: 1fr;
   }
 
   .bureau-assign-form select {
-    flex: 1 1 calc(50% - 0.15rem);
-    min-width: 6rem;
     font-size: 16px;
-    min-height: 32px;
+    min-height: 44px;
   }
 
   .bureau-assign-form .btn-compact {
-    flex: 0 0 auto;
-    min-height: 32px;
-  }
-
-  .btn-bureau-clear {
-    color: var(--text-muted);
+    width: 100%;
+    min-height: 44px;
   }
 
   .evenement-reimburse-row .btn-primary {
