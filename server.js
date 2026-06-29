@@ -343,6 +343,51 @@ app.put("/api/data", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+const SYNC_SECRET = process.env.POTO_SYNC_SECRET;
+
+function applySyncPayload(payload, users) {
+  Object.entries(payload).forEach(([key, value]) => {
+    if (STORAGE_KEYS.includes(key)) {
+      setData(key, value);
+    }
+  });
+
+  if (payload[MEMBERS_KEY]) {
+    syncUsersFromMembers(payload[MEMBERS_KEY]);
+  }
+
+  if (Array.isArray(users)) {
+    users.forEach((user) => {
+      if (!user?.id || !user?.username || !user?.password_hash) return;
+      const mustChange = user.must_change_password ? 1 : 0;
+      const existing = db.prepare("SELECT id FROM users WHERE id = ?").get(user.id);
+      if (existing) {
+        db.prepare(
+          "UPDATE users SET username = ?, password_hash = ?, must_change_password = ? WHERE id = ?"
+        ).run(user.username, user.password_hash, mustChange, user.id);
+      } else {
+        db.prepare(
+          "INSERT INTO users (id, username, password_hash, must_change_password) VALUES (?, ?, ?, ?)"
+        ).run(user.id, user.username, user.password_hash, mustChange);
+      }
+    });
+  }
+}
+
+app.post("/api/sync", (req, res) => {
+  if (!SYNC_SECRET) {
+    return res.status(503).json({ error: "Synchronisation non configurée sur le serveur" });
+  }
+
+  const { secret, data, users } = req.body || {};
+  if (secret !== SYNC_SECRET) {
+    return res.status(403).json({ error: "Clé de synchronisation invalide" });
+  }
+
+  applySyncPayload(data || {}, users);
+  res.json({ ok: true });
+});
+
 app.use(express.static(__dirname));
 
 app.get("*", (req, res) => {
