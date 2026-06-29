@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#e8edf3" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Poto Timide</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="header">
+      <div class="header-inner">
+        <a class="brand" href="#" onclick="return false" aria-label="Poto Timide">
+          <svg class="bbc-logo" width="120" height="28" viewBox="0 0 120 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M8.2 4.5C6.4 4.5 5 5.9 5 7.6V20.4C5 22.1 6.4 23.5 8.2 23.5C9.9 23.5 11.3 22.1 11.3 20.4V7.6C11.3 5.9 9.9 4.5 8.2 4.5Z" fill="#0071EB"/>
+            <path d="M18.8 4.5C17 4.5 15.6 5.9 15.6 7.6V20.4C15.6 22.1 17 23.5 18.8 23.5C20.5 23.5 21.9 22.1 21.9 20.4V7.6C21.9 5.9 20.5 4.5 18.8 4.5Z" fill="#0071EB"/>
+            <text x="30" y="19" fill="#1A1A1A" font-family="Plus Jakarta Sans, sans-serif" font-size="15" font-weight="700">Poto Timide</text>
+          </svg>
+        </a>
+        <div class="header-actions">
+          <span class="admin-badge" id="userStatus">Non connecté</span>
+          <button class="btn-header" id="loginBtn" type="button">Se connecter</button>
+          <button class="btn-header btn-header-out" id="logoutBtn" type="button" hidden>Se déconnecter</button>
+        </div>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Navigation principale">
+      <button class="tab active" data-tab="membres">Membres</button>
+      <button class="tab" data-tab="tournee">Organisation de la tournée</button>
+      <button class="tab" data-tab="amendes">Mes dettes et amendes</button>
+      <button class="tab" data-tab="prets">Prêt</button>
+      <button class="tab" data-tab="evenements">Événements</button>
+      <button class="tab" data-tab="autre-argent" id="tabBtnAutreArgent" hidden>Autre argent</button>
+    </nav>
+
+    <main class="main">
+      <div class="tab-content active" id="tab-membres">
+        <p class="info-msg" id="membresLockMsg">
+          Seul un <strong>administrateur</strong> peut nommer les membres de l'équipe administrative.
+        </p>
+
+        <section class="panel roles-panel admin-section" id="rolesPanel" hidden>
+          <h2>Attribuer un poste</h2>
+          <p class="panel-desc">Réservé aux administrateurs — nommez les membres de l'équipe administrative.</p>
+          <form id="roleForm" class="role-form">
+            <label>
+              Membre
+              <select id="roleMember" required>
+                <option value="">— Choisir un membre —</option>
+              </select>
+            </label>
+            <label>
+              Poste
+              <select id="rolePost" required>
+                <option value="">— Choisir un poste —</option>
+                <option value="president">Président</option>
+                <option value="vice-president">Vice président</option>
+                <option value="censeur">Censeur</option>
+                <option value="tresorier">Financier</option>
+                <option value="vice-tresorier">Vice financier</option>
+                <option value="charge-affaires">Chargé d'activité</option>
+                <option value="vice-charge-affaires">Vice chargé d'activité</option>
+              </select>
+            </label>
+            <button type="submit" class="btn-primary">Attribuer</button>
+          </form>
+        </section>
+
+        <section class="panel admin-section" id="adminRolesPanel" hidden>
+          <h2>Administrateurs du groupe</h2>
+          <p class="panel-desc">Les administrateurs gèrent les membres, les accès et l'onglet Autre argent.</p>
+          <ul class="admin-list" id="adminList"></ul>
+          <form id="adminForm" class="role-form">
+            <label>
+              Membre
+              <select id="adminMemberSelect" required>
+                <option value="">— Choisir un membre —</option>
+              </select>
+            </label>
+            <button type="submit" class="btn-primary">Nommer administrateur</button>
+          </form>
+        </section>
+
+        <section class="panel admin-section" id="tabPermissionsPanel" hidden>
+          <h2>Accès aux onglets</h2>
+          <p class="panel-desc">
+            Les administrateurs ont toujours accès à tout. Choisissez quels postes du bureau peuvent gérer chaque onglet.
+          </p>
+          <div class="table-wrap">
+            <table class="permissions-table" id="tabPermissionsTable">
+              <thead>
+                <tr>
+                  <th>Onglet</th>
+                </tr>
+              </thead>
+              <tbody id="tabPermissionsBody"></tbody>
+            </table>
+          </div>
+          <button type="button" class="btn-primary" id="saveTabPermissionsBtn">Enregistrer les accès</button>
+          <p class="save-msg" id="tabPermissionsMsg" hidden></p>
+        </section>
+
+        <section class="panel bureau-panel">
+          <h2>Équipe administrative</h2>
+          <p class="panel-desc">Composition du bureau, nommée par les administrateurs.</p>
+          <ul class="bureau-list" id="bureauList"></ul>
+        </section>
+
+        <section class="panel add-panel admin-section" id="addMemberPanel" hidden>
+          <div class="panel-head">
+            <h2>Ajouter un membre</h2>
+            <p class="counter" id="memberCounter">0 / 50 membres</p>
+          </div>
+          <form id="memberForm" class="add-form">
+            <input
+              type="text"
+              id="memberName"
+              placeholder="Nom du membre"
+              maxlength="50"
+              required
+            />
+            <button type="submit" class="btn-primary" id="submitBtn">Ajouter</button>
+          </form>
+          <p class="limit-msg" id="limitMsg" hidden>Maximum de 50 membres atteint.</p>
+        </section>
+
+        <section class="panel list-panel">
+          <h2>Liste des membres</h2>
+          <ul class="member-list" id="memberList"></ul>
+        </section>
+      </div>
+
+      <div class="tab-content" id="tab-tournee">
+        <section class="panel tour-panel">
+          <div class="panel-head">
+            <div>
+              <h2>Organisation de la tournée</h2>
+              <p class="panel-desc">
+                Sélectionnez librement un ou plusieurs <strong>mois</strong> par personne.
+                Le statut affiche qui reçoit chaque mois (ex. <em>Dario Juin · Ferlin Juin</em>).
+              </p>
+            </div>
+            <div class="tournee-head-actions">
+              <label class="tournee-year-label">
+                Année
+                <select id="tourneeYear" class="tournee-year-select"></select>
+              </label>
+              <button type="button" class="btn-primary" id="saveCotisationsBtn" hidden>Enregistrer</button>
+            </div>
+          </div>
+
+          <p class="info-msg" id="tourneeInfoMsg">
+            Tous les membres peuvent consulter ce tableau. Seuls les gestionnaires autorisés peuvent modifier.
+          </p>
+          <p class="save-msg" id="saveMsg" hidden></p>
+
+          <div class="table-wrap">
+            <table class="cotisation-table tournee-unified-table">
+              <thead>
+                <tr>
+                  <th>
+                    <button type="button" class="tournee-sort-btn" data-sort="name">
+                      Nom <span class="tournee-sort-indicator" aria-hidden="true"></span>
+                    </button>
+                  </th>
+                  <th>Cotisation (€)</th>
+                  <th>
+                    <button type="button" class="tournee-sort-btn" data-sort="month">
+                      Mois de tournée <span class="tournee-sort-indicator" aria-hidden="true"></span>
+                    </button>
+                  </th>
+                  <th>
+                    <button type="button" class="tournee-sort-btn" data-sort="status">
+                      Statut <span class="tournee-sort-indicator" aria-hidden="true"></span>
+                    </button>
+                  </th>
+                </tr>
+              </thead>
+              <tbody id="cotisationBody"></tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="2">Total mensuel</td>
+                  <td colspan="2" id="cotisationTotal">0 €</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <div class="tab-content" id="tab-amendes">
+        <section class="panel" id="addAmendePanel" hidden>
+          <h2 id="amendeFormTitle">Ajouter une amende</h2>
+          <p class="panel-desc">Réservé aux gestionnaires — ajoutez, modifiez ou supprimez les amendes.</p>
+          <form id="amendeForm" class="amende-form">
+            <label>
+              Membre
+              <select id="amendeMember" required>
+                <option value="">— Choisir un membre —</option>
+              </select>
+            </label>
+            <label>
+              Type d'amende
+              <select id="amendeType" required>
+                <option value="">— Choisir le type —</option>
+                <option value="absence">Absence</option>
+                <option value="retard">Retard</option>
+                <option value="bavardage">Bavardage</option>
+                <option value="sanctions">Sanctions</option>
+              </select>
+            </label>
+            <label>
+              Montant (€)
+              <input type="number" id="amendeAmount" min="0" step="0.5" placeholder="0" required />
+            </label>
+            <label>
+              Note (optionnel)
+              <input type="text" id="amendeNote" placeholder="Ex : Réunion du 15 juin" maxlength="100" />
+            </label>
+            <div class="amende-form-actions">
+              <button type="submit" class="btn-primary" id="amendeSubmitBtn">Ajouter l'amende</button>
+              <button type="button" class="btn-secondary" id="amendeCancelBtn" hidden>Annuler</button>
+            </div>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h2 id="amendeTitle">Mes dettes et amendes</h2>
+          <p class="panel-desc" id="amendeSubtitle">Consultez vos dettes événements et amendes par type.</p>
+
+          <div class="amende-summary" id="amendeSummary"></div>
+
+          <section class="amende-dette-wrap" id="amendeDetteWrap" hidden>
+            <div class="amende-dette-head">
+              <h3>Dettes événements</h3>
+              <p class="panel-desc" id="amendeDetteSubtitle">Cotisations non payées transférées après remboursement au poto.</p>
+            </div>
+            <div class="amende-dette-summary" id="amendeDetteSummary"></div>
+            <div class="table-wrap">
+              <table class="cotisation-table amende-dette-table">
+                <thead>
+                  <tr>
+                    <th id="amendeDetteMemberCol" class="amende-col-text" hidden>Membre</th>
+                    <th class="amende-col-text">Date</th>
+                    <th class="amende-col-text">Détail</th>
+                    <th>Montant</th>
+                    <th id="amendeDetteActionsCol" hidden>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="amendeDetteBody"></tbody>
+                <tfoot>
+                  <tr>
+                    <td id="amendeDetteTotalLabel" colspan="3">Total dettes</td>
+                    <td id="amendeDetteTotal">0 €</td>
+                    <td id="amendeDetteTotalActionsSpacer" hidden></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </section>
+
+          <div class="table-wrap">
+            <table class="cotisation-table amende-table">
+              <thead>
+                <tr>
+                  <th id="amendeMemberCol" class="amende-col-text" hidden>Nom</th>
+                  <th class="amende-col-text">Date</th>
+                  <th>Absence</th>
+                  <th>Retard</th>
+                  <th>Bavardage</th>
+                  <th>Sanctions</th>
+                  <th>Montant (€)</th>
+                  <th id="amendeActionsCol" hidden>Actions</th>
+                </tr>
+              </thead>
+              <tbody id="amendeBody"></tbody>
+              <tfoot>
+                <tr>
+                  <td id="amendeTotalLabel">Total</td>
+                  <td id="amendeTotalSpacer" hidden></td>
+                  <td id="totalAbsence">—</td>
+                  <td id="totalRetard">—</td>
+                  <td id="totalBavardage">—</td>
+                  <td id="totalSanctions">—</td>
+                  <td id="amendeGrandTotal">0 €</td>
+                  <td id="amendeTotalActionsSpacer" hidden></td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+      </div>
+
+      <div class="tab-content" id="tab-prets">
+        <section class="panel">
+          <h2>Prêts du groupe</h2>
+          <p class="panel-desc">Demandez un prêt, les membres votent sous 24 h. Le Financier peut dire Oui à tout moment pour accorder immédiatement.</p>
+
+          <div class="pret-summary" id="pretSummary"></div>
+          <p class="save-msg" id="pretSaveMsg" hidden></p>
+        </section>
+
+        <section class="panel" id="pretNotificationsPanel">
+          <h2>Notifications</h2>
+          <ul class="pret-notif-list" id="pretNotificationsList"></ul>
+        </section>
+
+        <section class="panel" id="initiatePretPanel">
+          <h2>Initier un prêt</h2>
+          <p class="panel-desc">Une demande en vote à la fois. Une fois un prêt accordé, une autre personne peut en demander un nouveau. Max : (caisse brute − 300 €) ÷ 2.</p>
+          <p class="info-msg" id="pretLockMsg" hidden></p>
+          <form id="pretForm" class="pret-form">
+            <label>
+              Montant (€)
+              <input type="number" id="pretAmount" min="1" step="1" placeholder="Ex : 200" required />
+            </label>
+            <label>
+              Motif (optionnel)
+              <input type="text" id="pretNote" placeholder="Ex : Urgence personnelle" maxlength="120" />
+            </label>
+            <button type="submit" class="btn-primary">Initier un prêt</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <h2>Demandes en vote</h2>
+          <p class="panel-desc">Tous les membres (sauf l'emprunteur) doivent voter Oui sous 24 h.</p>
+          <div id="pretVotingList" class="pret-loan-list"></div>
+        </section>
+
+        <section class="panel" id="financierPretPanel" hidden>
+          <h2>Validation Financier</h2>
+          <p class="panel-desc">Réservé au Financier — dès que vous cliquez Oui, le prêt est accordé. Refus et suppression possibles à tout moment.</p>
+          <div id="pretFinancierList" class="pret-loan-list"></div>
+        </section>
+
+        <section class="panel">
+          <h2 id="pretActiveTitle">Prêts en cours</h2>
+          <div id="pretActiveList" class="pret-loan-list"></div>
+        </section>
+      </div>
+
+      <div class="tab-content" id="tab-evenements">
+        <section class="panel" id="addEvenementPanel" hidden>
+          <h2>Créer un événement</h2>
+          <p class="panel-desc">Sélectionnez le poto concerné, donnez un titre et indiquez la somme à cotiser par chaque autre membre.</p>
+          <form id="evenementForm" class="evenement-form">
+            <label>
+              Poto concerné
+              <select id="evenementMember" required>
+                <option value="">— Choisir le poto —</option>
+              </select>
+            </label>
+            <label>
+              Titre
+              <input type="text" id="evenementTitle" placeholder="Ex : Accouchement de Vitran" maxlength="80" required />
+            </label>
+            <label>
+              Cotisation par membre (€)
+              <input type="number" id="evenementAmount" min="1" step="0.5" placeholder="Ex : 10" required />
+            </label>
+            <label class="evenement-form-wide">
+              Description (optionnel)
+              <input type="text" id="evenementDesc" placeholder="Détails de l'événement" maxlength="150" />
+            </label>
+            <button type="submit" class="btn-primary">Créer l'événement</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="evenement-list-head">
+            <div>
+              <h2 id="evenementListTitle">Événements du groupe</h2>
+              <p class="panel-desc" id="evenementListSubtitle">Chaque membre cotise le même montant, sauf le poto concerné.</p>
+            </div>
+            <button type="button" class="btn-secondary evenement-reset-closed-btn" id="resetClosedEvenementsBtn" hidden>
+              Réinitialiser les clôturés
+            </button>
+          </div>
+          <p class="save-msg" id="evenementSaveMsg" hidden></p>
+          <div id="evenementMemberSummary" class="evenement-member-summary-wrap" hidden></div>
+          <div id="evenementList" class="evenement-list"></div>
+        </section>
+      </div>
+
+      <div class="tab-content" id="tab-autre-argent">
+        <section class="panel">
+          <h2>Autre argent</h2>
+          <p class="panel-desc">Contributions volontaires des potos — visibles et gérables uniquement par les administrateurs. Ces montants sont ajoutés à la caisse brute.</p>
+          <form id="autreArgentForm" class="autre-argent-form">
+            <label>
+              Poto
+              <select id="autreArgentMember" required>
+                <option value="">— Choisir le poto —</option>
+              </select>
+            </label>
+            <label>
+              Montant (€)
+              <input type="number" id="autreArgentAmount" min="1" step="0.5" placeholder="Ex : 50" required />
+            </label>
+            <label class="autre-argent-form-wide">
+              Motif (optionnel)
+              <input type="text" id="autreArgentNote" placeholder="Ex : Don personnel" maxlength="120" />
+            </label>
+            <button type="submit" class="btn-primary">Ajouter à la caisse brute</button>
+          </form>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head">
+            <div>
+              <h2>Contributions enregistrées</h2>
+              <p class="panel-desc">Total en caisse brute : <strong id="autreArgentTotal">0 €</strong></p>
+            </div>
+          </div>
+          <p class="save-msg" id="autreArgentSaveMsg" hidden></p>
+          <div class="table-wrap">
+            <table class="cotisation-table autre-argent-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Poto</th>
+                  <th>Motif</th>
+                  <th>Montant</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="autreArgentList"></tbody>
+            </table>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="modal-overlay open" id="loginModal">
+    <div class="modal">
+      <div class="modal-hero">
+        <svg class="modal-bbc-logo" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
+          <rect width="48" height="48" rx="12" fill="#E8F2FD"/>
+          <path d="M16 14C14.3 14 13 15.3 13 17V31C13 32.7 14.3 34 16 34C17.7 34 19 32.7 19 31V17C19 15.3 17.7 14 16 14Z" fill="#0071EB"/>
+          <path d="M28 14C26.3 14 25 15.3 25 17V31C25 32.7 26.3 34 28 34C29.7 34 31 32.7 31 31V17C31 15.3 29.7 14 28 14Z" fill="#0071EB"/>
+        </svg>
+        <h3>Connexion membre</h3>
+        <p class="modal-desc">Identifiant = votre <strong>nom</strong>. Mot de passe initial : <strong>1234</strong>.</p>
+      </div>
+      <form id="loginForm">
+        <label>
+          Identifiant (votre nom)
+          <input type="text" id="loginName" placeholder="Ex : Boris, Dario, Yves..." required autocomplete="username" />
+        </label>
+        <label>
+          Mot de passe
+          <input type="password" id="loginPassword" placeholder="Mot de passe" required autocomplete="current-password" />
+        </label>
+        <p class="modal-error" id="loginError" hidden>Identifiant ou mot de passe incorrect.</p>
+        <div class="modal-actions">
+          <button type="submit" class="btn-primary">Se connecter</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="changePasswordModal">
+    <div class="modal">
+      <div class="modal-hero">
+        <h3>Changer votre mot de passe</h3>
+        <p class="modal-desc">Première connexion : remplacez le mot de passe <strong>1234</strong> par le vôtre.</p>
+      </div>
+      <form id="changePasswordForm">
+        <label>
+          Mot de passe actuel
+          <input type="password" id="currentPassword" required autocomplete="current-password" />
+        </label>
+        <label>
+          Nouveau mot de passe
+          <input type="password" id="newPassword" minlength="4" required autocomplete="new-password" />
+        </label>
+        <label>
+          Confirmer le nouveau mot de passe
+          <input type="password" id="confirmPassword" minlength="4" required autocomplete="new-password" />
+        </label>
+        <p class="modal-error" id="changePasswordError" hidden></p>
+        <div class="modal-actions">
+          <button type="submit" class="btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="api-client.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
