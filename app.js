@@ -44,13 +44,13 @@ const PENDING_VOTE_STATUSES = ["voting", "awaiting_financier"];
 const BORROWER_ACTIVE_STATUSES = ["voting", "awaiting_financier", "active", "defaulted"];
 
 const ROLES = [
-  { id: "president", label: "Président" },
-  { id: "vice-president", label: "Vice président" },
-  { id: "censeur", label: "Censeur" },
-  { id: "tresorier", label: "Financier" },
-  { id: "vice-tresorier", label: "Vice financier" },
-  { id: "charge-affaires", label: "Chargé d'activité" },
-  { id: "vice-charge-affaires", label: "Vice chargé d'activité" },
+  { id: "president", label: "Président", short: "Président" },
+  { id: "vice-president", label: "Vice président", short: "V.-Prés." },
+  { id: "censeur", label: "Censeur", short: "Censeur" },
+  { id: "tresorier", label: "Financier", short: "Financier" },
+  { id: "vice-tresorier", label: "Vice financier", short: "V.-Fin." },
+  { id: "charge-affaires", label: "Chargé d'activité", short: "Chg. act." },
+  { id: "vice-charge-affaires", label: "Vice chargé d'activité", short: "V.-Chg." },
 ];
 
 const AMENDE_TYPES = [
@@ -108,6 +108,8 @@ const roleForm = document.getElementById("roleForm");
 const roleMemberSelect = document.getElementById("roleMember");
 const rolePostSelect = document.getElementById("rolePost");
 const bureauList = document.getElementById("bureauList");
+const bureauAssignToggle = document.getElementById("bureauAssignToggle");
+let bureauAssignOpen = false;
 const cotisationBody = document.getElementById("cotisationBody");
 const cotisationTotal = document.getElementById("cotisationTotal");
 const tourneeYearSelect = document.getElementById("tourneeYear");
@@ -1020,7 +1022,19 @@ function updateSessionUI() {
   tourneeInfoMsg.hidden = canManageTab("tournee");
   membresLockMsg.hidden = isAdmin;
 
-  if (rolesPanel) rolesPanel.hidden = !isAdmin;
+  if (bureauAssignToggle) bureauAssignToggle.hidden = !isAdmin;
+  if (rolesPanel) {
+    if (!isAdmin) {
+      rolesPanel.hidden = true;
+      bureauAssignOpen = false;
+    } else {
+      rolesPanel.hidden = !bureauAssignOpen;
+    }
+    if (bureauAssignToggle) {
+      bureauAssignToggle.textContent = bureauAssignOpen ? "Fermer" : "Attribuer";
+      bureauAssignToggle.setAttribute("aria-expanded", String(bureauAssignOpen));
+    }
+  }
   if (addMemberPanel) addMemberPanel.hidden = !isAdmin;
   if (tabPermissionsPanel) tabPermissionsPanel.hidden = !isAdmin;
   if (adminRolesPanel) adminRolesPanel.hidden = !isAdmin;
@@ -1326,26 +1340,37 @@ function saveTabPermissionsFromUI() {
 }
 
 function renderBureau() {
-  bureauList.innerHTML = ROLES.map((role) => {
-    const memberId = roles[role.id];
-    const member = memberId ? getMemberById(memberId) : null;
+  const isAdmin = isGroupAdmin();
+  const visibleRoles = isAdmin ? ROLES : ROLES.filter((role) => roles[role.id]);
 
-    return `
-      <li class="bureau-item">
-        <div>
-          <p class="bureau-role">${escapeHtml(role.label)}</p>
-          <p class="bureau-name">${member ? escapeHtml(member.name) : "Non attribué"}</p>
-        </div>
-        ${
-          member && isGroupAdmin()
-            ? `<button class="btn-clear" data-role="${role.id}" title="Retirer">Retirer</button>`
-            : ""
-        }
-      </li>
-    `;
-  }).join("");
+  if (visibleRoles.length === 0) {
+    bureauList.innerHTML = `<li class="bureau-empty">Aucun poste attribué.</li>`;
+    return;
+  }
 
-  bureauList.querySelectorAll(".btn-clear").forEach((btn) => {
+  bureauList.innerHTML = visibleRoles
+    .map((role) => {
+      const memberId = roles[role.id];
+      const member = memberId ? getMemberById(memberId) : null;
+      const canClear = member && isAdmin;
+
+      return `
+        <li class="bureau-card${member ? "" : " is-vacant"}">
+          <div class="bureau-card-body">
+            <span class="bureau-card-name">${member ? escapeHtml(member.name) : "—"}</span>
+            <span class="bureau-card-role">${escapeHtml(role.label)}</span>
+          </div>
+          ${
+            canClear
+              ? `<button type="button" class="btn-bureau-clear" data-role="${role.id}" title="Retirer — ${escapeHtml(role.label)}">×</button>`
+              : ""
+          }
+        </li>
+      `;
+    })
+    .join("");
+
+  bureauList.querySelectorAll(".btn-bureau-clear").forEach((btn) => {
     btn.addEventListener("click", () => clearRole(btn.dataset.role));
   });
 }
@@ -3998,6 +4023,8 @@ function assignRole(memberId, roleId) {
   roles[roleId] = memberId;
   saveRoles();
   roleForm.reset();
+  bureauAssignOpen = false;
+  updateSessionUI();
 }
 
 function clearRole(roleId) {
@@ -4178,6 +4205,11 @@ roleForm.addEventListener("submit", (e) => {
   const roleId = rolePostSelect.value;
   if (!memberId || !roleId) return;
   assignRole(memberId, roleId);
+});
+
+bureauAssignToggle?.addEventListener("click", () => {
+  bureauAssignOpen = !bureauAssignOpen;
+  updateSessionUI();
 });
 
 tabs.forEach((tab) => {

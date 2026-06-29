@@ -651,45 +651,176 @@ body::before {
   border-color: var(--primary);
 }
 
-.bureau-list {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
+.bureau-block {
+  margin: 0.25rem 0 0;
+  padding: 0.5rem 0.15rem 0.15rem;
+  border-top: 1px solid var(--border);
+  background: transparent;
+  box-shadow: none;
 }
 
-.bureau-item {
+.bureau-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.65rem;
-  padding: 0.6rem 0.8rem;
+  gap: 0.4rem;
+  margin-bottom: 0.3rem;
+}
+
+.bureau-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.bureau-edit-toggle {
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.bureau-edit-toggle:hover {
+  color: var(--primary);
+}
+
+.bureau-assign {
+  margin-bottom: 0.35rem;
+}
+
+.bureau-assign-form {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.bureau-assign-form select {
+  flex: 1;
+  min-width: 0;
+  padding: 0.22rem 0.35rem;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  transition: background 0.2s var(--ease);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 0.68rem;
+  outline: none;
 }
 
-.bureau-item:hover {
-  background: var(--bg-muted);
+.bureau-assign-form select:focus {
+  border-color: var(--primary);
 }
 
-.bureau-role {
-  font-size: 0.8rem;
-  color: var(--text-muted);
-  font-weight: 500;
+.btn-compact {
+  flex-shrink: 0;
+  padding: 0.22rem 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 4px;
+  min-height: auto;
+  white-space: nowrap;
 }
 
-.bureau-name {
+.bureau-compact {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.25rem, 1fr));
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+}
+
+.bureau-card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.15rem;
+  min-width: 0;
+  padding: 0.28rem 0.32rem 0.26rem;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+}
+
+.bureau-card.is-vacant {
+  opacity: 0.5;
+}
+
+.bureau-card-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  line-height: 1.15;
+}
+
+.bureau-card-name {
+  font-size: 0.72rem;
   font-weight: 600;
-  font-size: 0.95rem;
-  margin-top: 0.1rem;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.bureau-name:empty,
-.bureau-item .bureau-name:last-child {
+.bureau-card.is-vacant .bureau-card-name {
+  font-style: italic;
   color: var(--text-muted);
   font-weight: 500;
+}
+
+.bureau-card-role {
+  font-size: 0.58rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.bureau-empty {
+  grid-column: 1 / -1;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.btn-bureau-clear {
+  flex-shrink: 0;
+  width: 0.85rem;
+  height: 0.85rem;
+  margin-top: -0.05rem;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.7rem;
+  line-height: 1;
+  border-radius: 3px;
+  background: transparent;
+  color: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.bureau-card:hover .btn-bureau-clear,
+.bureau-card:focus-within .btn-bureau-clear {
+  color: var(--text-muted);
+}
+
+.btn-bureau-clear:hover {
+  background: var(--danger-light);
+  color: var(--danger);
 }
 
 .btn-clear {
@@ -2310,7 +2441,7 @@ body::before {
 
 /* === BlaBlaCar — surfaces & formulaires === */
 
-.bureau-item,
+.bureau-card,
 .admin-item,
 .pret-loan-card,
 .pret-notif-item,
@@ -2523,10 +2654,34 @@ body::before {
   .evenement-head,
   .evenement-contribution-amount,
   .evenement-reimburse-row,
-  .bureau-item,
   .admin-item {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .bureau-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.25rem;
+  }
+
+  .bureau-assign-form {
+    flex-wrap: wrap;
+  }
+
+  .bureau-assign-form select {
+    flex: 1 1 calc(50% - 0.15rem);
+    min-width: 6rem;
+    font-size: 16px;
+    min-height: 32px;
+  }
+
+  .bureau-assign-form .btn-compact {
+    flex: 0 0 auto;
+    min-height: 32px;
+  }
+
+  .btn-bureau-clear {
+    color: var(--text-muted);
   }
 
   .evenement-reimburse-row .btn-primary {
@@ -2603,7 +2758,6 @@ body::before {
   }
 
   .member-right,
-  .bureau-item .btn-clear,
   .admin-item .btn-delete {
     width: 100%;
   }
