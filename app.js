@@ -905,6 +905,7 @@ async function loginMember(name, password) {
   try {
     await apiLogin(name.trim(), password);
     await loadDataFromServer();
+    if (typeof potoPullSharedUpdates === "function") await potoPullSharedUpdates();
     reloadFromStorage();
     if (typeof potoStartPeriodicSync === "function") potoStartPeriodicSync();
     ensureDefaultAdmin();
@@ -1023,6 +1024,7 @@ function updateSessionUI() {
 
   loginBtn.hidden = loggedIn;
   logoutBtn.hidden = !loggedIn;
+  if (loggedIn) updatePretTabBadge();
 
   saveCotisationsBtn.hidden = !canManageTab("tournee");
   tourneeInfoMsg.hidden = canManageTab("tournee");
@@ -2435,14 +2437,27 @@ function confirmVoterNotification(loan, memberId, vote) {
   );
 }
 
-function notifyLoanVoters(loan) {
+function notifyAllMembersOnLoanInitiated(loan) {
   const borrower = getMemberById(loan.borrowerId);
-  getLoanVoters(loan.borrowerId).forEach((voter) => {
+  const borrowerName = borrower?.name || "Un membre";
+  const amountLabel = formatEuro(loan.amount);
+
+  getSortedMembers().forEach((member) => {
+    if (member.id === loan.borrowerId) {
+      upsertLoanNotification(
+        member.id,
+        loan.id,
+        "loan_pending",
+        `Demande en cours — votre prêt de ${amountLabel} est en vote. Tous les membres ont été notifiés.`
+      );
+      return;
+    }
+
     addNotification(
-      voter.id,
+      member.id,
       "loan_vote",
       loan.id,
-      `${borrower?.name || "Un membre"} demande un prêt de ${formatEuro(loan.amount)}. Votez Oui ou Non sous 24 h.`
+      `${borrowerName} demande un prêt de ${amountLabel}. Votez Oui ou Non sous 24 h.`
     );
   });
 }
@@ -2588,13 +2603,7 @@ function initiatePret(amount, note) {
   };
 
   prets.unshift(loan);
-  notifyLoanVoters(loan);
-  upsertLoanNotification(
-    current.id,
-    loan.id,
-    "loan_pending",
-    `Demande en cours — votre prêt de ${formatEuro(parsedAmount)} est en vote.`
-  );
+  notifyAllMembersOnLoanInitiated(loan);
   saveNotifications(false);
   savePrets();
   pretForm.reset();
@@ -2844,11 +2853,37 @@ function renderPretSummary() {
   `;
 }
 
+function getUnreadPretNotificationCount(memberId) {
+  return getPretNotificationsForMember(memberId).filter((notif) => !notif.read).length;
+}
+
+function updatePretTabBadge() {
+  const current = getCurrentMember();
+  const pretsTab = document.querySelector('.tab[data-tab="prets"]');
+  if (!pretsTab) return;
+
+  let badge = pretsTab.querySelector(".tab-badge");
+  if (!badge) {
+    badge = document.createElement("span");
+    badge.className = "tab-badge";
+    pretsTab.appendChild(badge);
+  }
+
+  const unread = current ? getUnreadPretNotificationCount(current.id) : 0;
+  if (unread > 0) {
+    badge.textContent = unread > 9 ? "9+" : String(unread);
+    badge.hidden = false;
+  } else {
+    badge.hidden = true;
+  }
+}
+
 function renderPretNotifications() {
   const current = getCurrentMember();
   if (!current) return;
 
   const mine = getPretNotificationsForMember(current.id).slice(0, 20);
+  updatePretTabBadge();
 
   if (pretNotificationsPanel) {
     pretNotificationsPanel.hidden = mine.length === 0;
@@ -4464,9 +4499,18 @@ async function initApp() {
     openLoginModal();
   }
 
+  window.potoOnServerDataPulled = () => {
+    reloadFromStorage();
+    updatePretTabBadge();
+    if (document.getElementById("tab-prets")?.classList.contains("active")) {
+      renderPrets();
+    }
+  };
+
   appReady = true;
   updateSessionUI();
   render();
+  updatePretTabBadge();
   showTab(getSavedTab());
 }
 

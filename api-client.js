@@ -157,7 +157,71 @@ function dataRichness(data) {
   const evenements = Array.isArray(data["poto-timide-evenements"])
     ? data["poto-timide-evenements"].length
     : 0;
-  return members + roles * 3 + cotisations * 2 + tourneeYears * 5 + amendes + evenements * 2;
+  const prets = Array.isArray(data["poto-timide-prets"]) ? data["poto-timide-prets"].length : 0;
+  const notifications = Array.isArray(data["poto-timide-notifications"])
+    ? data["poto-timide-notifications"].length
+    : 0;
+  return members + roles * 3 + cotisations * 2 + tourneeYears * 5 + amendes + evenements * 2 + prets * 4 + notifications;
+}
+
+function mergeNotifications(local, server) {
+  const localArr = Array.isArray(local) ? local : [];
+  const serverArr = Array.isArray(server) ? server : [];
+  const byKey = new Map();
+
+  [...localArr, ...serverArr].forEach((notif) => {
+    if (!notif) return;
+    const key = notif.id || `${notif.memberId}:${notif.loanId}:${notif.type}`;
+    const existing = byKey.get(key);
+    if (!existing || new Date(notif.createdAt || 0) >= new Date(existing.createdAt || 0)) {
+      byKey.set(key, notif);
+    }
+  });
+
+  return [...byKey.values()].sort(
+    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+  );
+}
+
+function mergePrets(local, server) {
+  const localArr = Array.isArray(local) ? local : [];
+  const serverArr = Array.isArray(server) ? server : [];
+  const byId = new Map();
+
+  [...localArr, ...serverArr].forEach((loan) => {
+    if (!loan?.id) return;
+    const existing = byId.get(loan.id);
+    if (!existing) {
+      byId.set(loan.id, loan);
+      return;
+    }
+
+    const existingVotes = Object.keys(existing.votes || {}).length;
+    const incomingVotes = Object.keys(loan.votes || {}).length;
+    const existingDate = new Date(existing.createdAt || 0).getTime();
+    const incomingDate = new Date(loan.createdAt || 0).getTime();
+
+    if (incomingVotes > existingVotes || incomingDate >= existingDate) {
+      byId.set(loan.id, loan);
+    }
+  });
+
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+  );
+}
+
+function mergeSharedLiveData(localPayload, serverData) {
+  const merged = { ...serverData };
+  merged["poto-timide-notifications"] = mergeNotifications(
+    localPayload["poto-timide-notifications"],
+    serverData["poto-timide-notifications"]
+  );
+  merged["poto-timide-prets"] = mergePrets(
+    localPayload["poto-timide-prets"],
+    serverData["poto-timide-prets"]
+  );
+  return merged;
 }
 
 function serverLooksEmpty(serverData, status) {
@@ -201,12 +265,41 @@ async function loadDataFromServer() {
   }
 
   if (localScore > serverScore + 2) {
-    await pushLocalDataToServer(localPayload);
+    const mergedLive = mergeSharedLiveData(localPayload, serverData);
+    const payloadToPush = { ...localPayload };
+    payloadToPush["poto-timide-prets"] = mergedLive["poto-timide-prets"];
+    payloadToPush["poto-timide-notifications"] = mergedLive["poto-timide-notifications"];
+    await pushLocalDataToServer(payloadToPush);
     return { source: "local", pushed: true };
   }
 
-  writeServerDataToLocal(serverData);
+  writeServerDataToLocal(mergeSharedLiveData(localPayload, serverData));
   return { source: "server", pushed: false };
+}
+
+async function pullSharedUpdatesFromServer() {
+  if (!authState.loggedIn) return false;
+
+  try {
+    const serverData = await apiFetch("/api/data");
+    const localPayload = getLocalDataPayload();
+    const merged = mergeSharedLiveData(localPayload, serverData);
+    const originalSetItem = localStorage.setItem.bind(localStorage);
+
+    ["poto-timide-prets", "poto-timide-notifications"].forEach((key) => {
+      if (merged[key] !== undefined) {
+        originalSetItem(key, JSON.stringify(merged[key]));
+      }
+    });
+
+    if (typeof window.potoOnServerDataPulled === "function") {
+      window.potoOnServerDataPulled();
+    }
+    return true;
+  } catch (err) {
+    console.warn("Récupération des prêts/notifications échouée.", err);
+    return false;
+  }
 }
 
 function queueServerSync(key, rawValue) {
@@ -238,10 +331,11 @@ async function flushServerSync() {
 
 function startPeriodicSync() {
   stopPeriodicSync();
-  periodicSyncTimer = setInterval(() => {
+  periodicSyncTimer = setInterval(async () => {
     if (!authState.loggedIn) return;
-    flushServerSync();
-  }, 30000);
+    await pullSharedUpdatesFromServer();
+    await flushServerSync();
+  }, 15000);
 }
 
 function stopPeriodicSync() {
@@ -286,5 +380,6 @@ installStorageSync();
 installUnloadSync();
 
 window.potoFlushSync = flushServerSync;
+window.potoPullSharedUpdates = pullSharedUpdatesFromServer;
 window.potoStartPeriodicSync = startPeriodicSync;
 window.potoStopPeriodicSync = stopPeriodicSync;
