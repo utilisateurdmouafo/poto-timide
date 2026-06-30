@@ -1,16 +1,19 @@
 {
   "name": "poto-timide",
   "version": "1.0.0",
-  "description": "Poto Timide — gestion du groupe avec auth et SQLite",
+  "description": "Poto Timide — gestion du groupe avec auth et Turso/SQLite",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "migrate:turso": "node migrate-to-turso.js",
+    "setup:turso": "node setup-turso-auto.js"
   },
   "engines": {
     "node": "20.x"
   },
   "dependencies": {
+    "@libsql/client": "^0.14.0",
     "bcryptjs": "^2.4.3",
     "better-sqlite3": "^11.7.0",
     "express": "^4.21.2",

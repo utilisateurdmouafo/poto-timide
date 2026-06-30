@@ -45,6 +45,24 @@ async function apiFetch(url, options = {}) {
   return body;
 }
 
+const SESSION_HINT_KEY = "poto-timide-session";
+
+function persistSessionHint(member) {
+  if (!member?.id) return;
+  localStorage.setItem(
+    SESSION_HINT_KEY,
+    JSON.stringify({
+      memberId: member.id,
+      memberName: member.name,
+      savedAt: Date.now(),
+    })
+  );
+}
+
+function clearSessionHint() {
+  localStorage.removeItem(SESSION_HINT_KEY);
+}
+
 async function checkServerSession() {
   const data = await apiFetch("/api/auth/session");
   if (data.loggedIn) {
@@ -53,6 +71,7 @@ async function checkServerSession() {
       member: data.member,
       mustChangePassword: Boolean(data.mustChangePassword),
     };
+    persistSessionHint(data.member);
   } else {
     authState = { loggedIn: false, member: null, mustChangePassword: false };
   }
@@ -70,12 +89,14 @@ async function apiLogin(username, password) {
     member: data.member,
     mustChangePassword: Boolean(data.mustChangePassword),
   };
+  persistSessionHint(data.member);
   return authState;
 }
 
 async function apiLogout() {
   await apiFetch("/api/auth/logout", { method: "POST" });
   authState = { loggedIn: false, member: null, mustChangePassword: false };
+  clearSessionHint();
   stopPeriodicSync();
 }
 

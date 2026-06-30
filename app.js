@@ -4075,7 +4075,7 @@ async function addMember(name) {
       if (typeof potoFlushSync === "function") await potoFlushSync();
       const result = await apiEnsureMemberUser(newMember.id);
       if (result?.created) {
-        console.log(result.message);
+        alert(`${trimmed} peut se connecter avec le mot de passe : 1234`);
       }
     } catch (err) {
       console.warn("Compte non créé immédiatement :", err.message);
@@ -4083,6 +4083,10 @@ async function addMember(name) {
         `Membre ajouté, mais le compte n'a pas pu être créé tout de suite.\nRéessayez ou réinitialisez le mot de passe depuis la liste.`
       );
     }
+  } else {
+    alert(
+      `${trimmed} est enregistré localement. Connectez-vous en admin pour activer son compte (mot de passe : 1234).`
+    );
   }
 
   memberForm.reset();
@@ -4412,31 +4416,34 @@ document.querySelectorAll(".tournee-sort-btn").forEach((button) => {
   });
 });
 
+async function restoreLoggedInApp() {
+  try {
+    await loadDataFromServer();
+  } catch (err) {
+    console.warn("Chargement serveur partiel, utilisation du cache local.", err);
+  }
+
+  reloadFromStorage();
+  ensureDefaultAdmin();
+  if (authState.member) {
+    authState.member.isAdmin = isMemberAdmin(authState.member.id);
+  }
+  if (typeof potoStartPeriodicSync === "function") potoStartPeriodicSync();
+
+  loginModal.classList.remove("open");
+
+  if (authState.mustChangePassword) {
+    openChangePasswordModal();
+  } else {
+    appEl.classList.remove("app-blurred");
+  }
+}
+
 async function initApp() {
   reloadFromStorage();
 
   try {
     await checkServerSession();
-
-    if (authState.loggedIn) {
-      await loadDataFromServer();
-      reloadFromStorage();
-      ensureDefaultAdmin();
-      if (authState.member) {
-        authState.member.isAdmin = isMemberAdmin(authState.member.id);
-      }
-      if (typeof potoStartPeriodicSync === "function") potoStartPeriodicSync();
-
-      loginModal.classList.remove("open");
-
-      if (authState.mustChangePassword) {
-        openChangePasswordModal();
-      } else {
-        appEl.classList.remove("app-blurred");
-      }
-    } else {
-      openLoginModal();
-    }
   } catch (err) {
     console.error(err);
     reloadFromStorage();
@@ -4444,6 +4451,17 @@ async function initApp() {
     loginError.textContent =
       "Serveur indisponible — vos données locales sont conservées. Reconnectez-vous.";
     loginError.hidden = false;
+    appReady = true;
+    updateSessionUI();
+    render();
+    showTab(getSavedTab());
+    return;
+  }
+
+  if (authState.loggedIn) {
+    await restoreLoggedInApp();
+  } else {
+    openLoginModal();
   }
 
   appReady = true;
