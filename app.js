@@ -30,9 +30,12 @@ const NOTIFICATIONS_KEY = "poto-timide-notifications";
 const EVENEMENTS_KEY = "poto-timide-evenements";
 const ADMIN_IDS_KEY = "poto-timide-admin-ids";
 const AUTRE_ARGENT_KEY = "poto-timide-autre-argent";
+const FINANCE_KEY = "poto-timide-finance";
+const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["membres", "tournee", "amendes", "prets", "evenements", "autre-argent"];
+const TAB_IDS = ["membres", "tournee", "amendes", "prets", "evenements", "finance", "autre-argent"];
+const FINANCE_SUBTABS = ["journal", "cotisations", "ancienne-tournee", "amendes", "prets"];
 const MAX_MEMBERS = 50;
 const ADMIN_NAME = "Dario";
 const FOND_CAISSE = 1000;
@@ -154,7 +157,6 @@ const amendeDetteTotalActionsSpacer = document.getElementById("amendeDetteTotalA
 const amendeTitle = document.getElementById("amendeTitle");
 const amendeSubtitle = document.getElementById("amendeSubtitle");
 const amendeMemberCol = document.getElementById("amendeMemberCol");
-const amendeTotalSpacer = document.getElementById("amendeTotalSpacer");
 const amendeActionsCol = document.getElementById("amendeActionsCol");
 const amendeTotalActionsSpacer = document.getElementById("amendeTotalActionsSpacer");
 const amendeFormTitle = document.getElementById("amendeFormTitle");
@@ -206,6 +208,10 @@ const autreArgentNoteInput = document.getElementById("autreArgentNote");
 const autreArgentList = document.getElementById("autreArgentList");
 const autreArgentTotal = document.getElementById("autreArgentTotal");
 const autreArgentSaveMsg = document.getElementById("autreArgentSaveMsg");
+const financeDashboard = document.getElementById("financeDashboard");
+const financeSubtabs = document.getElementById("financeSubtabs");
+const financeSubcontent = document.getElementById("financeSubcontent");
+const financeSubtitle = document.getElementById("financeSubtitle");
 
 let members = [];
 let adminIds = [];
@@ -224,6 +230,8 @@ let prets = [];
 let notifications = [];
 let evenements = [];
 let autreArgent = [];
+let financeData = null;
+let activeFinanceSub = "journal";
 let editingAmendeId = null;
 let appReady = false;
 
@@ -327,6 +335,319 @@ function loadAutreArgent() {
   } catch {
     return [];
   }
+}
+
+function loadFinance() {
+  try {
+    const data = localStorage.getItem(FINANCE_KEY);
+    return data ? JSON.parse(data) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function ensureFinanceData() {
+  if (financeData) return;
+  financeData = loadFinance();
+  if (financeData) return;
+
+  try {
+    const res = await fetch("/finance-vitran.json", { cache: "no-cache" });
+    if (!res.ok) return;
+    financeData = await res.json();
+    localStorage.setItem(FINANCE_KEY, JSON.stringify(financeData));
+  } catch (err) {
+    console.warn("Chargement finance-vitran.json impossible.", err);
+  }
+}
+
+function getFinanceSubtab() {
+  const stored = localStorage.getItem(FINANCE_SUBTAB_KEY);
+  return FINANCE_SUBTABS.includes(stored) ? stored : "journal";
+}
+
+function showFinanceSub(subId) {
+  if (!FINANCE_SUBTABS.includes(subId)) subId = "journal";
+  activeFinanceSub = subId;
+  localStorage.setItem(FINANCE_SUBTAB_KEY, subId);
+  financeSubtabs?.querySelectorAll(".finance-subtab").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.financeSub === subId);
+  });
+  renderFinanceSubcontent();
+}
+
+function renderFinanceDashboard() {
+  if (!financeDashboard) return;
+  if (!financeData) {
+    financeDashboard.innerHTML = `
+      <div class="finance-empty">
+        Aucune donnée finance chargée. Lancez <code>node import-finance-vitran.js</code> puis synchronisez vers Render.
+      </div>`;
+    return;
+  }
+
+  const f = financeData.finances || {};
+  const imported = financeData.importedAt || "—";
+  financeDashboard.innerHTML = `
+    <div class="finance-stat finance-stat--in">
+      <span class="finance-stat-label">Entrées</span>
+      <strong>${formatEuro(f.totalIn || 0)}</strong>
+    </div>
+    <div class="finance-stat finance-stat--out">
+      <span class="finance-stat-label">Sorties</span>
+      <strong>${formatEuro(f.totalOut || 0)}</strong>
+    </div>
+    <div class="finance-stat finance-stat--balance">
+      <span class="finance-stat-label">Solde</span>
+      <strong>${formatEuro(f.balance || 0)}</strong>
+    </div>
+    <div class="finance-stat finance-stat--meta">
+      <span class="finance-stat-label">Import</span>
+      <strong>${escapeHtml(imported)}</strong>
+      <span class="finance-stat-note">${(f.entries?.length || 0) + (f.exits?.length || 0)} mouvements</span>
+    </div>
+  `;
+  if (financeSubtitle) {
+    financeSubtitle.textContent =
+      "Archive Finance poto_vitran.xlsx — journal, cotisations, ancienne tournée, amendes et prêts historiques.";
+  }
+}
+
+function renderFinanceJournal() {
+  const f = financeData?.finances;
+  if (!f) return `<p class="finance-empty">Journal indisponible.</p>`;
+
+  const rows = [];
+  (f.entries || []).forEach((row) => {
+    rows.push({ type: "in", date: row.date, amount: row.amount, person: row.person, note: row.note });
+  });
+  (f.exits || []).forEach((row) => {
+    rows.push({ type: "out", date: row.date, amount: row.amount, person: row.person, note: row.note });
+  });
+  rows.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
+
+  const body = rows.length
+    ? rows
+        .map(
+          (row, i) => `
+        <tr class="finance-row finance-row--${row.type}" style="--finance-row-i:${i}">
+          <td><span class="finance-flow-badge finance-flow-badge--${row.type}">${row.type === "in" ? "Entrée" : "Sortie"}</span></td>
+          <td>${row.date ? formatDate(String(row.date).split("T")[0]) : "—"}</td>
+          <td class="finance-td-person">${escapeHtml(row.person || "—")}</td>
+          <td class="finance-td-note">${escapeHtml(row.note || "—")}</td>
+          <td class="finance-td-amount finance-td-amount--${row.type}">${formatEuro(row.amount || 0)}</td>
+        </tr>`
+        )
+        .join("")
+    : `<tr><td colspan="5" class="finance-empty-cell">Aucun mouvement.</td></tr>`;
+
+  return `
+    <div class="finance-section-head"><h3>Journal des entrées et sorties</h3></div>
+    <div class="finance-table-wrap">
+      <table class="finance-table">
+        <thead>
+          <tr><th>Type</th><th>Date</th><th>Personne</th><th>Détail</th><th class="finance-th-amount">Montant</th></tr>
+        </thead>
+        <tbody>${body}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4">Total entrées / sorties / solde</td>
+            <td class="finance-td-amount">${formatEuro(f.totalIn || 0)} · ${formatEuro(f.totalOut || 0)} · ${formatEuro(f.balance || 0)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+}
+
+function renderFinanceCotisations() {
+  const rows = financeData?.cotisations || [];
+  const totals = financeData?.cotisationMemberTotals || [];
+  const body = rows.length
+    ? rows
+        .map(
+          (row, i) => `
+        <tr style="--finance-row-i:${i}">
+          <td>${escapeHtml(row.yearA?.month || "—")}</td>
+          <td>${escapeHtml(row.yearA?.receivers || "—")}</td>
+          <td>${escapeHtml(row.yearA?.eaters || "—")}</td>
+          <td>${escapeHtml(row.yearB?.month || "—")}</td>
+          <td>${escapeHtml(String(row.yearB?.receivers ?? "—"))}</td>
+          <td>${escapeHtml(row.yearB?.eaters || "—")}</td>
+        </tr>`
+        )
+        .join("")
+    : `<tr><td colspan="6" class="finance-empty-cell">Aucune cotisation.</td></tr>`;
+
+  const totalsBody = totals.length
+    ? totals
+        .map(
+          (row) => `
+        <tr>
+          <td>${escapeHtml(row.name)}</td>
+          <td class="finance-td-amount">${formatEuro(row.amount || 0)}</td>
+        </tr>`
+        )
+        .join("")
+    : "";
+
+  return `
+    <div class="finance-section-head"><h3>Organisation des cotisations (tournées)</h3></div>
+    <div class="finance-table-wrap">
+      <table class="finance-table">
+        <thead>
+          <tr>
+            <th colspan="3">Tournée A</th>
+            <th colspan="3">Tournée B</th>
+          </tr>
+          <tr>
+            <th>Mois</th><th>Reçoit</th><th>Bouffe</th>
+            <th>Mois</th><th>Reçoit</th><th>Bouffe</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>
+    ${
+      totals.length
+        ? `<div class="finance-section-head finance-section-head--sub"><h3>Totaux par membre</h3><span>Total général : ${formatEuro(financeData.cotisationTotal || 0)}</span></div>
+    <div class="finance-table-wrap finance-table-wrap--compact">
+      <table class="finance-table">
+        <thead><tr><th>Membre</th><th class="finance-th-amount">Montant</th></tr></thead>
+        <tbody>${totalsBody}</tbody>
+      </table>
+    </div>`
+        : ""
+    }`;
+}
+
+function renderFinanceAncienneTournee() {
+  const membersRows = financeData?.ancienneTournee || [];
+  if (!membersRows.length) return `<p class="finance-empty">Ancienne tournée indisponible.</p>`;
+
+  const columnKeys = new Set();
+  membersRows.forEach((row) => {
+    Object.keys(row.columns || {}).forEach((key) => columnKeys.add(key));
+  });
+  const cols = [...columnKeys];
+
+  const head = cols
+    .map((col) => `<th colspan="3">${escapeHtml(col)}</th>`)
+    .join("");
+  const subHead = cols.map(() => `<th>Payé</th><th>Dû</th><th>Reste</th>`).join("");
+
+  const body = membersRows
+    .map((row, i) => {
+      const fond = `<td>${row.fondPaid ?? "—"}</td><td>${row.fondDue ?? "—"}</td><td>${row.fondRest ?? "—"}</td>`;
+      const cells = cols
+        .map((col) => {
+          const cell = row.columns?.[col] || {};
+          return `<td>${cell.paid ?? "—"}</td><td>${cell.due ?? "—"}</td><td>${cell.rest ?? "—"}</td>`;
+        })
+        .join("");
+      return `<tr style="--finance-row-i:${i}"><td class="finance-td-person">${escapeHtml(row.name)}</td>${fond}${cells}</tr>`;
+    })
+    .join("");
+
+  return `
+    <div class="finance-section-head"><h3>Ancienne tournée — soldes par membre</h3></div>
+    <div class="finance-table-wrap finance-table-wrap--wide">
+      <table class="finance-table finance-table--matrix">
+        <thead>
+          <tr><th rowspan="2">Membre</th><th colspan="3">Fond caisse</th>${head}</tr>
+          <tr><th>Payé</th><th>Dû</th><th>Reste</th>${subHead}</tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderFinanceAmendes() {
+  const block = financeData?.amendesHistorique;
+  if (!block?.rows?.length) return `<p class="finance-empty">Amendes historiques indisponibles.</p>`;
+
+  const headers = block.headers || [];
+  const head = headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
+  const body = block.rows
+    .map((row, i) => {
+      const cells = headers
+        .map((h) => {
+          const val = row.values?.[h];
+          return `<td>${val === undefined || val === null ? "—" : escapeHtml(String(val))}</td>`;
+        })
+        .join("");
+      return `<tr style="--finance-row-i:${i}"><td class="finance-td-person">${escapeHtml(row.name)}</td>${cells}</tr>`;
+    })
+    .join("");
+
+  return `
+    <div class="finance-section-head"><h3>Amendes historiques (grille Excel)</h3></div>
+    <div class="finance-table-wrap finance-table-wrap--wide">
+      <table class="finance-table finance-table--matrix">
+        <thead><tr><th>Membre</th>${head}</tr></thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderFinancePrets() {
+  const rows = financeData?.pretsHistorique || [];
+  const body = rows.length
+    ? rows
+        .map(
+          (row, i) => `
+        <tr style="--finance-row-i:${i}">
+          <td class="finance-td-person">${escapeHtml(row.name)}</td>
+          <td class="finance-td-amount">${formatEuro(row.amount || 0)}</td>
+          <td>${row.start ? formatDate(String(row.start).split("T")[0]) : "—"}</td>
+          <td>${row.end ? formatDate(String(row.end).split("T")[0]) : "—"}</td>
+          <td>${row.remis ?? "—"}</td>
+          <td>${escapeHtml(row.status || "—")}</td>
+          <td>${row.order ?? "—"}</td>
+          <td>${escapeHtml(row.nextBorrower || "—")}</td>
+        </tr>`
+        )
+        .join("")
+    : `<tr><td colspan="8" class="finance-empty-cell">Aucun prêt historique.</td></tr>`;
+
+  return `
+    <div class="finance-section-head"><h3>Prêts historiques</h3></div>
+    <div class="finance-table-wrap">
+      <table class="finance-table">
+        <thead>
+          <tr>
+            <th>Emprunteur</th><th class="finance-th-amount">Montant</th><th>Début</th><th>Fin</th>
+            <th>Remis</th><th>Statut</th><th>N°</th><th>Suivant</th>
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+      </table>
+    </div>`;
+}
+
+function renderFinanceSubcontent() {
+  if (!financeSubcontent) return;
+  if (!financeData) {
+    financeSubcontent.innerHTML = `<p class="finance-empty">Importez Finance poto_vitran.xlsx avec import-finance-vitran.js</p>`;
+    return;
+  }
+
+  const renderers = {
+    journal: renderFinanceJournal,
+    cotisations: renderFinanceCotisations,
+    "ancienne-tournee": renderFinanceAncienneTournee,
+    amendes: renderFinanceAmendes,
+    prets: renderFinancePrets,
+  };
+  financeSubcontent.innerHTML = renderers[activeFinanceSub]?.() || "";
+}
+
+function renderFinance() {
+  activeFinanceSub = getFinanceSubtab();
+  renderFinanceDashboard();
+  financeSubtabs?.querySelectorAll(".finance-subtab").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.financeSub === activeFinanceSub);
+  });
+  renderFinanceSubcontent();
 }
 
 function saveAutreArgent(shouldRender = true) {
@@ -787,6 +1108,7 @@ function reloadFromStorage() {
   notifications = loadNotifications();
   evenements = loadEvenements();
   autreArgent = loadAutreArgent();
+  financeData = loadFinance();
   adminIds = loadAdminIds();
   ensureDefaultAdmin();
   tourneeData = loadTourneeData();
@@ -898,6 +1220,66 @@ function closeChangePasswordModal() {
   if (isAuthenticated()) {
     appEl.classList.remove("app-blurred");
   }
+}
+
+function bindFormEnterKey(form, inputs, onSubmit) {
+  if (!form) return;
+  const fields = inputs.filter(Boolean);
+  if (fields.length === 0) return;
+
+  form.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.isComposing || e.repeat) return;
+    const target = e.target;
+    if (!(target instanceof HTMLInputElement) || !fields.includes(target)) return;
+
+    const index = fields.indexOf(target);
+    const nextField = index < fields.length - 1 ? fields[index + 1] : null;
+
+    if (nextField && !nextField.value.trim()) {
+      e.preventDefault();
+      nextField.focus();
+      return;
+    }
+
+    e.preventDefault();
+    if (typeof onSubmit === "function") {
+      onSubmit();
+      return;
+    }
+    if (typeof form.requestSubmit === "function") {
+      form.requestSubmit();
+    } else {
+      form.dispatchEvent(new Event("submit", { cancelable: true, bubbles: true }));
+    }
+  });
+}
+
+function setupLoginForm() {
+  if (!loginForm) return;
+
+  const submitLogin = () => {
+    loginMember(loginNameInput?.value ?? "", loginPasswordInput?.value ?? "");
+  };
+
+  loginForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    submitLogin();
+  });
+
+  loginForm.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" || e.isComposing || e.repeat) return;
+    const target = e.target;
+    if (target !== loginNameInput && target !== loginPasswordInput) return;
+
+    if (target === loginNameInput && loginPasswordInput && !loginPasswordInput.value.trim()) {
+      e.preventDefault();
+      loginPasswordInput.focus();
+      return;
+    }
+
+    e.preventDefault();
+    submitLogin();
+  });
 }
 
 async function loginMember(name, password) {
@@ -1734,6 +2116,11 @@ function showTab(tabId) {
     renderEvenements();
   }
 
+  if (tabId === "finance") {
+    reloadFromStorage();
+    renderFinance();
+  }
+
   if (tabId === "autre-argent") {
     reloadFromStorage();
     renderAutreArgent();
@@ -1794,18 +2181,27 @@ function startEditAmende(id) {
   addAmendePanel?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function getAmendeTypeBadge(typeId) {
+  const label = getAmendeTypeLabel(typeId);
+  return `<span class="dette-type-badge type-${typeId}">${escapeHtml(label)}</span>`;
+}
+
+function getDetteTableLabelColspan(showAllMembers) {
+  return showAllMembers ? 4 : 3;
+}
+
 function renderDetteBanner(detteList, showAllMembers = false) {
   if (!amendeDetteWrap || !amendeDetteBody) return;
 
   const showActions = showAllMembers && canManageTab("amendes");
   const total = detteList.reduce((sum, amende) => sum + amende.amount, 0);
+  const labelColspan = getDetteTableLabelColspan(showAllMembers);
+  const colCount = labelColspan + 1 + (showActions ? 1 : 0);
 
   if (amendeDetteMemberCol) amendeDetteMemberCol.hidden = !showAllMembers;
   if (amendeDetteActionsCol) amendeDetteActionsCol.hidden = !showActions;
   if (amendeDetteTotalActionsSpacer) amendeDetteTotalActionsSpacer.hidden = !showActions;
-  if (amendeDetteTotalLabel) {
-    amendeDetteTotalLabel.colSpan = showAllMembers ? 3 : 2;
-  }
+  if (amendeDetteTotalLabel) amendeDetteTotalLabel.colSpan = labelColspan;
 
   if (detteList.length === 0) {
     amendeDetteWrap.hidden = true;
@@ -1825,32 +2221,31 @@ function renderDetteBanner(detteList, showAllMembers = false) {
 
   if (amendeDetteSummary) {
     amendeDetteSummary.innerHTML = `
-      <div class="amende-dette-summary-card">
-        <span class="amende-dette-summary-label">Total dettes</span>
-        <strong class="amende-dette-summary-amount">${formatEuro(total)}</strong>
-        <span class="amende-dette-summary-count">${detteList.length} dette${detteList.length > 1 ? "s" : ""}</span>
-      </div>
+      <span class="dette-block-total-label">Total</span>
+      <strong class="dette-block-total-amount">${formatEuro(total)}</strong>
+      <span class="dette-block-total-count">${detteList.length} dette${detteList.length > 1 ? "s" : ""}</span>
     `;
   }
 
   amendeDetteBody.innerHTML = detteList
-    .map((amende) => {
+    .map((amende, index) => {
       const memberName = showAllMembers
-        ? `<td class="amende-col-text amende-member-name">${escapeHtml(getMemberById(amende.memberId)?.name || "—")}</td>`
+        ? `<td class="dette-col-text dette-member-name">${escapeHtml(getMemberById(amende.memberId)?.name || "—")}</td>`
         : "";
 
       const actionsCell = showActions
-        ? `<td class="amende-actions">
+        ? `<td class="dette-td-actions">
             <button type="button" class="btn-primary btn-dette-pay" data-id="${amende.id}">Valider paiement</button>
           </td>`
         : "";
 
       return `
-        <tr>
+        <tr class="dette-row dette-row--event" style="--dette-row-i: ${index}">
           ${memberName}
-          <td class="amende-col-text">${formatDate(amende.date.split("T")[0])}</td>
-          <td class="amende-col-text amende-dette-detail">${escapeHtml(amende.note || "Dette événement")}</td>
-          <td class="amende-row-total amende-dette-amount">${formatEuro(amende.amount)}</td>
+          <td>${getAmendeTypeBadge("dette")}</td>
+          <td class="dette-col-text dette-col-date">${formatDate(amende.date.split("T")[0])}</td>
+          <td class="dette-col-text dette-col-detail">${escapeHtml(amende.note || "Dette événement")}</td>
+          <td class="dette-td-amount type-dette">${formatEuro(amende.amount)}</td>
           ${actionsCell}
         </tr>
       `;
@@ -1860,94 +2255,108 @@ function renderDetteBanner(detteList, showAllMembers = false) {
   if (amendeDetteTotal) amendeDetteTotal.textContent = formatEuro(total);
 }
 
-function renderAmendeSummary(memberAmendes) {
+function renderDebtDashboard(regularAmendes, detteAmendes) {
+  if (!amendeSummary) return;
+
+  const detteTotal = detteAmendes.reduce((sum, amende) => sum + amende.amount, 0);
+  const amendesTotal = regularAmendes.reduce((sum, amende) => sum + amende.amount, 0);
+  const grandTotal = detteTotal + amendesTotal;
+  const lineCount = detteAmendes.length + regularAmendes.length;
+
   const totals = { absence: 0, retard: 0, bavardage: 0, sanctions: 0 };
   const counts = { absence: 0, retard: 0, bavardage: 0, sanctions: 0 };
 
-  memberAmendes.forEach((a) => {
-    if (totals[a.type] !== undefined) {
-      totals[a.type] += a.amount;
-      counts[a.type] += 1;
+  regularAmendes.forEach((amende) => {
+    if (totals[amende.type] !== undefined) {
+      totals[amende.type] += amende.amount;
+      counts[amende.type] += 1;
     }
   });
 
-  amendeSummary.innerHTML = AMENDE_TYPES.map((type) => {
-    const count = counts[type.id];
-    const total = totals[type.id];
-    return `
-      <div class="amende-summary-card type-${type.id}">
-        <span class="amende-summary-label">${type.label}</span>
-        <strong>${count} amende${count > 1 ? "s" : ""}</strong>
-        <span class="amende-summary-amount">${formatEuro(total)}</span>
+  const chips = [];
+
+  if (detteAmendes.length > 0) {
+    chips.push(`
+      <div class="dette-chip type-dette">
+        <span class="dette-chip-label">Dettes événements</span>
+        <strong class="dette-chip-amount">${formatEuro(detteTotal)}</strong>
+        <span class="dette-chip-count">${detteAmendes.length}</span>
       </div>
-    `;
-  }).join("");
+    `);
+  }
+
+  AMENDE_TYPES.forEach((type) => {
+    if (counts[type.id] === 0) return;
+    chips.push(`
+      <div class="dette-chip type-${type.id}">
+        <span class="dette-chip-label">${type.label}</span>
+        <strong class="dette-chip-amount">${formatEuro(totals[type.id])}</strong>
+        <span class="dette-chip-count">${counts[type.id]}</span>
+      </div>
+    `);
+  });
+
+  amendeSummary.innerHTML = `
+    <div class="dette-dashboard-hero${grandTotal > 0 ? " dette-dashboard-hero--due" : ""}">
+      <span class="dette-dashboard-label">Total à régler</span>
+      <strong class="dette-dashboard-grand">${formatEuro(grandTotal)}</strong>
+      <span class="dette-dashboard-meta">${lineCount} ligne${lineCount > 1 ? "s" : ""}</span>
+    </div>
+    ${chips.length ? `<div class="dette-dashboard-chips">${chips.join("")}</div>` : ""}
+  `;
 }
 
 function renderAmendeTable(amendesList, showAllMembers = false) {
-  const totals = { absence: 0, retard: 0, bavardage: 0, sanctions: 0 };
   const showActions = showAllMembers && canManageTab("amendes");
-  const colCount = showAllMembers ? (showActions ? 8 : 7) : 6;
+  const labelColspan = getDetteTableLabelColspan(showAllMembers);
+  const colCount = labelColspan + 1 + (showActions ? 1 : 0);
 
   if (amendeMemberCol) amendeMemberCol.hidden = !showAllMembers;
-  if (amendeTotalSpacer) amendeTotalSpacer.hidden = !showAllMembers;
   if (amendeActionsCol) amendeActionsCol.hidden = !showActions;
   if (amendeTotalActionsSpacer) amendeTotalActionsSpacer.hidden = !showActions;
+  if (document.getElementById("amendeTotalLabel")) {
+    document.getElementById("amendeTotalLabel").colSpan = labelColspan;
+  }
 
   amendeBody.innerHTML = "";
 
   if (amendesList.length === 0) {
     amendeBody.innerHTML = `
       <tr>
-        <td colspan="${colCount}" class="empty-cell">Aucune amende pour le moment.</td>
+        <td colspan="${colCount}" class="dette-empty-cell">Aucune amende pour le moment.</td>
       </tr>
     `;
   } else {
-    amendesList.forEach((amende) => {
-      totals[amende.type] = (totals[amende.type] || 0) + amende.amount;
-
-      const cells = AMENDE_TYPES.map((type) => {
-        if (amende.type === type.id) {
-          const note = amende.note ? `<span class="amende-note">${escapeHtml(amende.note)}</span>` : "";
-          return `<td class="amende-hit">${formatEuro(amende.amount)}${note}</td>`;
-        }
-        return `<td class="amende-empty">—</td>`;
-      }).join("");
-
+    amendesList.forEach((amende, index) => {
       const memberName = showAllMembers
-        ? `<td class="amende-col-text amende-member-name">${escapeHtml(getMemberById(amende.memberId)?.name || "—")}</td>`
+        ? `<td class="dette-col-text dette-member-name">${escapeHtml(getMemberById(amende.memberId)?.name || "—")}</td>`
         : "";
 
       const actionsCell = showActions
-        ? `<td class="amende-actions">
+        ? `<td class="dette-td-actions">
             <button type="button" class="btn-amende-edit" data-id="${amende.id}" title="Modifier">Modifier</button>
             <button type="button" class="btn-primary btn-amende-pay" data-id="${amende.id}" title="Valider le paiement">Valider paiement</button>
           </td>`
         : "";
 
       const tr = document.createElement("tr");
+      tr.className = "dette-row";
+      tr.style.setProperty("--dette-row-i", String(index));
       tr.innerHTML = `
         ${memberName}
-        <td class="amende-col-text">${formatDate(amende.date.split("T")[0])}</td>
-        ${cells}
-        <td class="amende-row-total">${formatEuro(amende.amount)}</td>
+        <td>${getAmendeTypeBadge(amende.type)}</td>
+        <td class="dette-col-text dette-col-date">${formatDate(amende.date.split("T")[0])}</td>
+        <td class="dette-col-text dette-col-detail">${escapeHtml(amende.note || "—")}</td>
+        <td class="dette-td-amount type-${amende.type}">${formatEuro(amende.amount)}</td>
         ${actionsCell}
       `;
       amendeBody.appendChild(tr);
     });
   }
 
-  document.getElementById("totalAbsence").textContent =
-    totals.absence > 0 ? formatEuro(totals.absence) : "—";
-  document.getElementById("totalRetard").textContent =
-    totals.retard > 0 ? formatEuro(totals.retard) : "—";
-  document.getElementById("totalBavardage").textContent =
-    totals.bavardage > 0 ? formatEuro(totals.bavardage) : "—";
-  document.getElementById("totalSanctions").textContent =
-    totals.sanctions > 0 ? formatEuro(totals.sanctions) : "—";
-
-  const grandTotal = Object.values(totals).reduce((sum, n) => sum + n, 0);
-  document.getElementById("amendeGrandTotal").textContent = formatEuro(grandTotal);
+  const grandTotal = amendesList.reduce((sum, amende) => sum + amende.amount, 0);
+  const grandTotalEl = document.getElementById("amendeGrandTotal");
+  if (grandTotalEl) grandTotalEl.textContent = formatEuro(grandTotal);
 }
 
 function renderAmendes() {
@@ -1976,7 +2385,7 @@ function renderAmendes() {
       if (cmp !== 0) return cmp;
       return new Date(b.date) - new Date(a.date);
     });
-    renderAmendeSummary(regularAmendes);
+    renderDebtDashboard(regularAmendes, detteAmendes);
     renderDetteBanner(detteAmendes, true);
     renderAmendeTable(regularAmendes, true);
   } else {
@@ -1985,7 +2394,7 @@ function renderAmendes() {
     const memberAmendes = getAmendesForMember(current.id);
     const regularAmendes = getRegularAmendes(memberAmendes);
     const detteAmendes = memberAmendes.filter((amende) => isDetteAmende(amende));
-    renderAmendeSummary(regularAmendes);
+    renderDebtDashboard(regularAmendes, detteAmendes);
     renderDetteBanner(detteAmendes, false);
     renderAmendeTable(regularAmendes, false);
   }
@@ -2419,21 +2828,10 @@ function finalizeVotePhaseNotifications(loan) {
   clearBorrowerPendingNotification(loan);
 }
 
-function confirmVoterNotification(loan, memberId, vote) {
-  const borrower = getMemberById(loan.borrowerId);
-  const borrowerName = borrower?.name || "un membre";
-  const voteLabel = vote === "yes" ? "Oui" : "Non";
-
+function confirmVoterNotification(loan, memberId) {
   notifications = notifications.filter(
     (notif) =>
       !(notif.memberId === memberId && notif.loanId === loan.id && notif.type === "loan_vote")
-  );
-
-  upsertLoanNotification(
-    memberId,
-    loan.id,
-    "loan_voted",
-    `Vous avez voté ${voteLabel} pour le prêt de ${borrowerName}.`
   );
 }
 
@@ -2618,7 +3016,7 @@ function votePret(loanId, vote) {
   if (loan.borrowerId === current.id) return;
 
   loan.votes[current.id] = vote === "yes" ? "yes" : "no";
-  confirmVoterNotification(loan, current.id, vote);
+  confirmVoterNotification(loan, current.id);
 
   const stats = getVoteStats(loan);
   if (stats.unanimousYes) {
@@ -4278,13 +4676,21 @@ tabs.forEach((tab) => {
   tab.addEventListener("click", () => showTab(tab.dataset.tab));
 });
 
+financeSubtabs?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".finance-subtab");
+  if (!btn?.dataset.financeSub) return;
+  showFinanceSub(btn.dataset.financeSub);
+});
+
 loginBtn.addEventListener("click", openLoginModal);
 logoutBtn.addEventListener("click", logoutMember);
 
-loginForm.addEventListener("submit", (e) => {
-  e.preventDefault();
-  loginMember(loginNameInput.value, loginPasswordInput.value);
-});
+setupLoginForm();
+bindFormEnterKey(changePasswordForm, [
+  currentPasswordInput,
+  newPasswordInput,
+  confirmPasswordInput,
+]);
 
 changePasswordForm?.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -4459,6 +4865,7 @@ async function restoreLoggedInApp() {
   }
 
   reloadFromStorage();
+  await ensureFinanceData();
   ensureDefaultAdmin();
   if (authState.member) {
     authState.member.isAdmin = isMemberAdmin(authState.member.id);
@@ -4476,6 +4883,7 @@ async function restoreLoggedInApp() {
 
 async function initApp() {
   reloadFromStorage();
+  await ensureFinanceData();
 
   try {
     await checkServerSession();

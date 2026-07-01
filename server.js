@@ -12,6 +12,8 @@ const PORT = process.env.PORT || 8080;
 const DEFAULT_PASSWORD = "1234";
 const DATA_DIR = path.join(__dirname, "data");
 const BACKUP_PATH = path.join(DATA_DIR, "backup-latest.json");
+const FINANCE_KEY = "poto-timide-finance";
+const FINANCE_JSON_PATH = path.join(__dirname, "finance-vitran.json");
 
 const DEFAULT_MEMBER_NAMES = [
   "Yves", "Quentin", "Donald", "Hugo", "Elysée", "Ferlin", "William", "Luc",
@@ -31,6 +33,7 @@ const STORAGE_KEYS = [
   "poto-timide-evenements",
   "poto-timide-admin-ids",
   "poto-timide-autre-argent",
+  "poto-timide-finance",
 ];
 
 const MEMBERS_KEY = "poto-timide-members";
@@ -380,7 +383,20 @@ async function seedDatabase() {
   }
 
   await enforceOwnerSafeguards();
+  await seedFinanceIfMissing();
   await backupDatabase();
+}
+
+async function seedFinanceIfMissing() {
+  if (await getData(FINANCE_KEY)) return;
+  if (!fs.existsSync(FINANCE_JSON_PATH)) return;
+  try {
+    const finance = JSON.parse(fs.readFileSync(FINANCE_JSON_PATH, "utf8"));
+    await setData(FINANCE_KEY, finance);
+    console.log("Données finance chargées depuis finance-vitran.json");
+  } catch (err) {
+    console.warn("Import finance-vitran.json impossible :", err.message);
+  }
 }
 
 async function findMemberById(id) {

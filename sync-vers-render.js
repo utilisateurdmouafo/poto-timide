@@ -23,6 +23,7 @@ const STORAGE_KEYS = [
   "poto-timide-evenements",
   "poto-timide-admin-ids",
   "poto-timide-autre-argent",
+  "poto-timide-finance",
 ];
 
 const DB_PATH = path.join(__dirname, "data", "poto-timide.db");

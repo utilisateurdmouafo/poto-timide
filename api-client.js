@@ -11,6 +11,7 @@ const API_SYNC_KEYS = new Set([
   "poto-timide-evenements",
   "poto-timide-admin-ids",
   "poto-timide-autre-argent",
+  "poto-timide-finance",
 ]);
 
 let authState = {

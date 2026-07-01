@@ -1,0 +1,1220 @@
+{
+  "source": "Finance poto_vitran.xlsx",
+  "importedAt": "2026-07-01",
+  "cotisationTotal": 2000,
+  "cotisations": [
+    {
+      "yearA": {
+        "month": "Janvier",
+        "receivers": "Elysée",
+        "eaters": "Elysée (2000)"
+      },
+      "yearB": {
+        "month": "Janvier",
+        "receivers": "Elysée",
+        "eaters": "Elysée (2000)"
+      }
+    },
+    {
+      "yearA": {
+        "month": "Février",
+        "receivers": "Yves, Luc",
+        "eaters": "Yves (1000), Luc (1000)"
+      },
+      "yearB": {
+        "month": "Février",
+        "receivers": 0,
+        "eaters": "Yves (2000)"
+      }
+    },
+    {
+      "yearA": {
+        "month": "Mars",
+        "receivers": "Vitran, Fabrice",
+        "eaters": "Vitran (1000), Fabrice (1000)"
+      },
+      "yearB": {
+        "month": "Mars",
+        "receivers": 0,
+        "eaters": "Quentin (2000)"
+      }
+    },
+    {
+      "yearA": {
+        "month": "Avril",
+        "receivers": "Boris",
+        "eaters": "David (2000)"
+      },
+      "yearB": {
+        "month": "Avril",
+        "receivers": 0,
+        "eaters": "David (1000), Boris (1000)"
+      }
+    },
+    {
+      "yearA": {
+        "month": "Mai",
+        "receivers": "Donald, Darios",
+        "eaters": "Donald (1000), Darios (1000)"
+      },
+      "yearB": {
+        "month": "Mai",
+        "receivers": 0,
+        "eaters": "Donald (1000), Darios (1000)"
+      }
+    },
+    {
+      "yearA": {
+        "month": "Juin",
+        "receivers": "Hugo, Ferlin",
+        "eaters": "Hugo (500), Ferlin (500), Yves (1000)"
+      },
+      "yearB": {
+        "month": "Juin",
+        "receivers": 0,
+        "eaters": "Hugo (500), Ferlin (500), Luc (1000)"
+      }
+    },
+    {
+      "yearA": {
+        "month": "Juillet",
+        "receivers": "Quentin",
+        "eaters": "Quentin (2000)"
+      },
+      "yearB": {
+        "month": "Juillet",
+        "receivers": 0,
+        "eaters": "Vitran (1000), Fabrice (1000)"
+      }
+    },
+    {
+      "yearA": {
+        "month": "Août",
+        "receivers": "David",
+        "eaters": "Boris (2000)"
+      },
+      "yearB": {
+        "month": "Août",
+        "receivers": 0,
+        "eaters": "Jp (2000)"
+      }
+    },
+    {
+      "yearA": {
+        "month": "Septembre",
+        "receivers": "Prince",
+        "eaters": "Prince (2000)"
+      },
+      "yearB": {
+        "month": "Septembre",
+        "receivers": 0,
+        "eaters": "Prince (2000)"
+      }
+    },
+    {
+      "yearA": {
+        "month": "Octobre",
+        "receivers": "William, Jp",
+        "eaters": "William (1000), Jp(1000)"
+      },
+      "yearB": {
+        "month": "Octobre",
+        "receivers": 0,
+        "eaters": "William (1000), Prince (2000)"
+      }
+    }
+  ],
+  "cotisationMemberTotals": [
+    {
+      "name": "Boris",
+      "amount": 200
+    },
+    {
+      "name": "Darios",
+      "amount": 100
+    },
+    {
+      "name": "David",
+      "amount": 200
+    },
+    {
+      "name": "Donald",
+      "amount": 100
+    },
+    {
+      "name": "Elysée",
+      "amount": 200
+    },
+    {
+      "name": "Fabrice",
+      "amount": 100
+    },
+    {
+      "name": "Ferlin",
+      "amount": 50
+    },
+    {
+      "name": "Hugo",
+      "amount": 50
+    },
+    {
+      "name": "Jp",
+      "amount": 100
+    },
+    {
+      "name": "Luc",
+      "amount": 100
+    },
+    {
+      "name": "Prince",
+      "amount": 200
+    },
+    {
+      "name": "Quentin",
+      "amount": 200
+    },
+    {
+      "name": "Yves",
+      "amount": 200
+    },
+    {
+      "name": "Vitran",
+      "amount": 100
+    },
+    {
+      "name": "William",
+      "amount": 100
+    }
+  ],
+  "ancienneTournee": [
+    {
+      "rank": 1,
+      "name": "Boris",
+      "fondPaid": null,
+      "fondDue": null,
+      "fondRest": null,
+      "columns": {
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 1
+        },
+        "Boris": {
+          "paid": "Boris",
+          "due": 0,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 2,
+      "name": "Darios",
+      "fondPaid": 50,
+      "fondDue": 50,
+      "fondRest": 0,
+      "columns": {
+        "Bloc 13": {
+          "paid": 1,
+          "due": 1,
+          "rest": 0
+        },
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 2
+        },
+        "Boris": {
+          "paid": "Darios",
+          "due": 0,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 3,
+      "name": "David",
+      "fondPaid": 50,
+      "fondDue": 50,
+      "fondRest": 0,
+      "columns": {
+        "Bloc 10": {
+          "paid": 25,
+          "due": 25,
+          "rest": 0
+        },
+        "Bloc 13": {
+          "paid": 5,
+          "due": 5,
+          "rest": 0
+        },
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 3
+        },
+        "Boris": {
+          "paid": "David",
+          "due": 0,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 4,
+      "name": "Donald",
+      "fondPaid": null,
+      "fondDue": null,
+      "fondRest": null,
+      "columns": {
+        "Bloc 13": {
+          "paid": 1,
+          "due": 1,
+          "rest": 0
+        },
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 4
+        },
+        "Boris": {
+          "paid": "Donald",
+          "due": 0,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 5,
+      "name": "Elysée",
+      "fondPaid": 50,
+      "fondDue": 50,
+      "fondRest": 0,
+      "columns": {
+        "Bloc 10": {
+          "paid": 20,
+          "due": 20,
+          "rest": 0
+        },
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 5
+        },
+        "Boris": {
+          "paid": "Elysée",
+          "due": 0,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 6,
+      "name": "Fabrice",
+      "fondPaid": null,
+      "fondDue": null,
+      "fondRest": null,
+      "columns": {
+        "Bloc 13": {
+          "paid": 2,
+          "due": 2,
+          "rest": 0
+        },
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 6
+        },
+        "Boris": {
+          "paid": "Fabrice",
+          "due": 0,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 7,
+      "name": "Ferlin",
+      "fondPaid": null,
+      "fondDue": null,
+      "fondRest": null,
+      "columns": {
+        "Bloc 10": {
+          "paid": 20,
+          "due": 20,
+          "rest": 0
+        },
+        "Bloc 13": {
+          "paid": 8,
+          "due": 8,
+          "rest": 0
+        },
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 7
+        },
+        "Boris": {
+          "paid": "Ferlin",
+          "due": 0,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 8,
+      "name": "Hugo",
+      "fondPaid": 50,
+      "fondDue": 50,
+      "fondRest": 0,
+      "columns": {
+        "Bloc 13": {
+          "paid": 11,
+          "due": 11,
+          "rest": 0
+        },
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 8
+        },
+        "Boris": {
+          "paid": "Hugo",
+          "due": 0,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 9,
+      "name": "Jp",
+      "fondPaid": null,
+      "fondDue": null,
+      "fondRest": null,
+      "columns": {
+        "Bloc 13": {
+          "paid": 3,
+          "due": null,
+          "rest": 3
+        },
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 9
+        },
+        "Boris": {
+          "paid": "Jp",
+          "due": 3,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 10,
+      "name": "Luc",
+      "fondPaid": 50,
+      "fondDue": 50,
+      "fondRest": 0,
+      "columns": {
+        "Bloc 13": {
+          "paid": 8,
+          "due": 8,
+          "rest": 0
+        },
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 10
+        },
+        "Boris": {
+          "paid": "Luc",
+          "due": 0,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 11,
+      "name": "Prince",
+      "fondPaid": null,
+      "fondDue": null,
+      "fondRest": null,
+      "columns": {
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 11
+        },
+        "Boris": {
+          "paid": "Prince",
+          "due": 0,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 12,
+      "name": "Quentin",
+      "fondPaid": 36.5,
+      "fondDue": 36.5,
+      "fondRest": 0,
+      "columns": {
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 12
+        },
+        "Boris": {
+          "paid": "Quentin",
+          "due": 0,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 13,
+      "name": "Yves",
+      "fondPaid": 35,
+      "fondDue": 35,
+      "fondRest": 0,
+      "columns": {
+        "Bloc 7": {
+          "paid": 50,
+          "due": 50,
+          "rest": 0
+        },
+        "Bloc 10": {
+          "paid": 20,
+          "due": 20,
+          "rest": 0
+        },
+        "Bloc 13": {
+          "paid": 4,
+          "due": 4,
+          "rest": 0
+        },
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 13
+        },
+        "Boris": {
+          "paid": "Yves",
+          "due": 0,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 14,
+      "name": "Vitran",
+      "fondPaid": null,
+      "fondDue": null,
+      "fondRest": null,
+      "columns": {
+        "Bloc 13": {
+          "paid": -1,
+          "due": null,
+          "rest": -1
+        },
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 14
+        },
+        "Boris": {
+          "paid": "Vitran",
+          "due": -1,
+          "rest": null
+        }
+      }
+    },
+    {
+      "rank": 15,
+      "name": "William",
+      "fondPaid": 50,
+      "fondDue": null,
+      "fondRest": 50,
+      "columns": {
+        "Bloc 7": {
+          "paid": 50,
+          "due": null,
+          "rest": 50
+        },
+        "Bloc 13": {
+          "paid": 2,
+          "due": null,
+          "rest": 2
+        },
+        "Bloc 16": {
+          "paid": null,
+          "due": null,
+          "rest": 15
+        },
+        "Boris": {
+          "paid": "William",
+          "due": 102,
+          "rest": null
+        }
+      }
+    }
+  ],
+  "finances": {
+    "entries": [
+      {
+        "date": null,
+        "amount": 2304.75,
+        "person": "Boris",
+        "note": "Solde ancienne tournée"
+      },
+      {
+        "date": "2025-02-01",
+        "amount": 150,
+        "person": "Elysée",
+        "note": "Solde prêt ancienne tournée"
+      },
+      {
+        "date": "2025-02-01",
+        "amount": 450,
+        "person": "Donald",
+        "note": "Avance prêt 01/12/24"
+      },
+      {
+        "date": "2025-02-01",
+        "amount": 450,
+        "person": "Fabrice",
+        "note": "Retour prêt ancienne tournée"
+      },
+      {
+        "date": "2025-02-14",
+        "amount": 100,
+        "person": "Luc",
+        "note": "Solde prêt ancienne tournée"
+      },
+      {
+        "date": "2025-02-23",
+        "amount": 850,
+        "person": "Prince",
+        "note": "Retour prêt 23/01/25"
+      },
+      {
+        "date": "2025-03-13",
+        "amount": 560,
+        "person": "Jp",
+        "note": "Avance prêt 13/01/25"
+      },
+      {
+        "date": "2025-04-02",
+        "amount": 140,
+        "person": "Jp",
+        "note": "Solde prêt 13/02/25"
+      },
+      {
+        "date": "2025-04-03",
+        "amount": 480,
+        "person": "Boris",
+        "note": "Avance prêt 03/03/25"
+      },
+      {
+        "date": "2025-04-03",
+        "amount": 800,
+        "person": "Elysée",
+        "note": "Avance prêt 03/03/25"
+      },
+      {
+        "date": "2025-04-19",
+        "amount": 600,
+        "person": "Quentin",
+        "note": "Avance prêt 19/03/25"
+      },
+      {
+        "date": "2025-05-03",
+        "amount": 120,
+        "person": "Boris",
+        "note": "Solde prêt 03/03/25"
+      },
+      {
+        "date": "2025-05-03",
+        "amount": 200,
+        "person": "Elysée",
+        "note": "Solde prêt 03/03/25"
+      },
+      {
+        "date": "2025-05-10",
+        "amount": 520,
+        "person": "Prince",
+        "note": "Avance prêt 10/04/25"
+      },
+      {
+        "date": "2025-05-19",
+        "amount": 150,
+        "person": "Quentin",
+        "note": "Solde prêt 19/03/25"
+      },
+      {
+        "date": "2025-05-20",
+        "amount": 150,
+        "person": "Luc",
+        "note": "Avance prêt 20/04/25"
+      },
+      {
+        "date": "2025-05-25",
+        "amount": 800,
+        "person": "Ferlin",
+        "note": "Retour prêt 25/04/25"
+      },
+      {
+        "date": "2025-06-10",
+        "amount": 130,
+        "person": "Prince",
+        "note": "Solde prêt 10/04/25"
+      },
+      {
+        "date": "2025-06-12",
+        "amount": 375,
+        "person": "Donald",
+        "note": "Avance prêt 16/05/25"
+      },
+      {
+        "date": "2025-06-13",
+        "amount": 320,
+        "person": "Fabrice",
+        "note": "Avance prêt 14/05/25"
+      },
+      {
+        "date": "2025-06-14",
+        "amount": 100,
+        "person": "Cedrick",
+        "note": "Frais d'entrée"
+      },
+      {
+        "date": "2025-06-27",
+        "amount": 150,
+        "person": "Luc",
+        "note": "Avance prêt 20/04/25"
+      },
+      {
+        "date": "2025-07-16",
+        "amount": 375,
+        "person": "Donald",
+        "note": "Solde prêt 16/05/25"
+      },
+      {
+        "date": "2025-07-16",
+        "amount": 180,
+        "person": "Fabrice",
+        "note": "Solde prêt 14/05/26"
+      },
+      {
+        "date": "2025-08-03",
+        "amount": 100,
+        "person": "Luc",
+        "note": "Avance prêt 20/04/25"
+      },
+      {
+        "date": "2025-08-29",
+        "amount": 240,
+        "person": "Hugo",
+        "note": "Avance prêt 04-08-2025"
+      },
+      {
+        "date": "2025-08-18",
+        "amount": 20,
+        "person": "Cedrick",
+        "note": "Surplus"
+      },
+      {
+        "date": "2025-09-05",
+        "amount": 700,
+        "person": "Donald",
+        "note": "Solde prêt 25-07-25"
+      },
+      {
+        "date": "2025-09-15",
+        "amount": 200,
+        "person": "Yves",
+        "note": "Solde prêt 14-08-2025"
+      },
+      {
+        "date": "2025-09-09",
+        "amount": 100,
+        "person": "Luc",
+        "note": "Solde prêt 20-04-2025"
+      },
+      {
+        "date": "2025-10-12",
+        "amount": 60,
+        "person": "Hugo",
+        "note": "Solde prêt 04-08-2025"
+      }
+    ],
+    "exits": [
+      {
+        "date": "2025-01-23",
+        "amount": 850,
+        "person": "Prince",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-02-13",
+        "amount": 700,
+        "person": "Jp",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-03-03",
+        "amount": 600,
+        "person": "Boris",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-03-03",
+        "amount": 1000,
+        "person": "Elysée",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-03-19",
+        "amount": 750,
+        "person": "Quentin",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-04-10",
+        "amount": 650,
+        "person": "Prince",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-04-20",
+        "amount": 500,
+        "person": "Luc",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-04-25",
+        "amount": 800,
+        "person": "Ferlin",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-05-14",
+        "amount": 500,
+        "person": "Fabrice",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-05-16",
+        "amount": 750,
+        "person": "Donald",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-06-04",
+        "amount": 850,
+        "person": "Elysée",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-07-04",
+        "amount": 300,
+        "person": "Vitran",
+        "note": "Soutien du groupe"
+      },
+      {
+        "date": "2025-07-25",
+        "amount": 700,
+        "person": "Donald",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-08-04",
+        "amount": 300,
+        "person": "Hugo",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-08-14",
+        "amount": 200,
+        "person": "Yves",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-09-15",
+        "amount": 200,
+        "person": "Prince",
+        "note": "Prêt"
+      },
+      {
+        "date": "2025-10-19",
+        "amount": 420,
+        "person": "Hugo",
+        "note": "pret"
+      }
+    ],
+    "totalIn": 11874.75,
+    "totalOut": 10070,
+    "balance": 1804.75
+  },
+  "amendesHistorique": {
+    "headers": [
+      "Janvier",
+      "Février",
+      "Mars",
+      "Avril",
+      "Mai",
+      "Juin",
+      "Juillet",
+      "Août",
+      "Septembre",
+      "Octobre",
+      "2nd dégré",
+      "Prêt",
+      "Fond de caisse",
+      "Payé",
+      "dû",
+      "Message aux potos"
+    ],
+    "rows": [
+      {
+        "name": "Boris",
+        "values": {
+          "Fond de caisse": 50,
+          "Payé": 50,
+          "dû": 50,
+          "Message aux potos": "Boris"
+        }
+      },
+      {
+        "name": "Darios",
+        "values": {
+          "Payé": 50,
+          "Message aux potos": "Darios"
+        }
+      },
+      {
+        "name": "David",
+        "values": {
+          "Fond de caisse": 50,
+          "dû": 50,
+          "Payé": 20,
+          "Message aux potos": "David"
+        }
+      },
+      {
+        "name": "Donald",
+        "values": {
+          "Fond de caisse": 50,
+          "dû": 50,
+          "Message aux potos": "Donald"
+        }
+      },
+      {
+        "name": "Elysée",
+        "values": {
+          "Fond de caisse": 50,
+          "Payé": 30,
+          "Message aux potos": "Elysée"
+        }
+      },
+      {
+        "name": "Fabrice",
+        "values": {
+          "Fond de caisse": 50,
+          "dû": 50,
+          "Message aux potos": "Fabrice"
+        }
+      },
+      {
+        "name": "Ferlin",
+        "values": {
+          "Fond de caisse": 50,
+          "Payé": 20,
+          "dû": 50,
+          "Message aux potos": "Ferlin"
+        }
+      },
+      {
+        "name": "Hugo",
+        "values": {
+          "Fond de caisse": 50,
+          "dû": 50,
+          "Message aux potos": "Hugo"
+        }
+      },
+      {
+        "name": "Jp",
+        "values": {
+          "Payé": 50,
+          "dû": 50,
+          "Message aux potos": "Jp"
+        }
+      },
+      {
+        "name": "Luc",
+        "values": {
+          "Fond de caisse": 50,
+          "dû": 50,
+          "Payé": 20,
+          "Message aux potos": "Luc"
+        }
+      },
+      {
+        "name": "Prince",
+        "values": {
+          "Fond de caisse": 50,
+          "dû": 50,
+          "Message aux potos": "Prince"
+        }
+      },
+      {
+        "name": "Quentin",
+        "values": {
+          "Fond de caisse": 36.5,
+          "Payé": 13.5,
+          "dû": 50,
+          "Message aux potos": "Quentin"
+        }
+      },
+      {
+        "name": "Yves",
+        "values": {
+          "Fond de caisse": 50,
+          "dû": 50,
+          "Message aux potos": "Yves"
+        }
+      },
+      {
+        "name": "Vitran",
+        "values": {
+          "Fond de caisse": 50,
+          "Payé": 50,
+          "dû": 30,
+          "Message aux potos": "Vitran"
+        }
+      },
+      {
+        "name": "William",
+        "values": {
+          "Fond de caisse": 50,
+          "dû": 50,
+          "Payé": 20,
+          "Message aux potos": "William"
+        }
+      }
+    ]
+  },
+  "pretsHistorique": [
+    {
+      "name": "Prince",
+      "amount": 850,
+      "start": "2025-01-22",
+      "end": "2025-02-22",
+      "remis": null,
+      "status": "RAS",
+      "order": 1,
+      "nextBorrower": "Boris"
+    },
+    {
+      "name": "Jp",
+      "amount": 700,
+      "start": "2025-02-13",
+      "end": "2025-03-13",
+      "remis": null,
+      "status": "A remis 80% puis 20%",
+      "order": 2,
+      "nextBorrower": "Darios"
+    },
+    {
+      "name": "Boris",
+      "amount": 600,
+      "start": "2025-03-03",
+      "end": "2025-04-03",
+      "remis": null,
+      "status": "A remis 80% puis 20%",
+      "order": 3,
+      "nextBorrower": "David"
+    },
+    {
+      "name": "Elysée",
+      "amount": 1000,
+      "start": "2025-03-03",
+      "end": "2025-04-03",
+      "remis": null,
+      "status": "A remis 80% puis 20%",
+      "order": 4,
+      "nextBorrower": "Donald"
+    },
+    {
+      "name": "Quentin",
+      "amount": 750,
+      "start": "2025-03-19",
+      "end": "2025-04-19",
+      "remis": null,
+      "status": "A remis 80% puis 20%",
+      "order": 5,
+      "nextBorrower": "Elysée"
+    },
+    {
+      "name": "Prince",
+      "amount": 650,
+      "start": "2025-04-10",
+      "end": "2025-05-10",
+      "remis": null,
+      "status": "A remis 80% puis 20%",
+      "order": 6,
+      "nextBorrower": "Fabrice"
+    },
+    {
+      "name": "Luc",
+      "amount": 500,
+      "start": "2025-04-20",
+      "end": "2025-05-20",
+      "remis": null,
+      "status": "A remis 30%, puis 150, puis 100 reste 100 euros",
+      "order": 7,
+      "nextBorrower": "Ferlin"
+    },
+    {
+      "name": "Ferlin",
+      "amount": 800,
+      "start": "2025-04-25",
+      "end": "2025-05-25",
+      "remis": null,
+      "status": "RAS",
+      "order": 8,
+      "nextBorrower": "Hugo"
+    },
+    {
+      "name": "Fabrice",
+      "amount": 500,
+      "start": "2025-05-14",
+      "end": "2025-06-14",
+      "remis": null,
+      "status": "A remis 80%, puis 20%",
+      "order": 9,
+      "nextBorrower": "Jp"
+    },
+    {
+      "name": "Donald",
+      "amount": 750,
+      "start": "2025-05-16",
+      "end": "2025-06-16",
+      "remis": null,
+      "status": "A remis 50%, puis 50%",
+      "order": 10,
+      "nextBorrower": "Luc"
+    },
+    {
+      "name": "Elysée",
+      "amount": 850,
+      "start": "2025-06-04",
+      "end": "2025-07-04",
+      "remis": 0,
+      "status": "n'a rien remis",
+      "order": 11,
+      "nextBorrower": "Prince"
+    },
+    {
+      "name": "Donald",
+      "amount": 700,
+      "start": "2025-07-25",
+      "end": "2025-08-25",
+      "remis": "Total",
+      "status": "A remis 80% puis 20%",
+      "order": 12,
+      "nextBorrower": "Quentin"
+    },
+    {
+      "name": "Hugo",
+      "amount": 300,
+      "start": "2025-08-04",
+      "end": "2025-09-04",
+      "remis": 240,
+      "status": "A remis 80% puis 20%",
+      "order": 13,
+      "nextBorrower": "Yves"
+    },
+    {
+      "name": "Yves",
+      "amount": 200,
+      "start": "2025-08-14",
+      "end": "2025-09-14",
+      "remis": null,
+      "status": "A remis 80% puis 20%",
+      "order": 14,
+      "nextBorrower": "Vitran"
+    },
+    {
+      "name": "Hugo",
+      "amount": 420,
+      "start": "2025-10-19",
+      "end": "2025-11-19",
+      "remis": 240,
+      "status": null,
+      "order": 15,
+      "nextBorrower": "William"
+    }
+  ],
+  "equipeExcel": [
+    {
+      "name": "Boris",
+      "role": "Président"
+    },
+    {
+      "name": "Darios",
+      "role": null
+    },
+    {
+      "name": "David",
+      "role": null
+    },
+    {
+      "name": "Donald",
+      "role": null
+    },
+    {
+      "name": "Fabrice",
+      "role": null
+    },
+    {
+      "name": "Ferlin",
+      "role": "Censeur"
+    },
+    {
+      "name": "Hugo",
+      "role": "Vice président"
+    },
+    {
+      "name": "Jp",
+      "role": "Vice chargé d'activité"
+    },
+    {
+      "name": "Luc",
+      "role": null
+    },
+    {
+      "name": "Prince",
+      "role": "Chargé d'activité"
+    },
+    {
+      "name": "Quentin",
+      "role": "Financier"
+    },
+    {
+      "name": "Yves",
+      "role": null
+    },
+    {
+      "name": "Vitran",
+      "role": null
+    },
+    {
+      "name": "William",
+      "role": "Vice Financier"
+    },
+    {
+      "name": "Cedrick",
+      "role": null
+    }
+  ]
+}

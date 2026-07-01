@@ -671,39 +671,46 @@ body::before {
 
 .bureau-panel {
   width: 100%;
-  padding: 1.4rem 1.5rem 1.45rem;
-  margin-bottom: 0.85rem;
+  padding: 0.85rem 1rem 0.95rem;
+  margin-bottom: 0.65rem;
+  background: transparent;
+  box-shadow: none;
 }
 
 .bureau-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  margin-bottom: 1rem;
+  gap: 0.75rem;
+  margin-bottom: 0.7rem;
 }
 
 .bureau-panel h2 {
   margin: 0;
-  font-size: 1.45rem;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--text-muted);
 }
 
 .bureau-edit-toggle {
-  padding: 0.55rem 1rem;
+  padding: 0.35rem 0.7rem;
   border: 1px solid var(--border);
   border-radius: var(--radius-btn);
-  background: var(--bg);
+  background: transparent;
   font-family: inherit;
-  font-size: 0.88rem;
+  font-size: 0.74rem;
   font-weight: 600;
-  color: var(--primary);
+  color: var(--text-muted);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .bureau-edit-toggle:hover {
-  background: var(--primary-light);
-  border-color: rgba(0, 113, 235, 0.25);
+  background: var(--bg-elevated);
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 
 .bureau-assign {
@@ -748,8 +755,8 @@ body::before {
 .bureau-grid {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+  gap: 0.55rem;
   width: 100%;
   margin: 0;
   padding: 0;
@@ -760,19 +767,19 @@ body::before {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 0.5rem;
+  gap: 0.35rem;
   min-width: 0;
-  min-height: 6.25rem;
-  padding: 1rem 1.1rem;
+  min-height: auto;
+  padding: 0.55rem 0.65rem;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg-elevated);
-  transition: border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  transition: border-color 0.15s var(--ease), background 0.15s var(--ease);
 }
 
 .bureau-card:hover {
   border-color: var(--border-strong);
-  box-shadow: var(--shadow-card);
+  background: var(--bg-elevated);
 }
 
 .bureau-card.is-vacant {
@@ -791,12 +798,14 @@ body::before {
 }
 
 .bureau-card-name {
-  font-size: 1.25rem;
-  font-weight: 700;
+  font-size: 0.86rem;
+  font-weight: 600;
   color: var(--text);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  line-height: 1.35;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
+  overflow-wrap: anywhere;
 }
 
 .bureau-card.is-vacant .bureau-card-name {
@@ -806,14 +815,13 @@ body::before {
 }
 
 .bureau-card-role {
-  font-size: 0.92rem;
+  font-size: 0.72rem;
   font-weight: 500;
   color: var(--text-muted);
-  line-height: 1.3;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+  line-height: 1.4;
+  display: block;
+  overflow: visible;
+  overflow-wrap: anywhere;
 }
 
 .bureau-empty {
@@ -1950,69 +1958,370 @@ body::before {
   margin: 0.25rem 0 0;
 }
 
-.amende-dette-wrap {
-  margin: 0.65rem 0 0.85rem;
-  padding: 0.65rem 0.75rem;
-  background: rgba(217, 48, 37, 0.06);
-  border: 1px solid rgba(217, 48, 37, 0.22);
-  border-radius: 10px;
+/* === Dettes & amendes — tableau dynamique === */
+
+.dette-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
 }
 
-.amende-dette-head h3 {
-  margin: 0 0 0.2rem;
-  font-family: var(--font-display);
-  font-size: 0.88rem;
+.dette-dashboard-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 1rem 1.15rem;
+  border-radius: var(--radius);
+  background: linear-gradient(135deg, var(--bg-elevated) 0%, var(--bg-muted) 100%);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+
+.dette-dashboard-hero--due {
+  background: linear-gradient(135deg, #fff5f4 0%, var(--danger-light) 100%);
+  border-color: rgba(217, 48, 37, 0.22);
+}
+
+.dette-dashboard-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.dette-dashboard-grand {
+  font-size: 1.65rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+.dette-dashboard-hero--due .dette-dashboard-grand {
   color: var(--danger);
 }
 
-.amende-dette-head .panel-desc {
-  margin-bottom: 0.45rem;
+.dette-dashboard-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
 }
 
-.amende-dette-summary {
-  margin-bottom: 0.45rem;
+.dette-dashboard-chips {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+  gap: 0.5rem;
 }
 
-.amende-dette-summary-card {
-  display: inline-flex;
+.dette-chip {
+  display: flex;
   flex-direction: column;
-  gap: 0.08rem;
-  padding: 0.4rem 0.55rem;
-  background: var(--bg);
-  border: 1px solid rgba(217, 48, 37, 0.25);
-  border-radius: 8px;
+  gap: 0.1rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  transition: transform 0.15s var(--ease), border-color 0.15s var(--ease), box-shadow 0.15s var(--ease);
 }
 
-.amende-dette-summary-label {
-  font-size: 0.65rem;
+.dette-chip:hover {
+  transform: translateY(-1px);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-soft);
+}
+
+.dette-chip-label {
+  font-size: 0.68rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
 }
 
-.amende-dette-summary-amount {
+.dette-chip-amount {
   font-size: 0.95rem;
   font-weight: 700;
-  color: var(--danger);
 }
 
-.amende-dette-summary-count {
+.dette-chip-count {
   font-size: 0.68rem;
   color: var(--text-muted);
 }
 
-.amende-dette-detail {
-  font-size: 0.72rem;
+.dette-chip.type-dette .dette-chip-amount { color: var(--danger); }
+.dette-chip.type-absence .dette-chip-amount { color: var(--danger); }
+.dette-chip.type-retard .dette-chip-amount { color: #c98a00; }
+.dette-chip.type-bavardage .dette-chip-amount { color: var(--primary); }
+.dette-chip.type-sanctions .dette-chip-amount { color: #7c6fe0; }
+
+.dette-block {
+  margin-bottom: 1rem;
 }
 
-.amende-dette-amount {
+.dette-block:last-child {
+  margin-bottom: 0;
+}
+
+.dette-block-events {
+  padding: 0.85rem;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(217, 48, 37, 0.04) 0%, transparent 100%);
+  border: 1px solid rgba(217, 48, 37, 0.14);
+}
+
+.dette-block-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+}
+
+.dette-block-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-width: 0;
+}
+
+.dette-block-title h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dette-block-desc {
+  margin: 0.15rem 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.dette-block-icon {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.dette-block-icon--event {
+  background: var(--danger-light);
+  color: var(--danger);
+  border: 1px solid rgba(217, 48, 37, 0.18);
+}
+
+.dette-block-icon--amende {
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid rgba(0, 113, 235, 0.18);
+}
+
+.dette-block-total {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.05rem;
+  padding: 0.45rem 0.7rem;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  border: 1px solid rgba(217, 48, 37, 0.18);
+}
+
+.dette-block-total-label {
+  font-size: 0.62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.dette-block-total-amount {
+  font-size: 1.05rem;
+  font-weight: 800;
   color: var(--danger);
 }
 
-.amende-dette-table .btn-dette-pay {
-  padding: 0.3rem 0.5rem;
+.dette-block-total-count {
   font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.dette-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-soft);
+}
+
+.dette-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.dette-table th,
+.dette-table td {
+  padding: 0.65rem 0.8rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.dette-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--bg-muted);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 0 1px 0 var(--border);
+  white-space: nowrap;
+}
+
+.dette-table tbody tr {
+  animation: detteRowIn 0.28s var(--ease) both;
+  animation-delay: calc(var(--dette-row-i, 0) * 35ms);
+}
+
+@keyframes detteRowIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.dette-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.dette-table tbody tr:hover {
+  background: var(--primary-light);
+}
+
+.dette-table tfoot td {
+  background: var(--bg-muted);
+  font-weight: 700;
+  border-bottom: none;
+}
+
+.dette-col-text {
+  max-width: 14rem;
+}
+
+.dette-col-date {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.dette-col-detail {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.dette-member-name {
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+}
+
+.dette-th-amount,
+.dette-td-amount {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.dette-td-amount {
+  font-weight: 700;
+}
+
+.dette-th-actions,
+.dette-td-actions {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.dette-td-amount.type-dette,
+.dette-td-amount.type-absence { color: var(--danger); }
+.dette-td-amount.type-retard { color: #c98a00; }
+.dette-td-amount.type-bavardage { color: var(--primary); }
+.dette-td-amount.type-sanctions { color: #7c6fe0; }
+
+.dette-type-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+
+.dette-type-badge.type-dette,
+.dette-type-badge.type-absence {
+  background: var(--danger-light);
+  color: var(--danger);
+  border-color: rgba(217, 48, 37, 0.15);
+}
+
+.dette-type-badge.type-retard {
+  background: var(--warning-light);
+  color: #9a6700;
+  border-color: rgba(245, 158, 11, 0.2);
+}
+
+.dette-type-badge.type-bavardage {
+  background: var(--primary-light);
+  color: var(--primary);
+  border-color: rgba(0, 113, 235, 0.15);
+}
+
+.dette-type-badge.type-sanctions {
+  background: #ede9fe;
+  color: #6d5ce0;
+  border-color: rgba(109, 92, 224, 0.18);
+}
+
+.dette-empty-cell {
+  text-align: center;
+  color: var(--text-muted);
+  font-style: italic;
+  padding: 1.25rem 0.8rem !important;
+}
+
+.dette-td-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.dette-table .btn-dette-pay,
+.dette-table .btn-amende-pay {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.72rem;
   white-space: nowrap;
 }
 
@@ -2337,112 +2646,17 @@ body::before {
   gap: 0.75rem;
 }
 
-.amende-summary {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
-  gap: 0.4rem;
-  margin-bottom: 0.55rem;
-}
-
-.amende-summary-card {
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 0.55rem 0.7rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  transition: border-color 0.2s var(--ease);
-}
-
-.amende-summary-card:hover {
-  border-color: var(--border-strong);
-}
-
-.amende-summary-label {
-  font-size: 0.78rem;
-  color: var(--text-muted);
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-.amende-summary-card strong {
-  font-size: 0.85rem;
-}
-
-.amende-summary-amount {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: var(--primary);
-}
-
-.type-absence .amende-summary-amount { color: var(--danger); }
-.type-retard .amende-summary-amount { color: #fdcb6e; }
-.type-bavardage .amende-summary-amount { color: var(--primary); }
-.type-sanctions .amende-summary-amount { color: #a29bfe; }
-
-.amende-table th,
-.amende-table td {
-  text-align: center;
-}
-
-.amende-table .amende-col-text {
-  text-align: left;
-}
-
-.amende-member-name {
-  font-weight: 600;
-}
-
-.amende-table tfoot td {
-  font-weight: 700;
-}
-
-.amende-hit {
-  color: var(--danger);
-  font-weight: 600;
-}
-
-.amende-empty {
-  color: var(--text-muted);
-}
-
-.amende-row-total {
-  font-weight: 700;
-  color: var(--primary);
-}
-
-.amende-note {
-  display: block;
-  font-size: 0.72rem;
-  color: var(--text-muted);
-  font-weight: 400;
-  margin-top: 0.15rem;
-}
-
-.amende-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
-  justify-content: center;
-}
-
 .btn-amende-edit,
 .btn-amende-delete,
 .btn-amende-pay {
-  padding: 0.2rem 0.4rem;
+  padding: 0.35rem 0.55rem;
   border-radius: 6px;
   font-family: inherit;
-  font-size: 0.65rem;
+  font-size: 0.72rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
   white-space: nowrap;
-}
-
-.amende-table .btn-amende-pay {
-  padding: 0.25rem 0.45rem;
 }
 
 .btn-amende-edit {
@@ -2467,15 +2681,14 @@ body::before {
 
 /* === BlaBlaCar — surfaces & formulaires === */
 
-.bureau-card,
 .admin-item,
 .pret-loan-card,
 .pret-notif-item,
 .pret-summary-card,
 .evenement-card,
 .evenement-summary-stat,
-.amende-summary-card,
-.amende-dette-summary-card {
+.dette-chip,
+.dette-dashboard-hero {
   background: var(--bg-elevated);
 }
 
@@ -2534,8 +2747,8 @@ body::before {
   opacity: 1;
 }
 
-.amende-dette-wrap {
-  background: var(--danger-light);
+.dette-block-events {
+  background: linear-gradient(180deg, var(--danger-light) 0%, transparent 100%);
   border-color: rgba(217, 48, 37, 0.15);
 }
 
@@ -2573,13 +2786,233 @@ body::before {
   color: var(--success);
 }
 
-/* === Responsive — tablettes et smartphones === */
+/* === Finance — onglet archive Excel === */
 
-@media (min-width: 1200px) {
-  .bureau-grid {
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-  }
+.finance-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
+
+.finance-dashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
+  gap: 0.55rem;
+}
+
+.finance-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  padding: 0.7rem 0.85rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-soft);
+}
+
+.finance-stat-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.finance-stat strong {
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.finance-stat-note {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.finance-stat--in strong { color: var(--success); }
+.finance-stat--out strong { color: var(--danger); }
+.finance-stat--balance strong { color: var(--primary); }
+
+.finance-subtabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  padding: 0.25rem 0;
+}
+
+.finance-subtab {
+  padding: 0.45rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 0.15s var(--ease), border-color 0.15s var(--ease), color 0.15s var(--ease);
+}
+
+.finance-subtab:hover {
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.finance-subtab.active {
+  background: var(--primary-light);
+  border-color: rgba(0, 113, 235, 0.35);
+  color: var(--primary);
+}
+
+.finance-subcontent {
+  min-height: 4rem;
+}
+
+.finance-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.55rem;
+}
+
+.finance-section-head h3 {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.finance-section-head--sub span {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.finance-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-soft);
+  margin-bottom: 0.75rem;
+}
+
+.finance-table-wrap--wide .finance-table {
+  min-width: 720px;
+}
+
+.finance-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.finance-table th,
+.finance-table td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.finance-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.finance-table tbody tr {
+  animation: financeRowIn 0.25s var(--ease) both;
+  animation-delay: calc(var(--finance-row-i, 0) * 30ms);
+}
+
+@keyframes financeRowIn {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.finance-table tbody tr:nth-child(even) {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.finance-table tbody tr:hover {
+  background: var(--primary-light);
+}
+
+.finance-table tfoot td {
+  background: var(--bg-muted);
+  font-weight: 700;
+}
+
+.finance-th-amount,
+.finance-td-amount {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.finance-td-amount--in { color: var(--success); }
+.finance-td-amount--out { color: var(--danger); }
+
+.finance-td-person {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.finance-td-note {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  max-width: 16rem;
+}
+
+.finance-flow-badge {
+  display: inline-flex;
+  padding: 0.18rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.finance-flow-badge--in {
+  background: var(--success-light);
+  color: var(--success);
+}
+
+.finance-flow-badge--out {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.finance-empty,
+.finance-empty-cell {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.finance-empty-cell {
+  text-align: center;
+  padding: 1.1rem !important;
+}
+
+.finance-empty code {
+  font-size: 0.78rem;
+  background: var(--bg-muted);
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+}
+
+/* === Responsive — tablettes et smartphones === */
 
 @media (max-width: 768px) {
   .panel {
@@ -2692,29 +3125,28 @@ body::before {
   }
 
   .bureau-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.65rem;
+    grid-template-columns: repeat(auto-fill, minmax(9rem, 1fr));
+    gap: 0.5rem;
   }
 
   .bureau-panel {
-    padding: 1.1rem 1.15rem;
+    padding: 0.75rem 0.8rem;
   }
 
   .bureau-panel h2 {
-    font-size: 1.2rem;
+    font-size: 0.8rem;
   }
 
   .bureau-card {
-    min-height: 5.5rem;
-    padding: 0.85rem 0.9rem;
+    padding: 0.5rem 0.6rem;
   }
 
   .bureau-card-name {
-    font-size: 1.1rem;
+    font-size: 0.84rem;
   }
 
   .bureau-card-role {
-    font-size: 0.82rem;
+    font-size: 0.7rem;
   }
 
   .bureau-assign-form {
@@ -2785,8 +3217,17 @@ body::before {
   .pret-vote-actions,
   .pret-financier-actions,
   .pret-repay-form,
-  .amende-actions {
+  .dette-td-actions {
     width: 100%;
+  }
+
+  .dette-block-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dette-block-total {
+    align-items: flex-start;
   }
 
   .pret-vote-actions .btn-pret-yes,
@@ -2842,9 +3283,29 @@ body::before {
   }
 
   .cotisation-table,
-  .amende-table,
+  .dette-table,
+  .finance-table,
   .permissions-table {
     min-width: 520px;
+  }
+
+  .finance-dashboard {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .finance-subtabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .finance-subtabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .finance-subtab {
+    flex: 0 0 auto;
   }
 
   .tournee-unified-table {
@@ -2924,8 +3385,12 @@ body::before {
     grid-column: 1 / -1;
   }
 
-  .amende-summary {
+  .dette-dashboard-chips {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .dette-dashboard-grand {
+    font-size: 1.4rem;
   }
 
   .panel h2 {
@@ -2945,7 +3410,7 @@ body::before {
   }
 
   .pret-summary,
-  .amende-summary {
+  .dette-dashboard-chips {
     grid-template-columns: 1fr;
   }
 
