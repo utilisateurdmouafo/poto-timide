@@ -140,6 +140,10 @@ const DEFAULT_MEMBER_NAMES = [
 const memberForm = document.getElementById("memberForm");
 const memberNameInput = document.getElementById("memberName");
 const memberList = document.getElementById("memberList");
+const onlineList = document.getElementById("onlineList");
+const onlineCount = document.getElementById("onlineCount");
+let onlineMembers = [];
+let onlinePollTimer = null;
 const memberCounter = document.getElementById("memberCounter");
 const submitBtn = document.getElementById("submitBtn");
 const limitMsg = document.getElementById("limitMsg");
@@ -2529,6 +2533,7 @@ async function loginMember(name, password) {
     if (typeof potoPullSharedUpdates === "function") await potoPullSharedUpdates();
     reloadFromStorage();
     if (typeof potoStartPeriodicSync === "function") potoStartPeriodicSync();
+    startOnlinePolling();
     ensureDefaultAdmin();
     if (authState.member) {
       authState.member.isAdmin = isMemberAdmin(authState.member.id);
@@ -2602,6 +2607,9 @@ async function resetMemberPassword(memberId) {
 
 async function logoutMember() {
   cancelEditAmende();
+  stopOnlinePolling();
+  onlineMembers = [];
+  renderOnlineList();
   try {
     if (typeof potoFlushSync === "function") await potoFlushSync();
     await apiLogout();
@@ -3095,12 +3103,13 @@ function fillMemberList(listEl, { withAdminActions }) {
     const roleId = getMemberRole(member.id);
     const memberIsAdmin = isMemberAdmin(member.id);
     const isCurrentUser = currentMember?.id === member.id;
+    const isOnline = isMemberOnline(member.id);
 
     const li = document.createElement("li");
-    li.className = `member-item${isCurrentUser ? " member-current" : ""}`;
+    li.className = `member-item${isCurrentUser ? " member-current" : ""}${isOnline ? " member-online" : ""}`;
     li.innerHTML = `
       <div class="member-info">
-        <span class="member-avatar">${escapeHtml(getInitials(member.name))}</span>
+        <span class="member-avatar${isOnline ? " member-avatar-online" : ""}">${escapeHtml(getInitials(member.name))}</span>
         <div class="member-text">
           <p class="member-name" title="${escapeHtml(member.name)} — ${formatEuro(getMemberCotisationAmount(member.id))} / mois">
             <span class="member-num">#${index + 1}</span>
@@ -3108,6 +3117,7 @@ function fillMemberList(listEl, { withAdminActions }) {
             <span class="member-cotisation">: ${formatEuro(getMemberCotisationAmount(member.id))}</span>
             ${memberIsAdmin ? '<span class="tag-admin">Admin</span>' : ""}
             ${isCurrentUser ? '<span class="tag-you">Vous</span>' : ""}
+            ${isOnline ? '<span class="tag-online">En ligne</span>' : ""}
           </p>
           <p class="member-date">
             ${roleId ? `<span class="role-badge">${escapeHtml(getRoleLabel(roleId))}</span>` : "Membre"}
@@ -3146,6 +3156,61 @@ function fillMemberList(listEl, { withAdminActions }) {
 function renderMemberList() {
   fillMemberList(memberList, { withAdminActions: false });
   fillMemberList(memberListAdmin, { withAdminActions: true });
+}
+
+function isMemberOnline(memberId) {
+  return onlineMembers.some((person) => person.id === memberId);
+}
+
+function renderOnlineList() {
+  if (onlineCount) onlineCount.textContent = String(onlineMembers.length);
+  if (!onlineList) return;
+
+  if (onlineMembers.length === 0) {
+    onlineList.innerHTML = `<li class="online-empty">Personne n'est connecté pour le moment.</li>`;
+    return;
+  }
+
+  const currentMember = getCurrentMember();
+  onlineList.innerHTML = onlineMembers
+    .map((person) => {
+      const isYou = currentMember?.id === person.id;
+      return `
+        <li class="online-item${isYou ? " online-item-you" : ""}">
+          <span class="online-dot" aria-hidden="true"></span>
+          <span class="online-avatar">${escapeHtml(getInitials(person.name))}</span>
+          <span class="online-name">${escapeHtml(person.name)}</span>
+          ${isYou ? '<span class="tag-you">Vous</span>' : ""}
+        </li>
+      `;
+    })
+    .join("");
+}
+
+async function refreshOnlineMembers() {
+  if (!authState.loggedIn || typeof apiFetchOnline !== "function") return;
+  try {
+    onlineMembers = await apiFetchOnline();
+    renderOnlineList();
+    if (document.getElementById("tab-membres")?.classList.contains("active")) {
+      fillMemberList(memberList, { withAdminActions: false });
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+function startOnlinePolling() {
+  stopOnlinePolling();
+  refreshOnlineMembers();
+  onlinePollTimer = setInterval(refreshOnlineMembers, 8000);
+}
+
+function stopOnlinePolling() {
+  if (onlinePollTimer) {
+    clearInterval(onlinePollTimer);
+    onlinePollTimer = null;
+  }
 }
 
 function formatEuro(amount) {
@@ -3539,6 +3604,8 @@ function showTab(tabId) {
   if (tabId === "membres") {
     renderBureau();
     renderMemberList();
+    renderOnlineList();
+    refreshOnlineMembers();
   }
 
   if (tabId === "tournee") {
@@ -6533,6 +6600,7 @@ function render() {
   renderTabPermissionsPanel();
   renderBureau();
   renderMemberList();
+  renderOnlineList();
   renderTourneeTable();
   renderAmendes();
   renderEvenements();
@@ -7402,6 +7470,7 @@ async function restoreLoggedInApp() {
     authState.member.isAdmin = isMemberAdmin(authState.member.id);
   }
   if (typeof potoStartPeriodicSync === "function") potoStartPeriodicSync();
+  startOnlinePolling();
 
   loginModal.classList.remove("open");
 

@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=ocean-photo-4" />
+  <link rel="stylesheet" href="styles.css?v=online-1" />
 </head>
 <body>
   <div class="app" id="app">
@@ -73,6 +73,14 @@
     <main class="main">
       <!-- ========== MEMBRES ========== -->
       <div class="tab-content active" id="tab-membres">
+        <section class="panel online-panel" aria-label="Membres connectés">
+          <div class="bureau-head">
+            <h2>Connectés en ce moment</h2>
+            <span class="online-count" id="onlineCount">0</span>
+          </div>
+          <ul class="online-list" id="onlineList"></ul>
+        </section>
+
         <section class="panel bureau-panel" aria-label="Équipe administrative">
           <div class="bureau-head">
             <h2>Équipe administrative</h2>
@@ -767,7 +775,7 @@
     </div>
   </div>
 
-  <script src="api-client.js?v=sync-simple-1"></script>
-  <script src="app.js?v=confirm-modal-2"></script>
+  <script src="api-client.js?v=online-1"></script>
+  <script src="app.js?v=online-1"></script>
 </body>
 </html>

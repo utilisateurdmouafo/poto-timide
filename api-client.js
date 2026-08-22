@@ -137,6 +137,11 @@ async function apiEnsureMemberUser(memberId) {
   return apiFetch(`/api/admin/ensure-user/${memberId}`, { method: "POST" });
 }
 
+async function apiFetchOnline() {
+  const data = await apiFetch("/api/auth/online");
+  return Array.isArray(data?.online) ? data.online : [];
+}
+
 function getLocalDataPayload() {
   const payload = {};
   API_SYNC_KEYS.forEach((key) => {
@@ -273,3 +278,4 @@ window.potoFlushSync = flushServerSync;
 window.potoPullSharedUpdates = pullSharedUpdatesFromServer;
 window.potoStartPeriodicSync = startPeriodicSync;
 window.potoStopPeriodicSync = stopPeriodicSync;
+window.apiFetchOnline = apiFetchOnline;

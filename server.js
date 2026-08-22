@@ -503,6 +503,54 @@ function createApp() {
   }, 60 * 60 * 1000);
 
   const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
+  const ONLINE_WINDOW_MS = 90 * 1000;
+  const LAST_SEEN_TOUCH_MS = 15 * 1000;
+
+  function touchLastSeen(req) {
+    if (!req.session?.userId) return;
+    const now = Date.now();
+    if (!req.session.lastSeen || now - req.session.lastSeen > LAST_SEEN_TOUCH_MS) {
+      req.session.lastSeen = now;
+    }
+  }
+
+  async function getOnlineMembers() {
+    const now = Date.now();
+    const rows = await db.all("SELECT sess FROM sessions WHERE expired > ?", [now]);
+    const byUser = new Map();
+
+    for (const row of rows) {
+      let sess;
+      try {
+        sess = JSON.parse(row.sess);
+      } catch {
+        continue;
+      }
+      if (!sess?.userId || !sess.lastSeen) continue;
+      const lastSeen = Number(sess.lastSeen);
+      if (!lastSeen || now - lastSeen > ONLINE_WINDOW_MS) continue;
+
+      const prev = byUser.get(sess.userId);
+      if (!prev || lastSeen > prev.lastSeen) {
+        byUser.set(sess.userId, {
+          id: sess.userId,
+          name: sess.memberName || "",
+          lastSeen,
+          isAdmin: Boolean(sess.isAdmin),
+        });
+      }
+    }
+
+    for (const person of byUser.values()) {
+      if (person.name) continue;
+      const member = await findMemberById(person.id);
+      person.name = member?.name || "Membre";
+    }
+
+    return [...byUser.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, "fr", { sensitivity: "base" })
+    );
+  }
 
   app.use(
     session({
@@ -526,6 +574,7 @@ function createApp() {
     if (!req.session?.userId) {
       return res.status(401).json({ error: "Non connecté" });
     }
+    touchLastSeen(req);
     next();
   }
 
@@ -621,6 +670,16 @@ function createApp() {
           mustChangePassword: req.session.mustChangePassword,
         });
       });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
+
+  app.get("/api/auth/online", requireAuth, async (req, res) => {
+    try {
+      const online = await getOnlineMembers();
+      res.json({ online, count: online.length });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Erreur serveur" });
