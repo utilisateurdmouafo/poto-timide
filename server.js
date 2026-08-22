@@ -7,6 +7,7 @@ const bcrypt = require("bcryptjs");
 const path = require("path");
 const fs = require("fs");
 const db = require("./lib/db");
+const { ensureFrozenPlanning } = require("./lib/default-planning");
 
 const PORT = process.env.PORT || 8080;
 const DEFAULT_PASSWORD = "1234";
@@ -33,7 +34,11 @@ const STORAGE_KEYS = [
   "poto-timide-evenements",
   "poto-timide-admin-ids",
   "poto-timide-autre-argent",
+  "poto-timide-ancienne-tournee-dettes",
   "poto-timide-finance",
+  "poto-timide-fond-caisse",
+  "poto-timide-fond-caisse-annuel",
+  "poto-timide-data-revision",
 ];
 
 const MEMBERS_KEY = "poto-timide-members";
@@ -354,15 +359,20 @@ async function seedDatabase() {
     await setData("poto-timide-amendes", []);
     await setData("poto-timide-amendes-caisse", []);
     await setData("poto-timide-tab-permissions", {
-      amendes: ["censeur", "tresorier"],
+      membres: [],
+      bureau: [],
       tournee: [],
+      "ancienne-tournee": ["tresorier"],
+      caisse: ["tresorier"],
       prets: ["tresorier"],
+      amendes: ["censeur", "tresorier"],
       evenements: ["tresorier"],
     });
     await setData("poto-timide-prets", []);
     await setData("poto-timide-notifications", []);
     await setData("poto-timide-evenements", []);
     await setData("poto-timide-autre-argent", []);
+    await setData("poto-timide-fond-caisse", 0);
     console.log("Base initialisée avec 15 membres (mot de passe : 1234)");
   } else {
     let userCountRow = await db.get("SELECT COUNT(*) AS c FROM users");
@@ -384,19 +394,37 @@ async function seedDatabase() {
 
   await enforceOwnerSafeguards();
   await seedFinanceIfMissing();
+
+  // Fige cotisations + mois de réception (baseline) pour chaque démarrage / connexion
+  await ensureFrozenPlanning(
+    { getData, setData, ensureUserForMember },
+    { force: true }
+  );
+
   await backupDatabase();
 }
 
 async function seedFinanceIfMissing() {
-  if (await getData(FINANCE_KEY)) return;
-  if (!fs.existsSync(FINANCE_JSON_PATH)) return;
-  try {
-    const finance = JSON.parse(fs.readFileSync(FINANCE_JSON_PATH, "utf8"));
-    await setData(FINANCE_KEY, finance);
-    console.log("Données finance chargées depuis finance-vitran.json");
-  } catch (err) {
-    console.warn("Import finance-vitran.json impossible :", err.message);
+  const existing = await getData(FINANCE_KEY);
+  // Respect explicit wipe — do not re-import historical archive
+  if (existing) {
+    if (existing.cleared === true || existing.source === "cleared") return;
+    return;
   }
+  // Fresh installs only: leave finance empty (no auto Excel import)
+  await setData(FINANCE_KEY, {
+    cleared: true,
+    source: "cleared",
+    importedAt: null,
+    cotisationTotal: 0,
+    cotisations: [],
+    cotisationMemberTotals: [],
+    ancienneTournee: [],
+    finances: { entries: [], exits: [], totalIn: 0, totalOut: 0, balance: 0 },
+    amendesHistorique: { columns: [], rows: [] },
+    pretsHistorique: [],
+    equipeExcel: [],
+  });
 }
 
 async function findMemberById(id) {
@@ -802,7 +830,17 @@ function createApp() {
     }
   });
 
-  app.use(express.static(__dirname));
+  app.use(
+    express.static(__dirname, {
+      etag: false,
+      lastModified: false,
+      setHeaders(res, filePath) {
+        if (/\.(html|js|css)$/i.test(filePath)) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        }
+      },
+    })
+  );
 
   app.get("*", (req, res) => {
     if (req.path.startsWith("/api/")) {

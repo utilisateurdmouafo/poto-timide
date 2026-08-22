@@ -12,7 +12,6 @@
 const fs = require("fs");
 const path = require("path");
 const { createClient } = require("@libsql/client");
-const Database = require("better-sqlite3");
 
 const ROOT = __dirname;
 const LOCAL_DB = path.join(ROOT, "data", "poto-timide.db");
@@ -39,7 +38,8 @@ function loadEnvFile() {
 }
 
 async function migrateTable(localDb, turso, tableName, columns) {
-  const rows = localDb.prepare(`SELECT ${columns.join(", ")} FROM ${tableName}`).all();
+  const result = await localDb.execute(`SELECT ${columns.join(", ")} FROM ${tableName}`);
+  const rows = result.rows || [];
   if (!rows.length) {
     console.log(`  ${tableName} : vide`);
     return 0;
@@ -86,7 +86,7 @@ async function main() {
   console.log(`Cible  : ${tursoUrl}`);
   console.log("");
 
-  const localDb = new Database(LOCAL_DB, { readonly: true });
+  const localDb = createClient({ url: `file:${LOCAL_DB}` });
   const turso = createClient({ url: tursoUrl, authToken: tursoToken });
 
   const schemaStatements = [

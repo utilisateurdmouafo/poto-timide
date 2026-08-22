@@ -3,6 +3,22 @@ const ROLES_KEY = "poto-timide-roles";
 const COTISATIONS_KEY = "poto-timide-cotisations";
 const TOURNEE_KEY = "poto-timide-tournee";
 const TOURNEE_PARTNERS_KEY = "partners";
+/** Membres ayant déjà « bouffé » / pris leur tournée (marqué OK par le Financier) */
+const TOURNEE_BOUFFE_OK_KEY = "bouffeOk";
+/** Date de réception choisie par membre (YYYY-MM-DD) — conservé, plus affiché */
+const TOURNEE_RECEPTION_DATES_KEY = "receptionDates";
+/** Ordre de réception / ristourne : { "8": [memberIds], ... } */
+const TOURNEE_RECEPTION_KEY = "reception";
+const TOURNEE_RISTOURNE_KEY = "ristourne";
+const TOURNEE_META_KEYS = new Set([
+  TOURNEE_PARTNERS_KEY,
+  TOURNEE_BOUFFE_OK_KEY,
+  TOURNEE_RECEPTION_DATES_KEY,
+  TOURNEE_RECEPTION_KEY,
+  TOURNEE_RISTOURNE_KEY,
+]);
+/** 10 mois de tournée : septembre → juin */
+const TOURNEE_CYCLE_MONTHS = [8, 9, 10, 11, 0, 1, 2, 3, 4, 5];
 const FULL_TOURNEE_COTISATION = 200;
 const MONTH_SHORT_LABELS = [
   "Jan", "Fév", "Mar", "Avr", "Mai", "Juin",
@@ -22,6 +38,8 @@ const MONTH_LABELS = [
   "Novembre",
   "Décembre",
 ];
+/** Cycle de tournée : septembre → juin (rang 0 = septembre) */
+const TOURNEE_CYCLE_START_MONTH = 8;
 const AMENDES_KEY = "poto-timide-amendes";
 const AMENDES_CAISSE_KEY = "poto-timide-amendes-caisse";
 const TAB_PERMISSIONS_KEY = "poto-timide-tab-permissions";
@@ -30,15 +48,25 @@ const NOTIFICATIONS_KEY = "poto-timide-notifications";
 const EVENEMENTS_KEY = "poto-timide-evenements";
 const ADMIN_IDS_KEY = "poto-timide-admin-ids";
 const AUTRE_ARGENT_KEY = "poto-timide-autre-argent";
+const ANCIENNE_TOURNEE_DETTES_KEY = "poto-timide-ancienne-tournee-dettes";
+const FOND_CAISSE_KEY = "poto-timide-fond-caisse";
+const FOND_CAISSE_ANNUEL_KEY = "poto-timide-fond-caisse-annuel";
 const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["membres", "tournee", "amendes", "prets", "evenements", "finance", "autre-argent"];
-const FINANCE_SUBTABS = ["journal", "cotisations", "ancienne-tournee", "amendes", "prets"];
+const TAB_IDS = ["membres", "tournee", "prets", "evenements", "finance", "ancienne-tournee", "admin"];
+const FINANCE_SUBTABS = ["dettes-amendes", "caisse", "archives"];
+const FINANCE_LIVE_DETTE_SUB = "dettes-amendes";
+const FINANCE_CAISSE_SUB = "caisse";
+const FINANCE_ARCHIVES_SUB = "archives";
+const ADMIN_SUBTABS = ["membres", "bureau", "admins", "acces", "tournee", "ancienne-tournee", "caisse", "prets", "amendes", "evenements"];
+const ADMIN_SUBTAB_KEY = "poto-timide-admin-subtab";
+// Compat anciens noms de stockage
+const GESTION_SUBTAB_KEY = ADMIN_SUBTAB_KEY;
 const MAX_MEMBERS = 50;
 const ADMIN_NAME = "Dario";
-const FOND_CAISSE = 1000;
+const DEFAULT_FOND_CAISSE = 0;
 const CAISSE_RESERVE = 300;
 const LOAN_VOTE_HOURS = 24;
 const LOAN_INTEREST_RATE = 0.1;
@@ -70,16 +98,24 @@ const EVENEMENT_TYPES = [
 ];
 
 const MANAGEABLE_TABS = [
-  { id: "amendes", label: "Mes dettes et amendes" },
-  { id: "tournee", label: "Organisation de la tournée" },
-  { id: "prets", label: "Prêt" },
+  { id: "membres", label: "Membres" },
+  { id: "bureau", label: "Bureau" },
+  { id: "tournee", label: "Tournée" },
+  { id: "ancienne-tournee", label: "Dette ancienne tournée" },
+  { id: "caisse", label: "Caisse" },
+  { id: "prets", label: "Prêts" },
+  { id: "amendes", label: "Dettes & amendes" },
   { id: "evenements", label: "Événements" },
 ];
 
 const DEFAULT_TAB_PERMISSIONS = {
-  amendes: ["censeur", "tresorier"],
+  membres: [],
+  bureau: [],
   tournee: [],
+  "ancienne-tournee": ["tresorier"],
+  caisse: ["tresorier"],
   prets: ["tresorier"],
+  amendes: ["censeur", "tresorier"],
   evenements: ["tresorier"],
 };
 
@@ -111,10 +147,13 @@ const roleForm = document.getElementById("roleForm");
 const roleMemberSelect = document.getElementById("roleMember");
 const rolePostSelect = document.getElementById("rolePost");
 const bureauList = document.getElementById("bureauList");
+const bureauListGestion = document.getElementById("bureauListGestion");
 const bureauAssignToggle = document.getElementById("bureauAssignToggle");
 let bureauAssignOpen = false;
+const memberListAdmin = document.getElementById("memberListAdmin");
 const cotisationBody = document.getElementById("cotisationBody");
 const cotisationTotal = document.getElementById("cotisationTotal");
+const tourneeCotisationBody = document.getElementById("tourneeCotisationBody");
 const tourneeYearSelect = document.getElementById("tourneeYear");
 const tabs = document.querySelectorAll(".tab");
 const tabContents = document.querySelectorAll(".tab-content");
@@ -149,16 +188,10 @@ const amendeDetteWrap = document.getElementById("amendeDetteWrap");
 const amendeDetteSubtitle = document.getElementById("amendeDetteSubtitle");
 const amendeDetteSummary = document.getElementById("amendeDetteSummary");
 const amendeDetteBody = document.getElementById("amendeDetteBody");
-const amendeDetteMemberCol = document.getElementById("amendeDetteMemberCol");
-const amendeDetteActionsCol = document.getElementById("amendeDetteActionsCol");
-const amendeDetteTotal = document.getElementById("amendeDetteTotal");
-const amendeDetteTotalLabel = document.getElementById("amendeDetteTotalLabel");
-const amendeDetteTotalActionsSpacer = document.getElementById("amendeDetteTotalActionsSpacer");
+const amendeRegularWrap = document.getElementById("amendeRegularWrap");
+const amendeRegularSummary = document.getElementById("amendeRegularSummary");
 const amendeTitle = document.getElementById("amendeTitle");
 const amendeSubtitle = document.getElementById("amendeSubtitle");
-const amendeMemberCol = document.getElementById("amendeMemberCol");
-const amendeActionsCol = document.getElementById("amendeActionsCol");
-const amendeTotalActionsSpacer = document.getElementById("amendeTotalActionsSpacer");
 const amendeFormTitle = document.getElementById("amendeFormTitle");
 const amendeSubmitBtn = document.getElementById("amendeSubmitBtn");
 const amendeCancelBtn = document.getElementById("amendeCancelBtn");
@@ -201,17 +234,57 @@ const adminList = document.getElementById("adminList");
 const adminForm = document.getElementById("adminForm");
 const adminMemberSelect = document.getElementById("adminMemberSelect");
 const tabBtnAutreArgent = document.getElementById("tabBtnAutreArgent");
+const tabBtnTournee = document.getElementById("tabBtnTournee");
+const tabBtnAdmin = document.getElementById("tabBtnAdmin");
+const tabBtnGestion = tabBtnAdmin; // alias
+const adminSubtabs = document.getElementById("adminSubtabs");
+const gestionSubtabs = adminSubtabs; // alias
 const autreArgentForm = document.getElementById("autreArgentForm");
 const autreArgentMemberSelect = document.getElementById("autreArgentMember");
 const autreArgentAmountInput = document.getElementById("autreArgentAmount");
 const autreArgentNoteInput = document.getElementById("autreArgentNote");
+const autreArgentMotifSelect = document.getElementById("autreArgentMotif");
+const autreArgentWithdrawBtn = document.getElementById("autreArgentWithdrawBtn");
+const ancienneTourneeForm = document.getElementById("ancienneTourneeForm");
+const ancienneTourneeMemberSelect = document.getElementById("ancienneTourneeMember");
+const ancienneTourneeAmountInput = document.getElementById("ancienneTourneeAmount");
+const autreArgentCaisseDispoLive = document.getElementById("autreArgentCaisseDispoLive");
+const autreArgentRetraitsTotal = document.getElementById("autreArgentRetraitsTotal");
 const autreArgentList = document.getElementById("autreArgentList");
 const autreArgentTotal = document.getElementById("autreArgentTotal");
 const autreArgentSaveMsg = document.getElementById("autreArgentSaveMsg");
+const autreArgentFormPanel = document.getElementById("autreArgentFormPanel");
+const autreArgentListPanel = document.getElementById("autreArgentListPanel");
+const fondCaissePanel = document.getElementById("fondCaissePanel");
+const fondCaisseForm = document.getElementById("fondCaisseForm");
+const fondCaisseAmountInput = document.getElementById("fondCaisseAmount");
+const fondCaisseSaveMsg = document.getElementById("fondCaisseSaveMsg");
+const resetFondCaisseBtn = document.getElementById("resetFondCaisseBtn");
+const fondCaisseDisplay = document.getElementById("fondCaisseDisplay");
+const fondCaisseDisplayFinancier = document.getElementById("fondCaisseDisplayFinancier");
+const fondCaisseFormAdmin = document.getElementById("fondCaisseFormAdmin");
+const fondCaisseAmountAdmin = document.getElementById("fondCaisseAmountAdmin");
+const fondCaisseSaveMsgAdmin = document.getElementById("fondCaisseSaveMsgAdmin");
+const resetFondCaisseBtnAdmin = document.getElementById("resetFondCaisseBtnAdmin");
+const fondCaisseAnnuelForm = document.getElementById("fondCaisseAnnuelForm");
+const fondCaisseAnnuelYearSelect = document.getElementById("fondCaisseAnnuelYear");
+const fondCaisseAnnuelAmountInput = document.getElementById("fondCaisseAnnuelAmount");
+const fondCaisseAnnuelSaveMsg = document.getElementById("fondCaisseAnnuelSaveMsg");
+const fondCaisseAnnuelSummary = document.getElementById("fondCaisseAnnuelSummary");
+const fondCaisseAnnuelList = document.getElementById("fondCaisseAnnuelList");
+const fondCaisseAnnuelDeleteBtn = document.getElementById("fondCaisseAnnuelDeleteBtn");
+const cotisationBodyPublic = document.getElementById("cotisationBodyPublic");
+const cotisationTotalPublic = document.getElementById("cotisationTotalPublic");
+const tourneeYearPublic = document.getElementById("tourneeYearPublic");
+const simpleViewBanner = document.getElementById("simpleViewBanner");
+const autreArgentCaisseTotal = document.getElementById("autreArgentCaisseTotal");
 const financeDashboard = document.getElementById("financeDashboard");
 const financeSubtabs = document.getElementById("financeSubtabs");
 const financeSubcontent = document.getElementById("financeSubcontent");
 const financeSubtitle = document.getElementById("financeSubtitle");
+const financeDettesAmendes = document.getElementById("financeDettesAmendes");
+const financeCaisse = document.getElementById("financeCaisse");
+const financeSubCaisse = document.getElementById("financeSubCaisse");
 
 let members = [];
 let adminIds = [];
@@ -221,7 +294,7 @@ let cotisationsDraft = {};
 let tourneeData = { years: {} };
 let tourneeDraft = { years: {} };
 let tourneeYear = String(new Date().getFullYear());
-let tourneeSortKey = "name";
+let tourneeSortKey = "month";
 let tourneeSortDir = "asc";
 let amendes = [];
 let amendesCaisse = [];
@@ -230,8 +303,13 @@ let prets = [];
 let notifications = [];
 let evenements = [];
 let autreArgent = [];
+let ancienneTourneeDettes = [];
+let fondCaisse = DEFAULT_FOND_CAISSE;
+let fondCaisseAnnuel = { years: {} };
 let financeData = null;
-let activeFinanceSub = "journal";
+let activeFinanceSub = FINANCE_LIVE_DETTE_SUB;
+let activeAdminSub = "membres";
+let activeGestionSub = "membres"; // alias
 let editingAmendeId = null;
 let appReady = false;
 
@@ -337,6 +415,107 @@ function loadAutreArgent() {
   }
 }
 
+function loadAncienneTourneeDettes() {
+  try {
+    const data = localStorage.getItem(ANCIENNE_TOURNEE_DETTES_KEY);
+    const raw = data ? JSON.parse(data) : [];
+    if (Array.isArray(raw)) {
+      return raw
+        .filter((entry) => entry && entry.memberId && Number(entry.amount) > 0)
+        .map((entry) => ({
+          id: entry.id || generateId(),
+          memberId: entry.memberId,
+          amount: Number(entry.amount),
+          originalAmount: Number(entry.originalAmount) > 0 ? Number(entry.originalAmount) : Number(entry.amount),
+          repaidAmount: Number(entry.repaidAmount) || 0,
+          repayments: Array.isArray(entry.repayments) ? entry.repayments : [],
+          note: String(entry.note || ""),
+          createdAt: entry.createdAt || new Date().toISOString(),
+          createdBy: entry.createdBy || null,
+        }));
+    }
+    if (raw && typeof raw === "object") {
+      return Object.entries(raw)
+        .filter(([, value]) => Number(value) > 0)
+        .map(([memberId, amount]) => ({
+          id: generateId(),
+          memberId,
+          amount: Number(amount),
+          note: "",
+          createdAt: new Date().toISOString(),
+          createdBy: null,
+        }));
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+function bumpLiveDataRevision() {
+  localStorage.setItem("poto-timide-data-revision", JSON.stringify(Date.now()));
+}
+
+function saveAncienneTourneeDettes(shouldRender = true) {
+  localStorage.setItem(ANCIENNE_TOURNEE_DETTES_KEY, JSON.stringify(ancienneTourneeDettes));
+  bumpLiveDataRevision();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+  if (shouldRender) {
+    renderAncienneTourneeDettesAdmin();
+    renderAncienneTourneeMemberView();
+  }
+}
+
+function getAncienneTourneeEntriesFor(memberId) {
+  return ancienneTourneeDettes.filter((entry) => entry.memberId === memberId);
+}
+
+function getAncienneTourneeDette(memberId) {
+  return getAncienneTourneeEntriesFor(memberId).reduce(
+    (sum, entry) => sum + (Number(entry.amount) || 0),
+    0
+  );
+}
+
+function getAncienneTourneeRepaidAmount(entry) {
+  return Number(entry?.repaidAmount) || 0;
+}
+
+function formatAncienneTourneeAmountHtml(entry) {
+  const remaining = Number(entry.amount) || 0;
+  const repaid = getAncienneTourneeRepaidAmount(entry);
+  if (repaid > 0) {
+    return `<strong>${formatEuro(remaining)}</strong><span class="ancienne-tournee-repaid-hint">déjà ${formatEuro(repaid)}</span>`;
+  }
+  return `<strong>${formatEuro(remaining)}</strong>`;
+}
+
+function buildAncienneTourneeRepayControls(entry) {
+  if (!canRepayAncienneTourneeDette()) return "";
+  const remaining = Number(entry.amount) || 0;
+  return `
+    <div class="ancienne-tournee-repay-controls">
+      <label class="ancienne-tournee-repay-field">
+        <input
+          type="number"
+          min="0.5"
+          step="0.5"
+          max="${remaining}"
+          value="${remaining}"
+          class="ancienne-tournee-repay-input"
+          data-id="${escapeHtml(entry.id)}"
+          inputmode="decimal"
+          aria-label="Montant à rembourser, reste ${formatEuro(remaining)}"
+        />
+        <span aria-hidden="true">€</span>
+      </label>
+      <button type="button" class="btn-primary btn-ancienne-tournee-repay" data-id="${escapeHtml(entry.id)}">Rembourser</button>
+    </div>
+  `;
+}
+
 function loadFinance() {
   try {
     const data = localStorage.getItem(FINANCE_KEY);
@@ -349,6 +528,10 @@ function loadFinance() {
 async function ensureFinanceData() {
   if (financeData) return;
   financeData = loadFinance();
+  // Explicit wipe — do not re-import historical Excel archive
+  if (financeData && (financeData.cleared === true || financeData.source === "cleared")) {
+    return;
+  }
   if (financeData) return;
 
   try {
@@ -363,11 +546,33 @@ async function ensureFinanceData() {
 
 function getFinanceSubtab() {
   const stored = localStorage.getItem(FINANCE_SUBTAB_KEY);
-  return FINANCE_SUBTABS.includes(stored) ? stored : "journal";
+  // Anciens sous-onglets d'archives → regroupés
+  if (
+    stored === "cotisations" ||
+    stored === "ancienne-tournee" ||
+    stored === "amendes" ||
+    stored === "prets" ||
+    stored === "amendes-live" ||
+    stored === "dettes"
+  ) {
+    if (stored === "amendes-live" || stored === "dettes") return FINANCE_LIVE_DETTE_SUB;
+    return FINANCE_ARCHIVES_SUB;
+  }
+  if (stored === FINANCE_CAISSE_SUB && !canAccessCaisse()) return FINANCE_LIVE_DETTE_SUB;
+  return FINANCE_SUBTABS.includes(stored) ? stored : FINANCE_LIVE_DETTE_SUB;
+}
+
+function isFinanceDettesAmendesSub(subId = activeFinanceSub) {
+  return subId === FINANCE_LIVE_DETTE_SUB;
+}
+
+function isFinanceCaisseSub(subId = activeFinanceSub) {
+  return subId === FINANCE_CAISSE_SUB;
 }
 
 function showFinanceSub(subId) {
-  if (!FINANCE_SUBTABS.includes(subId)) subId = "journal";
+  if (!FINANCE_SUBTABS.includes(subId)) subId = FINANCE_LIVE_DETTE_SUB;
+  if (subId === FINANCE_CAISSE_SUB && !canAccessCaisse()) subId = FINANCE_LIVE_DETTE_SUB;
   activeFinanceSub = subId;
   localStorage.setItem(FINANCE_SUBTAB_KEY, subId);
   financeSubtabs?.querySelectorAll(".finance-subtab").forEach((btn) => {
@@ -376,87 +581,88 @@ function showFinanceSub(subId) {
   renderFinanceSubcontent();
 }
 
+/** Totaux live Entrées / Sorties / Soldes (caisse réelle du groupe) */
+function getFinanceLiveFlow() {
+  const fond = getFondCaisse();
+  const fondAnnuel = getTotalFondCaisseAnnuelVerse();
+  const amendes = getTotalAmendesInCaisse();
+  const dons = getTotalDonsOuAides();
+  const retraits = getTotalRetraitsCaisse();
+  const evenementsCollectes = evenements.reduce(
+    (sum, evt) => sum + getEvenementCollectedAmount(evt),
+    0
+  );
+  const remboursementsPrets = prets
+    .filter((loan) => ["active", "defaulted", "completed"].includes(loan.status))
+    .reduce((sum, loan) => sum + (loan.totalRepaid || 0), 0);
+
+  const entrees = fond + fondAnnuel + amendes + dons + evenementsCollectes + remboursementsPrets;
+
+  const pretsAccordes = prets
+    .filter((loan) => ["active", "defaulted", "completed"].includes(loan.status))
+    .reduce((sum, loan) => sum + loan.amount, 0);
+  const evenementsRemises = evenements
+    .filter((evt) => isEvenementReimbursed(evt))
+    .reduce((sum, evt) => sum + (evt.reimbursedAmount ?? getEvenementCollectedAmount(evt)), 0);
+  const dettesDeduites = getTotalEvenementDebtDeductions();
+
+  const sorties = pretsAccordes + evenementsRemises + dettesDeduites + retraits;
+
+  // Solde brut = tout l'argent réellement disponible du groupe
+  // (caisse libre + cotisations événements encore en caisse)
+  // = fond + amendes + dons + événements non remis − prêts sortis + remboursements
+  const soldeDisponible = getCaisseDisponible();
+  const evenementsEnCaisse = getTotalEvenementsInCaisse();
+  const soldeBrute = soldeDisponible + evenementsEnCaisse;
+
+  return {
+    entrees,
+    sorties,
+    soldeDisponible,
+    soldeBrute,
+    evenementsEnCaisse,
+    detailEntrees: { fond, fondAnnuel, amendes, dons, evenementsCollectes, remboursementsPrets },
+    detailSorties: { pretsAccordes, evenementsRemises, dettesDeduites, retraits },
+  };
+}
+
 function renderFinanceDashboard() {
   if (!financeDashboard) return;
-  if (!financeData) {
-    financeDashboard.innerHTML = `
-      <div class="finance-empty">
-        Aucune donnée finance chargée. Lancez <code>node import-finance-vitran.js</code> puis synchronisez vers Render.
-      </div>`;
-    return;
-  }
 
-  const f = financeData.finances || {};
-  const imported = financeData.importedAt || "—";
+  const flow = getFinanceLiveFlow();
+  const dIn = flow.detailEntrees;
+  const dOut = flow.detailSorties;
+
+  const entreesNote = canViewFondCaisse()
+    ? `Fond ${formatEuro(dIn.fond)} · Fond annuel ${formatEuro(dIn.fondAnnuel || 0)} · Amendes ${formatEuro(dIn.amendes)} · Dons ou aides ${formatEuro(dIn.dons)} · Événements ${formatEuro(dIn.evenementsCollectes)} · Remb. prêts ${formatEuro(dIn.remboursementsPrets)}`
+    : `Fond annuel ${formatEuro(dIn.fondAnnuel || 0)} · Amendes ${formatEuro(dIn.amendes)} · Dons ou aides ${formatEuro(dIn.dons)} · Événements ${formatEuro(dIn.evenementsCollectes)} · Remb. prêts ${formatEuro(dIn.remboursementsPrets)}`;
+
   financeDashboard.innerHTML = `
     <div class="finance-stat finance-stat--in">
       <span class="finance-stat-label">Entrées</span>
-      <strong>${formatEuro(f.totalIn || 0)}</strong>
+      <strong>${formatEuro(flow.entrees)}</strong>
+      <span class="finance-stat-note">${entreesNote}</span>
     </div>
     <div class="finance-stat finance-stat--out">
       <span class="finance-stat-label">Sorties</span>
-      <strong>${formatEuro(f.totalOut || 0)}</strong>
+      <strong>${formatEuro(flow.sorties)}</strong>
+      <span class="finance-stat-note">Prêts ${formatEuro(dOut.pretsAccordes)} · Remb. potos ${formatEuro(dOut.evenementsRemises)} · Dettes ${formatEuro(dOut.dettesDeduites)} · Retraits ${formatEuro(dOut.retraits || 0)}</span>
+    </div>
+    <div class="finance-stat finance-stat--balance finance-stat--brute">
+      <span class="finance-stat-label">Solde brut</span>
+      <strong>${formatEuro(flow.soldeBrute)}</strong>
+      <span class="finance-stat-note">Caisse disponible + événements (${formatEuro(flow.evenementsEnCaisse)})</span>
     </div>
     <div class="finance-stat finance-stat--balance">
-      <span class="finance-stat-label">Solde</span>
-      <strong>${formatEuro(f.balance || 0)}</strong>
-    </div>
-    <div class="finance-stat finance-stat--meta">
-      <span class="finance-stat-label">Import</span>
-      <strong>${escapeHtml(imported)}</strong>
-      <span class="finance-stat-note">${(f.entries?.length || 0) + (f.exits?.length || 0)} mouvements</span>
+      <span class="finance-stat-label">Solde disponible</span>
+      <strong>${formatEuro(flow.soldeDisponible)}</strong>
+      <span class="finance-stat-note">Argent libre pour les prêts</span>
     </div>
   `;
   if (financeSubtitle) {
-    financeSubtitle.textContent =
-      "Archive Finance poto_vitran.xlsx — journal, cotisations, ancienne tournée, amendes et prêts historiques.";
+    financeSubtitle.hidden = true;
+    financeSubtitle.textContent = "";
   }
-}
-
-function renderFinanceJournal() {
-  const f = financeData?.finances;
-  if (!f) return `<p class="finance-empty">Journal indisponible.</p>`;
-
-  const rows = [];
-  (f.entries || []).forEach((row) => {
-    rows.push({ type: "in", date: row.date, amount: row.amount, person: row.person, note: row.note });
-  });
-  (f.exits || []).forEach((row) => {
-    rows.push({ type: "out", date: row.date, amount: row.amount, person: row.person, note: row.note });
-  });
-  rows.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
-
-  const body = rows.length
-    ? rows
-        .map(
-          (row, i) => `
-        <tr class="finance-row finance-row--${row.type}" style="--finance-row-i:${i}">
-          <td><span class="finance-flow-badge finance-flow-badge--${row.type}">${row.type === "in" ? "Entrée" : "Sortie"}</span></td>
-          <td>${row.date ? formatDate(String(row.date).split("T")[0]) : "—"}</td>
-          <td class="finance-td-person">${escapeHtml(row.person || "—")}</td>
-          <td class="finance-td-note">${escapeHtml(row.note || "—")}</td>
-          <td class="finance-td-amount finance-td-amount--${row.type}">${formatEuro(row.amount || 0)}</td>
-        </tr>`
-        )
-        .join("")
-    : `<tr><td colspan="5" class="finance-empty-cell">Aucun mouvement.</td></tr>`;
-
-  return `
-    <div class="finance-section-head"><h3>Journal des entrées et sorties</h3></div>
-    <div class="finance-table-wrap">
-      <table class="finance-table">
-        <thead>
-          <tr><th>Type</th><th>Date</th><th>Personne</th><th>Détail</th><th class="finance-th-amount">Montant</th></tr>
-        </thead>
-        <tbody>${body}</tbody>
-        <tfoot>
-          <tr>
-            <td colspan="4">Total entrées / sorties / solde</td>
-            <td class="finance-td-amount">${formatEuro(f.totalIn || 0)} · ${formatEuro(f.totalOut || 0)} · ${formatEuro(f.balance || 0)}</td>
-          </tr>
-        </tfoot>
-      </table>
-    </div>`;
 }
 
 function renderFinanceCotisations() {
@@ -624,25 +830,52 @@ function renderFinancePrets() {
     </div>`;
 }
 
+function renderFinanceArchives() {
+  if (!financeData || financeData.cleared === true || financeData.source === "cleared") {
+    return `<p class="finance-empty">Aucun chiffre historique — archive réinitialisée.</p>`;
+  }
+  const parts = [
+    renderFinanceCotisations(),
+    renderFinanceAncienneTournee(),
+    renderFinanceAmendes(),
+    renderFinancePrets(),
+  ];
+  return `<div class="finance-archives-stack">${parts.join('<hr class="finance-archives-sep" />')}</div>`;
+}
+
 function renderFinanceSubcontent() {
-  if (!financeSubcontent) return;
-  if (!financeData) {
-    financeSubcontent.innerHTML = `<p class="finance-empty">Importez Finance poto_vitran.xlsx avec import-finance-vitran.js</p>`;
+  const showLiveDettes = isFinanceDettesAmendesSub();
+  const showCaisse = isFinanceCaisseSub() && canAccessCaisse();
+  const showArchives = activeFinanceSub === FINANCE_ARCHIVES_SUB;
+
+  if (financeDettesAmendes) financeDettesAmendes.hidden = !showLiveDettes;
+  if (financeCaisse) financeCaisse.hidden = !showCaisse;
+  if (financeSubcontent) financeSubcontent.hidden = !showArchives;
+
+  if (showLiveDettes) {
+    if (financeSubcontent) financeSubcontent.innerHTML = "";
+    renderAmendes();
     return;
   }
 
-  const renderers = {
-    journal: renderFinanceJournal,
-    cotisations: renderFinanceCotisations,
-    "ancienne-tournee": renderFinanceAncienneTournee,
-    amendes: renderFinanceAmendes,
-    prets: renderFinancePrets,
-  };
-  financeSubcontent.innerHTML = renderers[activeFinanceSub]?.() || "";
+  if (showCaisse) {
+    if (financeSubcontent) financeSubcontent.innerHTML = "";
+    renderFondCaissePanel();
+    renderAutreArgent();
+    return;
+  }
+
+  if (!financeSubcontent) return;
+  financeSubcontent.innerHTML = renderFinanceArchives();
 }
 
 function renderFinance() {
   activeFinanceSub = getFinanceSubtab();
+  // Fond de caisse : uniquement Admin → Caisse
+  if (financeSubCaisse) financeSubCaisse.hidden = true;
+  if (activeFinanceSub === FINANCE_CAISSE_SUB) {
+    activeFinanceSub = FINANCE_LIVE_DETTE_SUB;
+  }
   renderFinanceDashboard();
   financeSubtabs?.querySelectorAll(".finance-subtab").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.financeSub === activeFinanceSub);
@@ -652,9 +885,13 @@ function renderFinance() {
 
 function saveAutreArgent(shouldRender = true) {
   localStorage.setItem(AUTRE_ARGENT_KEY, JSON.stringify(autreArgent));
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
   if (shouldRender) {
     renderAutreArgent();
     renderPrets();
+    renderFinanceDashboard();
   }
 }
 
@@ -689,6 +926,14 @@ function normalizeCotisations(raw) {
   return normalized;
 }
 
+function cloneMonthMemberMap(value) {
+  const out = {};
+  Object.entries(value || {}).forEach(([monthKey, ids]) => {
+    out[monthKey] = Array.isArray(ids) ? [...ids] : [];
+  });
+  return out;
+}
+
 function cloneTourneeData(data) {
   const years = {};
   Object.entries(data.years || {}).forEach(([year, yearData]) => {
@@ -701,6 +946,14 @@ function cloneTourneeData(data) {
         });
         return;
       }
+      if (key === TOURNEE_RECEPTION_KEY || key === TOURNEE_RISTOURNE_KEY) {
+        years[year][key] = cloneMonthMemberMap(value);
+        return;
+      }
+      if (key === TOURNEE_BOUFFE_OK_KEY || key === TOURNEE_RECEPTION_DATES_KEY) {
+        years[year][key] = { ...(value || {}) };
+        return;
+      }
       years[year][key] = Array.isArray(value) ? [...value] : value;
     });
   });
@@ -711,6 +964,18 @@ function normalizeTourneeMonthIds(memberIds) {
   if (!Array.isArray(memberIds)) return [];
   const validIds = new Set(members.map((member) => member.id));
   return memberIds.filter((id, index, list) => validIds.has(id) && list.indexOf(id) === index);
+}
+
+function normalizeMonthMemberMap(rawMap) {
+  const out = {};
+  if (!rawMap || typeof rawMap !== "object" || Array.isArray(rawMap)) return out;
+  Object.entries(rawMap).forEach(([monthKey, ids]) => {
+    const index = Number(monthKey);
+    if (Number.isNaN(index) || index < 0 || index > 11) return;
+    const normalized = normalizeTourneeMonthIds(ids);
+    if (normalized.length > 0) out[String(index)] = normalized;
+  });
+  return out;
 }
 
 function inferPartnersFromMonths(months, partners = {}) {
@@ -747,7 +1012,7 @@ function normalizeTourneeData(raw) {
     const months = {};
 
     Object.entries(yearData).forEach(([monthIndex, memberIds]) => {
-      if (monthIndex === TOURNEE_PARTNERS_KEY) return;
+      if (TOURNEE_META_KEYS.has(monthIndex)) return;
       const index = Number(monthIndex);
       if (Number.isNaN(index) || index < 0 || index > 11) return;
       const normalizedIds = normalizeTourneeMonthIds(memberIds);
@@ -757,16 +1022,121 @@ function normalizeTourneeData(raw) {
     });
 
     Object.assign(normalizedYear, months);
+
+    let reception = normalizeMonthMemberMap(yearData[TOURNEE_RECEPTION_KEY]);
+    let ristourne = normalizeMonthMemberMap(yearData[TOURNEE_RISTOURNE_KEY]);
+    // Ancien format : les tableaux par mois étaient l'ordre de réception
+    if (Object.keys(reception).length === 0 && Object.keys(months).length > 0) {
+      reception = { ...months };
+    }
+    if (Object.keys(reception).length > 0) {
+      normalizedYear[TOURNEE_RECEPTION_KEY] = reception;
+    }
+    if (Object.keys(ristourne).length > 0) {
+      normalizedYear[TOURNEE_RISTOURNE_KEY] = ristourne;
+    }
+
     const existingPartners = yearData[TOURNEE_PARTNERS_KEY];
-    const partners = inferPartnersFromMonths(months, existingPartners || {});
+    const partners = inferPartnersFromMonths(
+      Object.keys(reception).length ? reception : months,
+      existingPartners || {}
+    );
     if (Object.keys(partners).length > 0) {
       normalizedYear[TOURNEE_PARTNERS_KEY] = partners;
+    }
+
+    // OK tournée / bouffe déjà prise
+    const rawBouffe = yearData[TOURNEE_BOUFFE_OK_KEY];
+    if (rawBouffe && typeof rawBouffe === "object") {
+      const validIds = new Set(members.map((m) => m.id));
+      const bouffeOk = {};
+      Object.entries(rawBouffe).forEach(([memberId, flag]) => {
+        if (validIds.has(memberId) && flag) bouffeOk[memberId] = true;
+      });
+      if (Object.keys(bouffeOk).length > 0) {
+        normalizedYear[TOURNEE_BOUFFE_OK_KEY] = bouffeOk;
+      }
+    }
+
+    const rawReception = yearData[TOURNEE_RECEPTION_DATES_KEY];
+    if (rawReception && typeof rawReception === "object") {
+      const validIds = new Set(members.map((m) => m.id));
+      const receptionDates = {};
+      Object.entries(rawReception).forEach(([memberId, dateStr]) => {
+        const valid = normalizeISODate(dateStr);
+        if (validIds.has(memberId) && valid) receptionDates[memberId] = valid;
+      });
+      if (Object.keys(receptionDates).length > 0) {
+        normalizedYear[TOURNEE_RECEPTION_DATES_KEY] = receptionDates;
+      }
     }
 
     years[String(year)] = normalizedYear;
   });
 
   return { years };
+}
+
+/** Financier (ou admin en espace Admin) peut valider qu'un poto a déjà bouffé / pris sa tournée */
+function canMarkTourneeBouffeOk() {
+  if (!isLoggedIn()) return false;
+  if (getMemberRole(getCurrentMember()?.id) === "tresorier") return true;
+  return hasRoleTabAccess("tournee") && isAdminWorkspace();
+}
+
+function getTourneeBouffeOkMap(year = tourneeYear, useDraft = false) {
+  const source = useDraft && canEditTourneePlanning() ? tourneeDraft : tourneeData;
+  const yearRecord = source.years?.[year] || {};
+  return yearRecord[TOURNEE_BOUFFE_OK_KEY] || {};
+}
+
+function isTourneeBouffeOk(memberId, year = tourneeYear, useDraft = false) {
+  return Boolean(getTourneeBouffeOkMap(year, useDraft)[memberId]);
+}
+
+function setTourneeBouffeOk(memberId, isOk) {
+  if (!canMarkTourneeBouffeOk()) {
+    if (!isLoggedIn()) {
+      alert("Veuillez vous connecter.");
+      openLoginModal();
+      return false;
+    }
+    alert("Seul le Financier (ou un administrateur) peut valider une tournée prise.");
+    return false;
+  }
+  if (!memberId) return false;
+
+  const year = tourneeYear;
+  if (!tourneeData.years[year]) tourneeData.years[year] = {};
+  if (!tourneeData.years[year][TOURNEE_BOUFFE_OK_KEY]) {
+    tourneeData.years[year][TOURNEE_BOUFFE_OK_KEY] = {};
+  }
+  const map = tourneeData.years[year][TOURNEE_BOUFFE_OK_KEY];
+  if (isOk) map[memberId] = true;
+  else delete map[memberId];
+  if (Object.keys(map).length === 0) delete tourneeData.years[year][TOURNEE_BOUFFE_OK_KEY];
+
+  // Garder le brouillon admin aligné
+  if (tourneeDraft?.years) {
+    if (!tourneeDraft.years[year]) tourneeDraft.years[year] = {};
+    if (!tourneeDraft.years[year][TOURNEE_BOUFFE_OK_KEY]) {
+      tourneeDraft.years[year][TOURNEE_BOUFFE_OK_KEY] = {};
+    }
+    const draftMap = tourneeDraft.years[year][TOURNEE_BOUFFE_OK_KEY];
+    if (isOk) draftMap[memberId] = true;
+    else delete draftMap[memberId];
+    if (Object.keys(draftMap).length === 0) {
+      delete tourneeDraft.years[year][TOURNEE_BOUFFE_OK_KEY];
+    }
+  }
+
+  saveTourneeData();
+  renderTourneeTable();
+  return true;
+}
+
+function toggleTourneeBouffeOk(memberId) {
+  setTourneeBouffeOk(memberId, !isTourneeBouffeOk(memberId));
 }
 
 function loadTourneeData() {
@@ -797,17 +1167,59 @@ function ensureTourneeYearDraft(year) {
   return tourneeDraft.years[year];
 }
 
-function getTourneeYearRecord(year, useDraft = canManageTab("tournee")) {
+function getTourneeYearRecord(year, useDraft = canEditTourneePlanning()) {
   const source = useDraft ? tourneeDraft : tourneeData;
   return source.years?.[year] || {};
 }
 
-function getTourneeMonthAssignment(year, monthIndex, useDraft = canManageTab("tournee")) {
+function getTourneeMonthAssignment(year, monthIndex, useDraft = canEditTourneePlanning()) {
   const yearRecord = getTourneeYearRecord(year, useDraft);
+  const fromMap = yearRecord[TOURNEE_RECEPTION_KEY]?.[String(monthIndex)];
+  if (Array.isArray(fromMap) && fromMap.length) {
+    return normalizeTourneeMonthIds(fromMap);
+  }
   return normalizeTourneeMonthIds(yearRecord[String(monthIndex)] || []);
 }
 
-function getTourneePartnersMap(year, useDraft = canManageTab("tournee")) {
+function tourneeOrderKey(kind) {
+  return kind === "ristourne" ? TOURNEE_RISTOURNE_KEY : TOURNEE_RECEPTION_KEY;
+}
+
+function getTourneeOrderIds(kind, monthIndex, useDraft = canEditTourneePlanning()) {
+  const yearRecord = getTourneeYearRecord(tourneeYear, useDraft);
+  const map = yearRecord[tourneeOrderKey(kind)] || {};
+  const ids = normalizeTourneeMonthIds(map[String(monthIndex)] || []);
+  if (ids.length || kind === "ristourne") return ids;
+  return getTourneeMonthAssignment(tourneeYear, monthIndex, useDraft);
+}
+
+function setTourneeOrderDraft(kind, monthIndex, memberIds) {
+  if (!canEditTourneePlanning()) return;
+  const key = tourneeOrderKey(kind);
+  const yearRecord = ensureTourneeYearDraft(tourneeYear);
+  if (!yearRecord[key] || typeof yearRecord[key] !== "object") yearRecord[key] = {};
+  const normalized = normalizeTourneeMonthIds(memberIds);
+  if (normalized.length === 0) delete yearRecord[key][String(monthIndex)];
+  else yearRecord[key][String(monthIndex)] = normalized;
+}
+
+function addTourneeOrderMember(kind, monthIndex, memberId) {
+  if (!memberId) return;
+  const current = getTourneeOrderIds(kind, monthIndex, true);
+  if (current.includes(memberId)) return;
+  setTourneeOrderDraft(kind, monthIndex, [...current, memberId]);
+}
+
+function removeTourneeOrderMember(kind, monthIndex, memberId) {
+  const current = getTourneeOrderIds(kind, monthIndex, true);
+  setTourneeOrderDraft(
+    kind,
+    monthIndex,
+    current.filter((id) => id !== memberId)
+  );
+}
+
+function getTourneePartnersMap(year, useDraft = canEditTourneePlanning()) {
   const yearRecord = getTourneeYearRecord(year, useDraft);
   return yearRecord[TOURNEE_PARTNERS_KEY] || {};
 }
@@ -820,8 +1232,60 @@ function ensureTourneePartnersDraft() {
   return yearRecord[TOURNEE_PARTNERS_KEY];
 }
 
+function normalizeISODate(value) {
+  if (value == null) return "";
+  const raw = String(value).trim().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return "";
+  const [year, month, day] = raw.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) {
+    return "";
+  }
+  return raw;
+}
+
+function formatReceptionDate(dateStr) {
+  const valid = normalizeISODate(dateStr);
+  if (!valid) return "—";
+  const [year, month, day] = valid.split("-").map(Number);
+  return new Date(year, month - 1, day).toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function getReceptionMonthLabel(dateStr) {
+  const valid = normalizeISODate(dateStr);
+  if (!valid) return "";
+  const monthIndex = Number(valid.slice(5, 7)) - 1;
+  return MONTH_LABELS[monthIndex] || "";
+}
+
+function getTourneeReceptionDatesMap(year = tourneeYear, useDraft = canEditTourneePlanning()) {
+  const yearRecord = getTourneeYearRecord(year, useDraft);
+  return yearRecord[TOURNEE_RECEPTION_DATES_KEY] || {};
+}
+
+function getMemberReceptionDate(memberId, year = tourneeYear, useDraft = canEditTourneePlanning()) {
+  return normalizeISODate(getTourneeReceptionDatesMap(year, useDraft)[memberId]);
+}
+
+function setMemberReceptionDate(memberId, dateStr) {
+  if (!canEditTourneePlanning() || !memberId) return;
+  const yearRecord = ensureTourneeYearDraft(tourneeYear);
+  if (!yearRecord[TOURNEE_RECEPTION_DATES_KEY]) {
+    yearRecord[TOURNEE_RECEPTION_DATES_KEY] = {};
+  }
+  const map = yearRecord[TOURNEE_RECEPTION_DATES_KEY];
+  const valid = normalizeISODate(dateStr);
+  if (valid) map[memberId] = valid;
+  else delete map[memberId];
+  if (Object.keys(map).length === 0) delete yearRecord[TOURNEE_RECEPTION_DATES_KEY];
+}
+
 function setTourneeMonthDraft(monthIndex, memberIds, shouldRender = true) {
-  if (!canManageTab("tournee")) return;
+  if (!canEditTourneePlanning()) return;
   const months = ensureTourneeYearDraft(tourneeYear);
   const normalized = normalizeTourneeMonthIds(memberIds);
   if (normalized.length === 0) {
@@ -832,16 +1296,24 @@ function setTourneeMonthDraft(monthIndex, memberIds, shouldRender = true) {
   if (shouldRender) renderTourneeTable();
 }
 
-function getMemberMonthIndices(year, memberId, useDraft = canManageTab("tournee")) {
+function getTourneeMonthOrder() {
+  return TOURNEE_CYCLE_MONTHS.slice();
+}
+
+function tourneeMonthRank(monthIndex) {
+  return (Number(monthIndex) - TOURNEE_CYCLE_START_MONTH + 12) % 12;
+}
+
+function getMemberMonthIndices(year, memberId, useDraft = canEditTourneePlanning()) {
   const indices = [];
-  for (let index = 0; index < 12; index += 1) {
+  getTourneeMonthOrder().forEach((index) => {
     const memberIds = getTourneeMonthAssignment(year, index, useDraft);
     if (memberIds.includes(memberId)) indices.push(index);
-  }
+  });
   return indices;
 }
 
-function getMemberPartnerForMonth(year, memberId, monthIndex, useDraft = canManageTab("tournee")) {
+function getMemberPartnerForMonth(year, memberId, monthIndex, useDraft = canEditTourneePlanning()) {
   const partners = getTourneePartnersMap(year, useDraft);
   return partners[memberId]?.[String(monthIndex)] || "";
 }
@@ -870,18 +1342,23 @@ function removeMemberFromMonth(memberId, monthIndex) {
   const months = ensureTourneeYearDraft(tourneeYear);
   const monthKey = String(monthIndex);
   if (!months[monthKey]) return;
-  months[monthKey] = months[monthKey].filter((id) => id !== memberId);
-  if (months[monthKey].length === 0) delete months[monthKey];
+  const next = (Array.isArray(months[monthKey]) ? months[monthKey] : []).filter(
+    (id) => id !== memberId
+  );
+  if (next.length === 0) delete months[monthKey];
+  else months[monthKey] = next;
   clearPartnerForMonth(memberId, monthIndex);
 }
 
 function addMemberToMonth(memberId, monthIndex) {
   const months = ensureTourneeYearDraft(tourneeYear);
   const monthKey = String(monthIndex);
-  if (!months[monthKey]) months[monthKey] = [];
-  if (!months[monthKey].includes(memberId)) {
-    months[monthKey].push(memberId);
+  // Always clone the array so months never share the same reference
+  const current = Array.isArray(months[monthKey]) ? [...months[monthKey]] : [];
+  if (!current.includes(memberId)) {
+    current.push(memberId);
   }
+  months[monthKey] = current;
 }
 
 function getCotisationAmount(memberId, source = getCotisationSource()) {
@@ -898,10 +1375,10 @@ function canSelectAsBinome(candidateId, forMemberId) {
 }
 
 function toggleMemberMonth(memberId, monthIndex, isActive) {
-  if (!canManageTab("tournee")) return;
+  if (!canEditTourneePlanning()) return;
 
   const parsedMonth = Number(monthIndex);
-  if (Number.isNaN(parsedMonth)) return;
+  if (Number.isNaN(parsedMonth) || !memberId) return;
 
   if (isActive) {
     addMemberToMonth(memberId, parsedMonth);
@@ -909,7 +1386,34 @@ function toggleMemberMonth(memberId, monthIndex, isActive) {
     removeMemberFromMonth(memberId, parsedMonth);
   }
 
-  renderTourneeTable();
+  // Update only this row visually — avoid full table rebuild side-effects
+  updateTourneeRowMonths(memberId);
+}
+
+function findTourneeRowByMemberId(memberId) {
+  if (!cotisationBody) return null;
+  return [...cotisationBody.querySelectorAll("tr[data-member-id]")].find(
+    (row) => row.dataset.memberId === memberId
+  );
+}
+
+function updateTourneeRowMonths(memberId) {
+  const row = findTourneeRowByMemberId(memberId);
+  if (!row) {
+    renderTourneeTable();
+    return;
+  }
+
+  const monthIndices = getMemberMonthIndices(tourneeYear, memberId, true);
+  const chipsWrap = row.querySelector(".tournee-month-chips");
+  if (chipsWrap) {
+    chipsWrap.querySelectorAll(".tournee-month-chip").forEach((chip) => {
+      const idx = Number(chip.dataset.month);
+      const active = monthIndices.includes(idx);
+      chip.classList.toggle("is-active", active);
+      chip.setAttribute("aria-pressed", String(active));
+    });
+  }
 }
 
 function assignMemberPartnerForMonth(memberId, monthIndex, partnerId) {
@@ -928,44 +1432,14 @@ function assignMemberPartnerForMonth(memberId, monthIndex, partnerId) {
   renderTourneeTable();
 }
 
-function getMonthReceiversLabel(monthIndex, useDraft = canManageTab("tournee")) {
-  const memberIds = getTourneeMonthAssignment(tourneeYear, monthIndex, useDraft);
-  if (memberIds.length === 0) return "";
-
-  return memberIds
-    .map((id) => getMemberById(id))
-    .filter(Boolean)
-    .sort(compareMemberNames)
-    .map((member) => `${member.name} ${MONTH_SHORT_LABELS[monthIndex]}`)
-    .join(" · ");
-}
-
-function getMemberTourneeStatuses(memberId, useDraft = canManageTab("tournee")) {
-  const monthIndices = getMemberMonthIndices(tourneeYear, memberId, useDraft);
-  if (monthIndices.length === 0) {
-    return [{ level: "empty", label: "Non assigné" }];
-  }
-
-  return monthIndices.map((monthIndex) => ({
-    level: "ok",
-    label: getMonthReceiversLabel(monthIndex, useDraft),
-  }));
-}
-
 function buildTourneeMonthChips(memberId, selectedMonthIndices) {
-  return MONTH_LABELS.map((label, index) => {
-    const isActive = selectedMonthIndices.includes(index);
-    const activeClass = isActive ? " is-active" : "";
-    return `<button type="button" class="tournee-month-chip${activeClass}" data-member="${memberId}" data-month="${index}" title="${escapeHtml(label)}" aria-pressed="${isActive}">${MONTH_SHORT_LABELS[index]}</button>`;
-  }).join("");
-}
-
-function buildTourneeStatusList(statuses) {
-  return statuses
-    .map(
-      (status) =>
-        `<span class="tournee-status tournee-status-${status.level}">${escapeHtml(status.label)}</span>`
-    )
+  return getTourneeMonthOrder()
+    .map((index) => {
+      const label = MONTH_LABELS[index];
+      const isActive = selectedMonthIndices.includes(index);
+      const activeClass = isActive ? " is-active" : "";
+      return `<button type="button" class="tournee-month-chip${activeClass}" data-member="${escapeHtml(memberId)}" data-month="${index}" title="${escapeHtml(label)} — cliquer pour assigner la ristourne" aria-pressed="${isActive}">${MONTH_SHORT_LABELS[index]}</button>`;
+    })
     .join("");
 }
 
@@ -993,6 +1467,501 @@ function loadAmendesCaisse() {
 
 function saveAmendesCaisse() {
   localStorage.setItem(AMENDES_CAISSE_KEY, JSON.stringify(amendesCaisse));
+}
+
+function loadFondCaisse() {
+  try {
+    const data = localStorage.getItem(FOND_CAISSE_KEY);
+    if (data == null || data === "") return DEFAULT_FOND_CAISSE;
+    const value = JSON.parse(data);
+    const amount = typeof value === "number" ? value : Number(value);
+    if (!Number.isFinite(amount) || amount < 0) return DEFAULT_FOND_CAISSE;
+    return Math.round(amount * 100) / 100;
+  } catch {
+    return DEFAULT_FOND_CAISSE;
+  }
+}
+
+function saveFondCaisse() {
+  localStorage.setItem(FOND_CAISSE_KEY, JSON.stringify(fondCaisse));
+}
+
+function getFondCaisse() {
+  return Number.isFinite(fondCaisse) && fondCaisse >= 0 ? fondCaisse : DEFAULT_FOND_CAISSE;
+}
+
+/** Fond de caisse de départ : visible/modifiable par admin ou accès Caisse */
+function canViewFondCaisse() {
+  return hasRoleTabAccess("caisse");
+}
+
+function canEditFondCaisse() {
+  return hasRoleTabAccess("caisse");
+}
+
+function requireFondCaisseEditor(actionLabel) {
+  if (!isLoggedIn()) {
+    alert("Veuillez vous connecter avec votre nom.");
+    openLoginModal();
+    return false;
+  }
+  if (canEditFondCaisse()) return true;
+  alert(`Seul un administrateur peut ${actionLabel}.`);
+  return false;
+}
+
+function showFondCaisseSaveMessage(text, type = "success") {
+  [fondCaisseSaveMsg, fondCaisseSaveMsgAdmin].forEach((el) => {
+    if (!el) return;
+    el.textContent = text;
+    el.className = `save-msg save-msg-${type}`;
+    el.hidden = false;
+  });
+}
+
+function syncFondCaisseInputs() {
+  const value = String(getFondCaisse());
+  [fondCaisseAmountInput, fondCaisseAmountAdmin].forEach((input) => {
+    if (input && document.activeElement !== input) {
+      input.value = value;
+    }
+  });
+  if (fondCaisseDisplayFinancier) {
+    fondCaisseDisplayFinancier.textContent = formatEuro(getFondCaisse());
+  }
+}
+
+function setFondCaisseAmount(amount) {
+  if (!requireFondCaisseEditor("modifier le fond de caisse de départ")) return false;
+
+  const parsed = Math.round(parseFloat(amount) * 100) / 100;
+  if (Number.isNaN(parsed) || parsed < 0) {
+    alert("Montant invalide. Entrez un nombre positif ou zéro.");
+    return false;
+  }
+
+  fondCaisse = parsed;
+  saveFondCaisse();
+  syncFondCaisseInputs();
+  showFondCaisseSaveMessage(
+    `Fond de caisse de départ enregistré : ${formatEuro(fondCaisse)}. Caisse brute : ${formatEuro(getCaisseBrute())}.`
+  );
+  renderAutreArgent();
+  if (document.getElementById("tab-prets")?.classList.contains("active")) {
+    renderPrets();
+  }
+  return true;
+}
+
+function resetFondCaisse() {
+  if (!requireFondCaisseEditor("réinitialiser le fond de caisse de départ")) return false;
+
+  const current = getFondCaisse();
+  if (
+    !confirm(
+      `Réinitialiser le fond de caisse de départ à ${formatEuro(DEFAULT_FOND_CAISSE)} ?\n` +
+        `Montant actuel : ${formatEuro(current)}.`
+    )
+  ) {
+    return false;
+  }
+
+  fondCaisse = DEFAULT_FOND_CAISSE;
+  saveFondCaisse();
+  syncFondCaisseInputs();
+  showFondCaisseSaveMessage(
+    `Fond de caisse de départ réinitialisé à ${formatEuro(DEFAULT_FOND_CAISSE)}. Caisse brute : ${formatEuro(getCaisseBrute())}.`
+  );
+  renderAutreArgent();
+  if (document.getElementById("tab-prets")?.classList.contains("active")) {
+    renderPrets();
+  }
+  return true;
+}
+
+function renderFondCaissePanel() {
+  // Panel Finance (ancien accès Financier) : plus affiché — fond réservé à Admin
+  if (fondCaissePanel) fondCaissePanel.hidden = true;
+  if (canEditFondCaisse()) syncFondCaisseInputs();
+  renderFondCaisseAnnuel();
+}
+
+function loadFondCaisseAnnuel() {
+  try {
+    const data = localStorage.getItem(FOND_CAISSE_ANNUEL_KEY);
+    const raw = data ? JSON.parse(data) : null;
+    if (raw && raw.years && typeof raw.years === "object") {
+      return { years: raw.years };
+    }
+    return { years: {} };
+  } catch {
+    return { years: {} };
+  }
+}
+
+function saveFondCaisseAnnuel(shouldRender = true) {
+  localStorage.setItem(FOND_CAISSE_ANNUEL_KEY, JSON.stringify(fondCaisseAnnuel));
+  bumpLiveDataRevision();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+  if (shouldRender) renderFondCaisseAnnuel();
+}
+
+function getFondCaisseAnnuelYear() {
+  const selected = fondCaisseAnnuelYearSelect?.value;
+  if (selected) return String(selected);
+  return String(new Date().getFullYear());
+}
+
+function getFondCaisseAnnuelYearOptions() {
+  const current = new Date().getFullYear();
+  const years = new Set([current - 1, current, current + 1]);
+  Object.keys(fondCaisseAnnuel.years || {}).forEach((year) => {
+    const n = Number(year);
+    if (Number.isFinite(n)) years.add(n);
+  });
+  return [...years].sort((a, b) => b - a).map(String);
+}
+
+function ensureFondCaisseAnnuelYear(year) {
+  const key = String(year);
+  if (!fondCaisseAnnuel.years) fondCaisseAnnuel.years = {};
+  if (!fondCaisseAnnuel.years[key]) {
+    fondCaisseAnnuel.years[key] = {
+      amountPerMember: 0,
+      createdAt: new Date().toISOString(),
+      createdBy: getCurrentMember()?.id || null,
+      payments: {},
+    };
+  }
+  if (!fondCaisseAnnuel.years[key].payments) {
+    fondCaisseAnnuel.years[key].payments = {};
+  }
+  return fondCaisseAnnuel.years[key];
+}
+
+function getFondCaisseAnnuelPaid(year, memberId) {
+  const paid = Number(fondCaisseAnnuel.years?.[String(year)]?.payments?.[memberId]?.paidAmount);
+  return Number.isFinite(paid) && paid > 0 ? paid : 0;
+}
+
+function getFondCaisseAnnuelDue(year, memberId) {
+  const amount = Number(fondCaisseAnnuel.years?.[String(year)]?.amountPerMember) || 0;
+  return Math.max(0, Math.round((amount - getFondCaisseAnnuelPaid(year, memberId)) * 100) / 100);
+}
+
+function getTotalFondCaisseAnnuelVerse() {
+  let total = 0;
+  Object.values(fondCaisseAnnuel.years || {}).forEach((yearData) => {
+    Object.values(yearData.payments || {}).forEach((payment) => {
+      total += Number(payment?.paidAmount) || 0;
+    });
+  });
+  return Math.round(total * 100) / 100;
+}
+
+function getFondCaisseAnnuelYearTotals(year) {
+  const yearData = fondCaisseAnnuel.years?.[String(year)];
+  const amountPerMember = Number(yearData?.amountPerMember) || 0;
+  const memberCount = getSortedMembers().length;
+  const expected = Math.round(amountPerMember * memberCount * 100) / 100;
+  const paid = getSortedMembers().reduce(
+    (sum, member) => sum + getFondCaisseAnnuelPaid(year, member.id),
+    0
+  );
+  const remaining = Math.max(0, Math.round((expected - paid) * 100) / 100);
+  return { amountPerMember, memberCount, expected, paid, remaining };
+}
+
+function setFondCaisseAnnuelAmount(year, amount) {
+  if (!canManageCaisseArgent() && !canEditFondCaisse()) {
+    alert("Seul le Financier ou un administrateur peut définir le fond de caisse.");
+    return;
+  }
+
+  const parsed = Math.round(parseFloat(amount) * 100) / 100;
+  if (Number.isNaN(parsed) || parsed < 0) {
+    alert("Montant invalide.");
+    return;
+  }
+
+  const yearData = ensureFondCaisseAnnuelYear(year);
+  yearData.amountPerMember = parsed;
+  yearData.updatedAt = new Date().toISOString();
+  yearData.updatedBy = getCurrentMember()?.id || null;
+  saveFondCaisseAnnuel();
+  renderAutreArgent();
+  renderFinanceDashboard();
+
+  if (fondCaisseAnnuelSaveMsg) {
+    const totals = getFondCaisseAnnuelYearTotals(year);
+    fondCaisseAnnuelSaveMsg.textContent =
+      parsed > 0
+        ? `${formatEuro(parsed)} par poto pour ${year} — ${totals.memberCount} potos, ${formatEuro(totals.expected)} au total.`
+        : `Fond de caisse ${year} remis à 0.`;
+    fondCaisseAnnuelSaveMsg.className = "save-msg save-msg-success";
+    fondCaisseAnnuelSaveMsg.hidden = false;
+  }
+}
+
+function deleteFondCaisseAnnuel(year) {
+  if (!canManageCaisseArgent() && !canEditFondCaisse()) {
+    alert("Seul le Financier ou un administrateur peut supprimer le fond de caisse.");
+    return;
+  }
+
+  const key = String(year || getFondCaisseAnnuelYear());
+  const yearData = fondCaisseAnnuel.years?.[key];
+  const amountPerMember = Number(yearData?.amountPerMember) || 0;
+  if (!yearData || amountPerMember <= 0) {
+    alert(`Aucun fond de caisse à supprimer pour ${key}.`);
+    return;
+  }
+
+  const totals = getFondCaisseAnnuelYearTotals(key);
+  let message = `Supprimer le fond de caisse ${key} (${formatEuro(amountPerMember)} par poto) ?\nPlus personne n'aura à le verser.`;
+  if (totals.paid > 0) {
+    message += `\n\n${formatEuro(totals.paid)} déjà versés seront retirés de la caisse.`;
+  }
+  if (!confirm(message)) return;
+
+  delete fondCaisseAnnuel.years[key];
+  saveFondCaisseAnnuel();
+  renderAutreArgent();
+  renderFinanceDashboard();
+  renderPrets();
+
+  if (fondCaisseAnnuelSaveMsg) {
+    fondCaisseAnnuelSaveMsg.textContent =
+      totals.paid > 0
+        ? `Fond ${key} supprimé — ${formatEuro(totals.paid)} retiré de la caisse.`
+        : `Fond de caisse ${key} supprimé.`;
+    fondCaisseAnnuelSaveMsg.className = "save-msg save-msg-success";
+    fondCaisseAnnuelSaveMsg.hidden = false;
+  }
+}
+
+function payFondCaisseAnnuel(year, memberId, amountValue) {
+  if (!canManageCaisseArgent()) {
+    alert("Seul le Financier ou un administrateur peut encaisser un fond de caisse.");
+    return;
+  }
+
+  const member = getMemberById(memberId);
+  if (!member) return;
+
+  const due = getFondCaisseAnnuelDue(year, memberId);
+  if (due <= 0) {
+    alert(`${member.name} a déjà versé son fond de caisse ${year}.`);
+    return;
+  }
+
+  const raw = amountValue == null || String(amountValue).trim() === ""
+    ? String(due)
+    : String(amountValue).trim().replace(",", ".");
+  const payAmount = Math.round(parseFloat(raw) * 100) / 100;
+  if (Number.isNaN(payAmount) || payAmount <= 0) {
+    alert("Montant invalide.");
+    return;
+  }
+  if (payAmount > due) {
+    alert(`Impossible : il reste ${formatEuro(due)} pour ${member.name}.`);
+    return;
+  }
+
+  const nextDue = Math.round((due - payAmount) * 100) / 100;
+  const isPartial = nextDue > 0;
+  if (
+    !confirm(
+      isPartial
+        ? `Versement de ${formatEuro(payAmount)} pour ${member.name} ?\nIl restera ${formatEuro(nextDue)} à payer.\n${formatEuro(payAmount)} entre dans la caisse.`
+        : `Verser ${formatEuro(payAmount)} pour ${member.name} ?\nFond ${year} soldé — le montant entre dans la caisse.`
+    )
+  ) {
+    return;
+  }
+
+  const yearData = ensureFondCaisseAnnuelYear(year);
+  if (!yearData.payments[memberId]) {
+    yearData.payments[memberId] = { paidAmount: 0, history: [] };
+  }
+  yearData.payments[memberId].paidAmount =
+    Math.round((getFondCaisseAnnuelPaid(year, memberId) + payAmount) * 100) / 100;
+  yearData.payments[memberId].updatedAt = new Date().toISOString();
+  if (!Array.isArray(yearData.payments[memberId].history)) {
+    yearData.payments[memberId].history = [];
+  }
+  yearData.payments[memberId].history.unshift({
+    id: generateId(),
+    amount: payAmount,
+    createdAt: new Date().toISOString(),
+    createdBy: getCurrentMember()?.id || null,
+  });
+
+  saveFondCaisseAnnuel();
+  renderAutreArgent();
+  renderFinanceDashboard();
+
+  alert(
+    isPartial
+      ? `Versement comptabilisé — ${formatEuro(payAmount)} en caisse.\nReste dû pour ${member.name} : ${formatEuro(nextDue)}\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
+      : `Fond ${year} soldé pour ${member.name} — ${formatEuro(payAmount)} en caisse.\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
+  );
+}
+
+function cancelFondCaisseAnnuelPayment(year, memberId, paymentId) {
+  if (!canManageCaisseArgent()) {
+    alert("Seul le Financier ou un administrateur peut annuler un versement.");
+    return;
+  }
+
+  const member = getMemberById(memberId);
+  const yearData = fondCaisseAnnuel.years?.[String(year)];
+  const record = yearData?.payments?.[memberId];
+  if (!record) return;
+
+  const history = Array.isArray(record.history) ? record.history : [];
+  const item = paymentId
+    ? history.find((entry) => entry.id === paymentId)
+    : history[0];
+
+  let cancelAmount = Number(item?.amount);
+  if (!item) {
+    cancelAmount = Number(record.paidAmount) || 0;
+  }
+  cancelAmount = Math.round((Number(cancelAmount) || 0) * 100) / 100;
+  if (cancelAmount <= 0) return;
+
+  const memberName = member?.name || "ce poto";
+  if (
+    !confirm(
+      `Annuler le versement de ${formatEuro(cancelAmount)} (${memberName}) ?\nCe montant sortira de la caisse et reviendra dans son reste dû.`
+    )
+  ) {
+    return;
+  }
+
+  if (item) {
+    record.history = history.filter((entry) => entry.id !== item.id);
+  } else {
+    record.history = [];
+  }
+
+  record.paidAmount = Math.max(
+    0,
+    Math.round(((Number(record.paidAmount) || 0) - cancelAmount) * 100) / 100
+  );
+  record.updatedAt = new Date().toISOString();
+
+  if (record.paidAmount <= 0.001) {
+    delete yearData.payments[memberId];
+  }
+
+  saveFondCaisseAnnuel();
+  renderAutreArgent();
+  renderFinanceDashboard();
+
+  const due = getFondCaisseAnnuelDue(year, memberId);
+  alert(
+    `Versement annulé — ${formatEuro(cancelAmount)} retiré de la caisse.\nReste dû pour ${memberName} : ${formatEuro(due)}\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
+  );
+}
+
+function renderFondCaisseAnnuel() {
+  const panel = document.getElementById("fondCaisseAnnuelPanel");
+  if (!panel) return;
+
+  const canOperate = canManageCaisseArgent() || canEditFondCaisse();
+  panel.hidden = !canOperate;
+  if (!canOperate) return;
+
+  const yearOptions = getFondCaisseAnnuelYearOptions();
+  const selectedYear = yearOptions.includes(getFondCaisseAnnuelYear())
+    ? getFondCaisseAnnuelYear()
+    : yearOptions[0];
+
+  if (fondCaisseAnnuelYearSelect) {
+    fondCaisseAnnuelYearSelect.innerHTML = yearOptions
+      .map((year) => `<option value="${year}" ${year === selectedYear ? "selected" : ""}>${year}</option>`)
+      .join("");
+  }
+
+  const yearData = fondCaisseAnnuel.years?.[selectedYear];
+  const amountPerMember = Number(yearData?.amountPerMember) || 0;
+  if (fondCaisseAnnuelAmountInput && document.activeElement !== fondCaisseAnnuelAmountInput) {
+    fondCaisseAnnuelAmountInput.value = amountPerMember || "";
+  }
+
+  const totals = getFondCaisseAnnuelYearTotals(selectedYear);
+  if (fondCaisseAnnuelSummary) {
+    fondCaisseAnnuelSummary.textContent = amountPerMember > 0
+      ? `${totals.memberCount} potos × ${formatEuro(amountPerMember)} = ${formatEuro(totals.expected)} · Versé ${formatEuro(totals.paid)} · Reste ${formatEuro(totals.remaining)} · paiements en plusieurs fois`
+      : "Indique le montant que chaque poto doit verser cette année. Il pourra payer en plusieurs fois.";
+  }
+  if (fondCaisseAnnuelDeleteBtn) {
+    fondCaisseAnnuelDeleteBtn.hidden = amountPerMember <= 0;
+  }
+
+  if (!fondCaisseAnnuelList) return;
+
+  if (amountPerMember <= 0 || totals.memberCount === 0) {
+    fondCaisseAnnuelList.innerHTML = "";
+    return;
+  }
+
+  fondCaisseAnnuelList.innerHTML = getSortedMembers()
+    .map((member) => {
+      const paid = getFondCaisseAnnuelPaid(selectedYear, member.id);
+      const due = getFondCaisseAnnuelDue(selectedYear, member.id);
+      const solded = due <= 0;
+      const history = yearData?.payments?.[member.id]?.history || [];
+      const versementCount = history.length || (paid > 0 ? 1 : 0);
+      const historyHtml = history.length
+        ? `<div class="fond-caisse-annuel-history">${history
+            .map(
+              (item) => `
+            <span class="fond-caisse-annuel-chip">
+              ${formatEuro(item.amount)} · ${formatFriendlyDate(item.createdAt)}
+              <button type="button" class="fond-caisse-annuel-undo" data-year="${selectedYear}" data-member-id="${escapeHtml(member.id)}" data-payment-id="${escapeHtml(item.id)}" title="Annuler ce versement">Annuler</button>
+            </span>`
+            )
+            .join("")}</div>`
+        : "";
+      const hint = solded
+        ? `soldé${versementCount > 1 ? ` · ${versementCount} versements` : ""}`
+        : paid > 0
+          ? `déjà ${formatEuro(paid)}${versementCount > 1 ? ` · ${versementCount} versements` : " · 1 versement"} · reste ${formatEuro(due)}`
+          : `à verser · ${formatEuro(amountPerMember)} · plusieurs fois possible`;
+      return `
+        <article class="ancienne-tournee-row fond-caisse-annuel-row${solded ? " is-paid" : ""}">
+          <div class="fond-caisse-annuel-main">
+            <span class="ancienne-tournee-row-poto">${escapeHtml(member.name)}</span>
+            <span class="ancienne-tournee-repaid-hint">${escapeHtml(hint)}</span>
+            ${historyHtml}
+          </div>
+          <span class="ancienne-tournee-row-amount">
+            <strong>${solded ? formatEuro(paid) : formatEuro(due)}</strong>
+            <span class="ancienne-tournee-repaid-hint">${solded ? "versé" : "reste"}</span>
+          </span>
+          ${
+            solded
+              ? `<div class="ancienne-tournee-repay-controls">
+                  <span class="fond-caisse-annuel-done">OK</span>
+                  <button type="button" class="btn-secondary fond-caisse-annuel-undo" data-year="${selectedYear}" data-member-id="${escapeHtml(member.id)}" title="Annuler le dernier versement">Annuler le dernier</button>
+                </div>`
+              : `<div class="ancienne-tournee-repay-controls">
+                  <label class="ancienne-tournee-repay-field">
+                    <input type="number" min="0.5" step="0.5" max="${due}" placeholder="${due}" class="fond-caisse-annuel-pay-input" data-member-id="${escapeHtml(member.id)}" data-year="${selectedYear}" inputmode="decimal" aria-label="Montant de ce versement pour ${escapeHtml(member.name)}, reste ${due} euros" />
+                    <span aria-hidden="true">€</span>
+                  </label>
+                  <button type="button" class="btn-primary btn-fond-caisse-annuel-pay" data-member-id="${escapeHtml(member.id)}" data-year="${selectedYear}">Verser</button>
+                </div>`
+          }
+        </article>
+      `;
+    })
+    .join("");
 }
 
 function loadTabPermissions() {
@@ -1027,22 +1996,194 @@ function getTabAllowedRoles(tabId) {
   return tabPermissions[tabId] || [];
 }
 
-function canManageTab(tabId) {
-  if (isGroupAdmin()) return true;
+/** Onglet principal actuellement affiché */
+function getActiveMainTab() {
+  const activeBtn = document.querySelector(".tab.active[data-tab]");
+  if (activeBtn?.dataset?.tab) return activeBtn.dataset.tab;
+  const activeContent = document.querySelector(".tab-content.active");
+  if (activeContent?.id?.startsWith("tab-")) return activeContent.id.slice(4);
+  return "membres";
+}
 
+/**
+ * Espace Admin = uniquement l'onglet Admin.
+ * C'est là que l'admin configure le groupe.
+ */
+function isAdminWorkspace() {
+  return canAccessAdminTab() && getActiveMainTab() === "admin";
+}
+
+/**
+ * Vue compte simple : usage quotidien + tests.
+ * Hors de l'onglet Admin, chacun voit/agit comme un membre simple.
+ */
+function isSimpleAccountView() {
+  if (!canAccessAdminTab()) return true;
+  return !isAdminWorkspace();
+}
+
+function hasRoleTabAccess(tabId) {
+  if (isGroupAdmin()) return true;
   const member = getCurrentMember();
   if (!member) return false;
-
   const memberRole = getMemberRole(member.id);
   if (!memberRole) return false;
-
   return getTabAllowedRoles(tabId).includes(memberRole);
+}
+
+function canAccessAdminSub(subId) {
+  if (isGroupAdmin()) return true;
+  if (subId === "admins" || subId === "acces") return false;
+  if (subId === "caisse") return isFinancierPoste() || hasRoleTabAccess("caisse");
+  if (subId === "ancienne-tournee") return isFinancierPoste() || hasRoleTabAccess("ancienne-tournee");
+  if (subId === "prets") return isFinancierPoste() || hasRoleTabAccess("prets");
+  return hasRoleTabAccess(subId);
+}
+
+function getAllowedAdminSubs() {
+  return ADMIN_SUBTABS.filter((id) => canAccessAdminSub(id));
+}
+
+function canEditTourneePlanning() {
+  return isAdminWorkspace() && activeAdminSub === "tournee" && hasRoleTabAccess("tournee");
+}
+
+function canAccessTourneeTab() {
+  return true;
+}
+
+function canAccessAdminTab() {
+  if (!isLoggedIn()) return false;
+  if (isGroupAdmin()) return true;
+  if (isFinancierPoste()) return true;
+  return MANAGEABLE_TABS.some((tab) => hasRoleTabAccess(tab.id));
+}
+
+function canAccessGestionTab() {
+  return canAccessAdminTab();
+}
+
+function canAccessCaisse() {
+  if (!isAdminWorkspace() || activeAdminSub !== "caisse") return false;
+  return isGroupAdmin() || isFinancierPoste() || hasRoleTabAccess("caisse");
+}
+
+function canManageCaisseArgent() {
+  return isGroupAdmin() || isFinancierPoste() || hasRoleTabAccess("caisse");
+}
+
+function getAdminSubtab() {
+  const stored = localStorage.getItem(ADMIN_SUBTAB_KEY);
+  const requested = stored === "equipe" ? "bureau" : stored;
+  const allowed = getAllowedAdminSubs();
+  if (allowed.includes(requested)) return requested;
+  return allowed[0] || "membres";
+}
+
+function getGestionSubtab() {
+  return getAdminSubtab();
+}
+
+function updateAdminSubtabVisibility() {
+  document.querySelectorAll("[data-admin-sub]").forEach((btn) => {
+    const key = btn.dataset.adminSub;
+    if (!key) return;
+    btn.hidden = !canAccessAdminSub(key);
+  });
+}
+
+function showAdminSub(subId) {
+  if (!ADMIN_SUBTABS.includes(subId) || !canAccessAdminSub(subId)) {
+    subId = getAdminSubtab();
+  }
+  activeAdminSub = subId;
+  activeGestionSub = subId;
+  localStorage.setItem(ADMIN_SUBTAB_KEY, subId);
+  updateAdminSubtabVisibility();
+
+  const root = document.getElementById("tab-admin");
+  const tabButtons = root
+    ? root.querySelectorAll("[data-admin-sub]")
+    : adminSubtabs?.querySelectorAll("[data-admin-sub]");
+
+  tabButtons?.forEach((btn) => {
+    const key = btn.dataset.adminSub;
+    if (!key) return;
+    btn.classList.toggle("active", key === subId);
+    btn.setAttribute("aria-selected", String(key === subId));
+    if (key === subId) {
+      btn.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
+    }
+  });
+
+  const panels = root
+    ? root.querySelectorAll(".gestion-subpanel[data-admin-panel]")
+    : document.querySelectorAll(".gestion-subpanel[data-admin-panel]");
+
+  panels.forEach((panel) => {
+    const id = panel.dataset.adminPanel;
+    const isActive = id === subId;
+    panel.hidden = !isActive;
+    panel.classList.toggle("is-active", isActive);
+    panel.setAttribute("aria-hidden", String(!isActive));
+  });
+
+  if (subId === "membres") renderMemberList();
+  if (subId === "bureau") renderBureau();
+  if (subId === "admins") renderAdminList();
+  if (subId === "acces") renderTabPermissionsPanel();
+  if (subId === "tournee") {
+    if (canEditTourneePlanning()) {
+      cotisationsDraft = { ...cotisations };
+      tourneeDraft = cloneTourneeData(tourneeData);
+    }
+    renderTourneeTable();
+  }
+  if (subId === "ancienne-tournee") {
+    renderAncienneTourneeDettesAdmin();
+  }
+  if (subId === "caisse") {
+    renderFondCaissePanel();
+    renderAutreArgent();
+  }
+  if (subId === "prets") {
+    renderAdminPrets();
+  }
+  if (subId === "amendes") {
+    renderAmendes();
+    renderAmendesAdminHistory();
+  }
+  if (subId === "evenements") {
+    renderEvenements();
+  }
+}
+
+function showGestionSub(subId) {
+  if (subId === "equipe") subId = "bureau";
+  showAdminSub(subId);
+}
+
+function renderAdmin() {
+  activeAdminSub = getAdminSubtab();
+  showAdminSub(activeAdminSub);
+}
+
+function renderGestion() {
+  renderAdmin();
+}
+
+function canManageTab(tabId) {
+  // Les manipulations se font uniquement dans l'onglet Admin
+  if (isSimpleAccountView()) return false;
+  if (isGroupAdmin()) return true;
+  return hasRoleTabAccess(tabId);
 }
 
 function saveAmendes(shouldRender = true) {
   localStorage.setItem(AMENDES_KEY, JSON.stringify(amendes));
   if (shouldRender) {
     renderAmendes();
+    renderAmendesAdminHistory();
     renderPrets();
   }
 }
@@ -1108,11 +2249,14 @@ function reloadFromStorage() {
   notifications = loadNotifications();
   evenements = loadEvenements();
   autreArgent = loadAutreArgent();
+  ancienneTourneeDettes = loadAncienneTourneeDettes();
+  fondCaisse = loadFondCaisse();
+  fondCaisseAnnuel = loadFondCaisseAnnuel();
   financeData = loadFinance();
   adminIds = loadAdminIds();
   ensureDefaultAdmin();
   tourneeData = loadTourneeData();
-  if (canManageTab("tournee")) {
+  if (canEditTourneePlanning()) {
     cotisationsDraft = { ...cotisations };
     tourneeDraft = cloneTourneeData(tourneeData);
   }
@@ -1180,6 +2324,10 @@ function isGroupAdmin() {
 function isFinancier() {
   const member = getCurrentMember();
   if (!member) return false;
+  // En vue compte simple, l'admin n'est Financier que s'il a le poste
+  if (isGroupAdmin() && isSimpleAccountView()) {
+    return getMemberRole(member.id) === "tresorier";
+  }
   return isGroupAdmin() || getMemberRole(member.id) === "tresorier";
 }
 
@@ -1408,34 +2556,52 @@ function updateSessionUI() {
   logoutBtn.hidden = !loggedIn;
   if (loggedIn) updatePretTabBadge();
 
-  saveCotisationsBtn.hidden = !canManageTab("tournee");
-  tourneeInfoMsg.hidden = canManageTab("tournee");
-  membresLockMsg.hidden = isAdmin;
+  // Pas de bannière / messages « vue simple » pour les membres
+  if (simpleViewBanner) simpleViewBanner.hidden = true;
 
-  if (bureauAssignToggle) bureauAssignToggle.hidden = !isAdmin;
-  if (rolesPanel) {
-    if (!isAdmin) {
-      rolesPanel.hidden = true;
-      bureauAssignOpen = false;
-    } else {
-      rolesPanel.hidden = !bureauAssignOpen;
-    }
-    if (bureauAssignToggle) {
-      bureauAssignToggle.textContent = bureauAssignOpen ? "Fermer" : "Attribuer";
-      bureauAssignToggle.setAttribute("aria-expanded", String(bureauAssignOpen));
-    }
+  if (saveCotisationsBtn) saveCotisationsBtn.hidden = !canEditTourneePlanning();
+  if (tourneeInfoMsg) tourneeInfoMsg.hidden = true;
+  const tourneeEditHint = document.getElementById("tourneeEditHint");
+  if (tourneeEditHint) {
+    tourneeEditHint.hidden = true;
+    tourneeEditHint.textContent = "";
   }
-  if (addMemberPanel) addMemberPanel.hidden = !isAdmin;
+  if (membresLockMsg) {
+    membresLockMsg.hidden = true;
+    membresLockMsg.textContent = "";
+  }
+
+  // Onglet Admin : administrateur ou personne avec un accès métier
+  if (tabBtnAdmin) tabBtnAdmin.hidden = !canAccessAdminTab();
+  if (tabBtnGestion) tabBtnGestion.hidden = !canAccessAdminTab();
+  if (tabBtnTournee) tabBtnTournee.hidden = false;
+  if (tabBtnAutreArgent) tabBtnAutreArgent.hidden = true;
+
+  // Fond de caisse : pas dans Finance public
+  if (financeSubCaisse) financeSubCaisse.hidden = true;
+
+  if (rolesPanel) rolesPanel.hidden = !hasRoleTabAccess("bureau");
+  if (addMemberPanel) addMemberPanel.hidden = !hasRoleTabAccess("membres");
   if (tabPermissionsPanel) tabPermissionsPanel.hidden = !isAdmin;
   if (adminRolesPanel) adminRolesPanel.hidden = !isAdmin;
-  if (tabBtnAutreArgent) tabBtnAutreArgent.hidden = !isAdmin;
+
   if (addAmendePanel) addAmendePanel.hidden = !canManageTab("amendes");
   if (addEvenementPanel) addEvenementPanel.hidden = !canManageTab("evenements");
 
-  adminSections.forEach((section) => {
-    if (section === rolesPanel || section === addMemberPanel || section === adminRolesPanel) return;
-    section.classList.toggle("locked", !isAdmin);
-  });
+  if (fondCaissePanel) fondCaissePanel.hidden = true;
+  const fondAdminPanel = document.getElementById("fondCaissePanelAdmin");
+  if (fondAdminPanel) fondAdminPanel.hidden = !hasRoleTabAccess("caisse");
+  if (autreArgentFormPanel) autreArgentFormPanel.hidden = !canManageCaisseArgent();
+  if (autreArgentListPanel) autreArgentListPanel.hidden = !canManageCaisseArgent();
+
+  addMemberPanel?.classList.toggle("locked", !hasRoleTabAccess("membres"));
+  rolesPanel?.classList.toggle("locked", !hasRoleTabAccess("bureau"));
+  adminRolesPanel?.classList.toggle("locked", !isAdmin);
+  tabPermissionsPanel?.classList.toggle("locked", !isAdmin);
+
+  if (canAccessAdminTab() && document.getElementById("tab-admin")?.classList.contains("active")) {
+    showAdminSub(activeAdminSub || getAdminSubtab());
+  }
 }
 
 function requireGroupAdmin(actionLabel) {
@@ -1455,7 +2621,7 @@ function requireTabAccess(tabId, actionLabel) {
     openLoginModal();
     return false;
   }
-  if (canManageTab(tabId)) return true;
+  if (hasRoleTabAccess(tabId)) return true;
   alert(`Vous n'avez pas l'autorisation de ${actionLabel} pour l'onglet « ${getTabLabel(tabId)} ».`);
   return false;
 }
@@ -1493,6 +2659,20 @@ function formatDate(dateStr) {
   });
 }
 
+function formatFriendlyDate(dateStr) {
+  if (!dateStr) return "—";
+  const date = new Date(String(dateStr).split("T")[0] + "T12:00:00");
+  if (Number.isNaN(date.getTime())) return formatDate(dateStr);
+  const today = new Date();
+  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((startToday - startDate) / 86400000);
+  if (diffDays === 0) return "Aujourd'hui";
+  if (diffDays === 1) return "Hier";
+  if (diffDays > 1 && diffDays < 7) return `Il y a ${diffDays} jours`;
+  return formatDate(String(dateStr).split("T")[0]);
+}
+
 function getRoleLabel(roleId) {
   return ROLES.find((r) => r.id === roleId)?.label || roleId;
 }
@@ -1502,7 +2682,12 @@ function getMemberRole(memberId) {
 }
 
 function getMemberById(id) {
-  return members.find((m) => m.id === id);
+  const raw = String(id || "").trim();
+  if (!raw) return null;
+  if (raw.toLowerCase() === "groupe" || raw.toLowerCase() === "le groupe") {
+    return { id: "groupe", name: "Le groupe" };
+  }
+  return members.find((m) => m.id === raw) || null;
 }
 
 function compareMemberNames(a, b) {
@@ -1519,15 +2704,21 @@ function isLimitReached() {
 
 function updateFormState() {
   const full = isLimitReached();
+  const canMembers = hasRoleTabAccess("membres");
+  const canBureau = hasRoleTabAccess("bureau");
   const isAdmin = isGroupAdmin();
-  memberNameInput.disabled = full || !isAdmin;
-  submitBtn.disabled = full || !isAdmin;
+  memberNameInput.disabled = full || !canMembers;
+  submitBtn.disabled = full || !canMembers;
   limitMsg.hidden = !full;
-  roleMemberSelect.disabled = !isAdmin;
-  rolePostSelect.disabled = !isAdmin;
-  roleForm.querySelector('button[type="submit"]').disabled = !isAdmin;
+  roleMemberSelect.disabled = !canBureau;
+  rolePostSelect.disabled = !canBureau;
+  const roleSubmit = roleForm?.querySelector('button[type="submit"]');
+  if (roleSubmit) roleSubmit.disabled = !canBureau;
   if (adminMemberSelect) adminMemberSelect.disabled = !isAdmin;
-  if (adminForm) adminForm.querySelector('button[type="submit"]').disabled = !isAdmin;
+  if (adminForm) {
+    const adminSubmit = adminForm.querySelector('button[type="submit"]');
+    if (adminSubmit) adminSubmit.disabled = !isAdmin;
+  }
 }
 
 function updateMemberSelects() {
@@ -1537,7 +2728,12 @@ function updateMemberSelects() {
   amendeMemberSelect.innerHTML = options;
   if (evenementMemberSelect) evenementMemberSelect.innerHTML = `<option value="">— Choisir le poto —</option>`;
   if (adminMemberSelect) adminMemberSelect.innerHTML = `<option value="">— Choisir un membre —</option>`;
-  if (autreArgentMemberSelect) autreArgentMemberSelect.innerHTML = `<option value="">— Choisir le poto —</option>`;
+  if (autreArgentMemberSelect) {
+    autreArgentMemberSelect.innerHTML = `<option value="">— Choisir le poto —</option><option value="groupe">Le groupe</option>`;
+  }
+  if (ancienneTourneeMemberSelect) {
+    ancienneTourneeMemberSelect.innerHTML = `<option value="">— Choisir le poto —</option>`;
+  }
 
   getSortedMembers().forEach((member) => {
     const currentRole = getMemberRole(member.id);
@@ -1574,6 +2770,13 @@ function updateMemberSelects() {
       autreOption.value = member.id;
       autreOption.textContent = member.name;
       autreArgentMemberSelect.appendChild(autreOption);
+    }
+
+    if (ancienneTourneeMemberSelect) {
+      const detteOption = document.createElement("option");
+      detteOption.value = member.id;
+      detteOption.textContent = member.name;
+      ancienneTourneeMemberSelect.appendChild(detteOption);
     }
   });
 }
@@ -1723,32 +2926,32 @@ function saveTabPermissionsFromUI() {
   tabPermissionsMsg.hidden = false;
 
   updateSessionUI();
+  updateAdminSubtabVisibility();
   renderTourneeTable();
   renderAmendes();
   renderPrets();
   renderEvenements();
 }
 
-function renderBureau() {
-  const isAdmin = isGroupAdmin();
-  const visibleRoles = isAdmin ? ROLES : ROLES.filter((role) => roles[role.id]);
+function buildBureauHtml(allowClear) {
+  const canBureau = hasRoleTabAccess("bureau");
+  const visibleRoles = canBureau || allowClear ? ROLES : ROLES.filter((role) => roles[role.id]);
 
   if (visibleRoles.length === 0) {
-    bureauList.innerHTML = `<li class="bureau-empty">Aucun poste attribué.</li>`;
-    return;
+    return `<li class="bureau-empty">Aucun poste attribué.</li>`;
   }
 
-  bureauList.innerHTML = visibleRoles
+  return visibleRoles
     .map((role) => {
       const memberId = roles[role.id];
       const member = memberId ? getMemberById(memberId) : null;
-      const canClear = member && isAdmin;
-
+      const canClear = allowClear && member && canBureau;
+      const shortRole = role.short || role.label;
       return `
-        <li class="bureau-card${member ? "" : " is-vacant"}">
+        <li class="bureau-card${member ? "" : " is-vacant"}" title="${escapeHtml(role.label)}${member ? " — " + escapeHtml(member.name) : " — vacant"}">
           <div class="bureau-card-body">
+            <span class="bureau-card-role">${escapeHtml(shortRole)}</span>
             <span class="bureau-card-name">${member ? escapeHtml(member.name) : "—"}</span>
-            <span class="bureau-card-role">${escapeHtml(role.label)}</span>
           </div>
           ${
             canClear
@@ -1759,21 +2962,36 @@ function renderBureau() {
       `;
     })
     .join("");
+}
 
-  bureauList.querySelectorAll(".btn-bureau-clear").forEach((btn) => {
+function bindBureauClearButtons(listEl) {
+  if (!listEl) return;
+  listEl.querySelectorAll(".btn-bureau-clear").forEach((btn) => {
     btn.addEventListener("click", () => clearRole(btn.dataset.role));
   });
 }
 
-function renderMemberList() {
-  memberList.innerHTML = "";
+function renderBureau() {
+  if (bureauList) {
+    bureauList.innerHTML = buildBureauHtml(false);
+  }
+  if (bureauListGestion) {
+    bureauListGestion.innerHTML = buildBureauHtml(true);
+    bindBureauClearButtons(bureauListGestion);
+  }
+}
+
+function fillMemberList(listEl, { withAdminActions }) {
+  if (!listEl) return;
+  listEl.innerHTML = "";
 
   if (members.length === 0) {
-    memberList.innerHTML = `<li class="empty">Aucun membre pour le moment.</li>`;
+    listEl.innerHTML = `<li class="empty">Aucun membre pour le moment.</li>`;
     return;
   }
 
   const currentMember = getCurrentMember();
+  const showActions = withAdminActions && hasRoleTabAccess("membres");
 
   getSortedMembers().forEach((member, index) => {
     const roleId = getMemberRole(member.id);
@@ -1785,29 +3003,33 @@ function renderMemberList() {
     li.innerHTML = `
       <div class="member-info">
         <span class="member-avatar">${escapeHtml(getInitials(member.name))}</span>
-        <div>
-          <p class="member-name">
+        <div class="member-text">
+          <p class="member-name" title="${escapeHtml(member.name)} — ${formatEuro(getMemberCotisationAmount(member.id))} / mois">
+            <span class="member-num">#${index + 1}</span>
             ${escapeHtml(member.name)}
+            <span class="member-cotisation">: ${formatEuro(getMemberCotisationAmount(member.id))}</span>
             ${memberIsAdmin ? '<span class="tag-admin">Admin</span>' : ""}
             ${isCurrentUser ? '<span class="tag-you">Vous</span>' : ""}
           </p>
           <p class="member-date">
             ${roleId ? `<span class="role-badge">${escapeHtml(getRoleLabel(roleId))}</span>` : "Membre"}
-            · Ajouté le ${formatDate(member.createdAt)}
           </p>
         </div>
       </div>
-      <div class="member-right">
-        <span class="member-num">#${index + 1}</span>
-        ${
-          isGroupAdmin()
-            ? `${isOwnerMember(member)
-                ? `<span class="admin-only-note">Propriétaire</span>`
-                : `<button type="button" class="btn-clear btn-reset-pwd" data-id="${member.id}" title="Réinitialiser le mot de passe">Réinit. MDP</button>
-                   <button class="btn-delete" data-id="${member.id}" title="Supprimer">Supprimer</button>`}`
-            : ""
-        }
-      </div>
+      ${
+        showActions
+          ? `<div class="member-right">
+              <div class="member-actions">
+                ${
+                  isOwnerMember(member)
+                    ? `<span class="admin-only-note">Propriétaire</span>`
+                    : `<button type="button" class="btn-clear btn-reset-pwd" data-id="${member.id}" title="Réinitialiser le mot de passe">MDP</button>
+                       <button class="btn-delete" data-id="${member.id}" title="Supprimer">×</button>`
+                }
+              </div>
+            </div>`
+          : ""
+      }
     `;
 
     const resetPwdBtn = li.querySelector(".btn-reset-pwd");
@@ -1819,8 +3041,13 @@ function renderMemberList() {
     if (deleteBtn) {
       deleteBtn.addEventListener("click", () => deleteMember(member.id));
     }
-    memberList.appendChild(li);
+    listEl.appendChild(li);
   });
+}
+
+function renderMemberList() {
+  fillMemberList(memberList, { withAdminActions: false });
+  fillMemberList(memberListAdmin, { withAdminActions: true });
 }
 
 function formatEuro(amount) {
@@ -1833,7 +3060,7 @@ function formatEuro(amount) {
 }
 
 function getCotisationSource() {
-  if (canManageTab("tournee")) return cotisationsDraft;
+  if (canEditTourneePlanning()) return cotisationsDraft;
   cotisations = loadCotisations();
   return cotisations;
 }
@@ -1844,8 +3071,14 @@ function getCotisation(memberId) {
   return value === undefined || value === null ? "" : value;
 }
 
+function getMemberCotisationAmount(memberId) {
+  const source = canEditTourneePlanning() ? cotisationsDraft : cotisations;
+  const value = source?.[memberId];
+  return typeof value === "number" && !Number.isNaN(value) ? value : 0;
+}
+
 function setCotisationDraft(memberId, value) {
-  if (!canManageTab("tournee")) return;
+  if (!canEditTourneePlanning()) return;
 
   if (value === "" || value === null || Number.isNaN(value)) {
     delete cotisationsDraft[memberId];
@@ -1861,11 +3094,19 @@ function updateCotisationTotal() {
     const amount = source[member.id];
     return sum + (typeof amount === "number" ? amount : 0);
   }, 0);
-  cotisationTotal.textContent = formatEuro(total);
+  if (cotisationTotal) cotisationTotal.textContent = formatEuro(total);
 }
 
 function saveCotisationsData() {
-  if (!requireTabAccess("tournee", "enregistrer les cotisations")) return;
+  if (!canEditTourneePlanning()) {
+    if (!isLoggedIn()) {
+      alert("Veuillez vous connecter avec votre nom.");
+      openLoginModal();
+      return;
+    }
+    alert("Seul un administrateur peut enregistrer la tournée.");
+    return;
+  }
 
   const tourneeIssues = validateTourneeDraft();
   if (tourneeIssues.length > 0) {
@@ -1877,33 +3118,26 @@ function saveCotisationsData() {
   tourneeData = cloneTourneeData(tourneeDraft);
   saveCotisations();
   saveTourneeData();
-  showSaveMessage("Cotisations et planning de tournée enregistrés.");
+  showSaveMessage("Tournée et cotisations enregistrées.");
 }
 
-function getTourneeStatusSortValue(memberId, useDraft = canManageTab("tournee")) {
-  const statuses = getMemberTourneeStatuses(memberId, useDraft);
-  if (statuses.length === 1 && statuses[0].level === "empty") {
-    return "\uFFFF";
-  }
-  return statuses
-    .map((status) => status.label)
-    .join(" · ")
-    .toLocaleLowerCase("fr");
-}
-
-function getTourneeMonthSortValue(memberId, useDraft = canManageTab("tournee")) {
+function getTourneeMonthSortValue(memberId, useDraft = canEditTourneePlanning()) {
   const monthIndices = getMemberMonthIndices(tourneeYear, memberId, useDraft);
   if (monthIndices.length === 0) return 99;
-  return Math.min(...monthIndices);
+  return Math.min(...monthIndices.map(tourneeMonthRank));
 }
 
-function getTourneeMonthSortLabel(memberId, useDraft = canManageTab("tournee")) {
+function getTourneeMonthSortLabel(memberId, useDraft = canEditTourneePlanning()) {
   const monthIndices = getMemberMonthIndices(tourneeYear, memberId, useDraft);
   if (monthIndices.length === 0) return "\uFFFF";
   return monthIndices.map((index) => MONTH_LABELS[index]).join(", ");
 }
 
-function getTourneeSortedMembers(useDraft = canManageTab("tournee")) {
+function getTourneeReceptionSortValue(memberId, useDraft = canEditTourneePlanning()) {
+  return getMemberReceptionDate(memberId, tourneeYear, useDraft) || "9999-99-99";
+}
+
+function getTourneeSortedMembers(useDraft = canEditTourneePlanning()) {
   const sorted = [...members];
   const direction = tourneeSortDir === "asc" ? 1 : -1;
 
@@ -1922,12 +3156,11 @@ function getTourneeSortedMembers(useDraft = canManageTab("tournee")) {
           { sensitivity: "base" }
         );
       }
-    } else if (tourneeSortKey === "status") {
-      comparison = getTourneeStatusSortValue(a.id, useDraft).localeCompare(
-        getTourneeStatusSortValue(b.id, useDraft),
-        "fr",
-        { sensitivity: "base" }
-      );
+    } else if (tourneeSortKey === "reception") {
+      comparison =
+        getTourneeReceptionSortValue(a.id, useDraft).localeCompare(
+          getTourneeReceptionSortValue(b.id, useDraft)
+        );
     }
 
     if (comparison === 0) {
@@ -1953,125 +3186,220 @@ function updateTourneeSortHeaders() {
   });
 }
 
-function renderTourneeYearSelect() {
-  if (!tourneeYearSelect) return;
-
+function fillTourneeYearSelect(selectEl, allowEdit) {
+  if (!selectEl) return;
   const years = getTourneeYearOptions();
   if (!years.includes(tourneeYear)) {
     tourneeYear = String(new Date().getFullYear());
   }
-
-  tourneeYearSelect.innerHTML = years
+  selectEl.innerHTML = years
     .map((year) => `<option value="${year}"${year === tourneeYear ? " selected" : ""}>${year}</option>`)
     .join("");
-
-  tourneeYearSelect.disabled = !canManageTab("tournee") && years.length <= 1;
+  selectEl.disabled = !allowEdit && years.length <= 1;
 }
 
-function renderTourneeTable() {
-  renderTourneeYearSelect();
-  updateTourneeSortHeaders();
-  if (!cotisationBody) return;
+function renderTourneeYearSelect() {
+  const canEdit = canEditTourneePlanning();
+  fillTourneeYearSelect(tourneeYearSelect, canEdit);
+  fillTourneeYearSelect(tourneeYearPublic, false);
+}
 
-  cotisationBody.innerHTML = "";
+function getRistournePayout(memberId) {
+  return getMemberCotisationAmount(memberId) * TOURNEE_CYCLE_MONTHS.length;
+}
+
+function formatTourneePersonLabel(memberId, withAmount) {
+  const member = getMemberById(memberId);
+  if (!member) return "";
+  if (!withAmount) return member.name;
+  return `${member.name} (${formatEuro(getRistournePayout(memberId))})`;
+}
+
+function buildTourneeOrderReadout(kind, memberIds) {
+  const currentMember = getCurrentMember();
+  const withAmount = kind === "ristourne";
+  const canMarkOk = kind === "ristourne" && canMarkTourneeBouffeOk();
+  if (!memberIds.length) {
+    return `<span class="tournee-order-empty">—</span>`;
+  }
+
+  return `<div class="tournee-order-readout">
+    ${memberIds
+      .map((id) => {
+        const member = getMemberById(id);
+        if (!member) return "";
+        const bouffeOk = kind === "ristourne" && isTourneeBouffeOk(id, tourneeYear, false);
+        const isYou = currentMember?.id === id;
+        return `<span class="tournee-person${bouffeOk ? " is-ok" : ""}${isYou ? " is-you" : ""}">
+          ${escapeHtml(formatTourneePersonLabel(id, withAmount))}
+          ${isYou ? '<span class="tag-you">Vous</span>' : ""}
+          ${bouffeOk ? '<span class="tag-bouffe-ok" title="Tournée déjà prise">OK</span>' : ""}
+          ${
+            canMarkOk
+              ? `<button type="button" class="btn-bouffe-ok${bouffeOk ? " is-done" : ""}" data-member-id="${escapeHtml(id)}" title="${bouffeOk ? "Retirer la validation" : "Valider : a déjà bouffé / pris sa tournée"}">${bouffeOk ? "Retirer OK" : "OK"}</button>`
+              : ""
+          }
+        </span>`;
+      })
+      .join("")}
+  </div>`;
+}
+
+function buildTourneeOrderEditor(kind, monthIndex, memberIds) {
+  const withAmount = kind === "ristourne";
+  const selected = new Set(memberIds);
+  const chips = memberIds
+    .map((id) => {
+      const member = getMemberById(id);
+      if (!member) return "";
+      return `<span class="tournee-order-chip">
+        ${escapeHtml(formatTourneePersonLabel(id, withAmount))}
+        <button type="button" class="tournee-order-remove" data-kind="${escapeHtml(kind)}" data-month="${monthIndex}" data-member="${escapeHtml(id)}" aria-label="Retirer ${escapeHtml(member.name)}">×</button>
+      </span>`;
+    })
+    .join("");
+
+  const options = [...members]
+    .sort(compareMemberNames)
+    .filter((member) => !selected.has(member.id))
+    .map(
+      (member) =>
+        `<option value="${escapeHtml(member.id)}">${escapeHtml(member.name)}</option>`
+    )
+    .join("");
+
+  return `<div class="tournee-order-edit">
+    <div class="tournee-order-chips">${chips || '<span class="tournee-order-empty">Personne</span>'}</div>
+    <select class="tournee-order-add" data-kind="${escapeHtml(kind)}" data-month="${monthIndex}" aria-label="Ajouter un poto">
+      <option value="">Ajouter un poto…</option>
+      ${options}
+    </select>
+  </div>`;
+}
+
+function fillTourneeBody(bodyEl, canEditTournee) {
+  if (!bodyEl) return;
+  bodyEl.innerHTML = "";
+
+  const months = getTourneeMonthOrder();
+  months.forEach((monthIndex, index) => {
+    const tr = document.createElement("tr");
+    const receptionIds = getTourneeOrderIds("reception", monthIndex, canEditTournee);
+    const ristourneIds = getTourneeOrderIds("ristourne", monthIndex, canEditTournee);
+    tr.dataset.month = String(monthIndex);
+
+    tr.innerHTML = `
+      <td class="tournee-num-cell">${index + 1}</td>
+      <td class="tournee-month-cell">${escapeHtml(MONTH_LABELS[monthIndex])}</td>
+      <td>
+        ${
+          canEditTournee
+            ? buildTourneeOrderEditor("reception", monthIndex, receptionIds)
+            : buildTourneeOrderReadout("reception", receptionIds)
+        }
+      </td>
+      <td>
+        ${
+          canEditTournee
+            ? buildTourneeOrderEditor("ristourne", monthIndex, ristourneIds)
+            : buildTourneeOrderReadout("ristourne", ristourneIds)
+        }
+      </td>
+    `;
+    bodyEl.appendChild(tr);
+  });
+}
+
+function fillTourneeCotisationsTable() {
+  if (!tourneeCotisationBody) return;
+  tourneeCotisationBody.innerHTML = "";
 
   if (members.length === 0) {
-    cotisationBody.innerHTML = `
-      <tr>
-        <td colspan="4" class="empty-cell">Aucun membre enregistré.</td>
-      </tr>
+    tourneeCotisationBody.innerHTML = `
+      <tr><td colspan="2" class="empty-cell">Aucun membre enregistré.</td></tr>
     `;
-    cotisationTotal.textContent = formatEuro(0);
+    if (cotisationTotal) cotisationTotal.textContent = formatEuro(0);
     return;
   }
 
-  const canEditTournee = canManageTab("tournee");
-  const currentMember = getCurrentMember();
-
-  getTourneeSortedMembers(canEditTournee).forEach((member, index) => {
-    const tr = document.createElement("tr");
-    const amount = getCotisation(member.id);
-    const isCurrentUser = currentMember?.id === member.id;
-    const monthIndices = getMemberMonthIndices(tourneeYear, member.id, canEditTournee);
-    const statuses = getMemberTourneeStatuses(member.id, canEditTournee);
-    const monthLabel = monthIndices.length
-      ? monthIndices.map((monthIndex) => MONTH_LABELS[monthIndex]).join(", ")
-      : "—";
-
-    if (isCurrentUser) tr.classList.add("row-current");
-
-    tr.innerHTML = `
-      <td>
-        <span class="table-num">#${index + 1}</span>
-        ${escapeHtml(member.name)}
-        ${isCurrentUser ? '<span class="tag-you">Vous</span>' : ""}
-      </td>
-      <td>
-        ${
-          canEditTournee
-            ? `<div class="amount-input-wrap">
-                <input
-                  type="number"
-                  class="amount-input"
-                  data-id="${member.id}"
-                  min="0"
-                  step="0.5"
-                  placeholder="0"
-                  value="${amount === "" ? "" : amount}"
-                />
-                <span class="amount-suffix">€</span>
-              </div>`
-            : `<span class="amount-readonly">${amount === "" ? "—" : formatEuro(amount)}</span>`
-        }
-      </td>
-      <td>
-        ${
-          canEditTournee
-            ? `<div class="tournee-month-chips" role="group" aria-label="Mois de tournée ${escapeHtml(member.name)}">
-                ${buildTourneeMonthChips(member.id, monthIndices)}
-              </div>`
-            : `<span class="amount-readonly tournee-member-months">${escapeHtml(monthLabel)}</span>`
-        }
-      </td>
-      <td><div class="tournee-status-list">${buildTourneeStatusList(statuses)}</div></td>
-    `;
-
-    if (canEditTournee) {
+  [...members]
+    .sort(compareMemberNames)
+    .forEach((member) => {
+      const tr = document.createElement("tr");
+      const amount = getCotisation(member.id);
+      tr.innerHTML = `
+        <td>${escapeHtml(member.name)}</td>
+        <td>
+          <div class="amount-input-wrap">
+            <input
+              type="number"
+              class="amount-input"
+              data-id="${member.id}"
+              min="0"
+              step="0.5"
+              placeholder="0"
+              value="${amount === "" ? "" : amount}"
+            />
+            <span class="amount-suffix">€</span>
+          </div>
+        </td>
+      `;
       const amountInput = tr.querySelector(".amount-input");
       const applyCotisationDraft = () => {
         if (amountInput.value === "") {
           setCotisationDraft(member.id, "");
+          updateCotisationTotal();
           return;
         }
         const parsed = parseFloat(amountInput.value);
         if (!Number.isNaN(parsed)) {
           setCotisationDraft(member.id, parsed);
+          updateCotisationTotal();
         }
       };
-
       amountInput.addEventListener("input", applyCotisationDraft);
-
-      tr.querySelectorAll(".tournee-month-chip").forEach((chip) => {
-        chip.addEventListener("click", () => {
-          const monthIndex = Number(chip.dataset.month);
-          const willActivate = !chip.classList.contains("is-active");
-          toggleMemberMonth(member.id, monthIndex, willActivate);
-        });
-      });
-    }
-
-    cotisationBody.appendChild(tr);
-  });
+      amountInput.addEventListener("change", applyCotisationDraft);
+      tourneeCotisationBody.appendChild(tr);
+    });
 
   updateCotisationTotal();
 }
 
+function renderTourneeTable() {
+  renderTourneeYearSelect();
+  const canEdit = canEditTourneePlanning();
+  fillTourneeBody(cotisationBody, canEdit);
+  fillTourneeBody(cotisationBodyPublic, false);
+  const cotisationsBlock = document.getElementById("tourneeCotisationsBlock");
+  if (cotisationsBlock) cotisationsBlock.hidden = !canEdit;
+  if (canEdit) fillTourneeCotisationsTable();
+}
+
+function resolveLegacyTab(tabId) {
+  if (!tabId) return null;
+  if (tabId === "amendes" || tabId === "dettes-amendes") {
+    activeFinanceSub = FINANCE_LIVE_DETTE_SUB;
+    localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_LIVE_DETTE_SUB);
+    return "finance";
+  }
+  if (tabId === "autre-argent" || tabId === "caisse") {
+    activeFinanceSub = FINANCE_CAISSE_SUB;
+    localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_CAISSE_SUB);
+    return "finance";
+  }
+  if (tabId === "gestion") return "admin";
+  if (TAB_IDS.includes(tabId)) return tabId;
+  return null;
+}
+
 function getSavedTab() {
   const hashTab = location.hash.replace(/^#/, "");
-  if (TAB_IDS.includes(hashTab)) return hashTab;
+  const fromHash = resolveLegacyTab(hashTab);
+  if (fromHash) return fromHash;
 
   const storedTab = sessionStorage.getItem(ACTIVE_TAB_KEY);
-  if (TAB_IDS.includes(storedTab)) return storedTab;
+  const fromStored = resolveLegacyTab(storedTab);
+  if (fromStored) return fromStored;
 
   return "membres";
 }
@@ -2084,9 +3412,19 @@ function persistActiveTab(tabId) {
   }
 }
 
+function canAccessAutreArgentTab() {
+  return canAccessCaisse();
+}
+
 function showTab(tabId) {
+  const resolved = resolveLegacyTab(tabId);
+  if (resolved) tabId = resolved;
+
   if (!TAB_IDS.includes(tabId)) tabId = "membres";
-  if (tabId === "autre-argent" && !isGroupAdmin()) tabId = "membres";
+  if (tabId === "admin" && !canAccessAdminTab()) tabId = "membres";
+  if (tabId === "finance" && activeFinanceSub === FINANCE_CAISSE_SUB && !canAccessCaisse()) {
+    activeFinanceSub = FINANCE_LIVE_DETTE_SUB;
+  }
 
   tabs.forEach((tab) => {
     tab.classList.toggle("active", tab.dataset.tab === tabId);
@@ -2094,15 +3432,20 @@ function showTab(tabId) {
   tabContents.forEach((content) => {
     content.classList.toggle("active", content.id === `tab-${tabId}`);
   });
+  document.querySelector(`.tab[data-tab="${tabId}"]`)?.scrollIntoView({
+    inline: "center",
+    block: "nearest",
+    behavior: "smooth",
+  });
+
+  if (tabId === "membres") {
+    renderBureau();
+    renderMemberList();
+  }
 
   if (tabId === "tournee") {
     reloadFromStorage();
     renderTourneeTable();
-  }
-
-  if (tabId === "amendes") {
-    reloadFromStorage();
-    renderAmendes();
   }
 
   if (tabId === "prets") {
@@ -2118,15 +3461,26 @@ function showTab(tabId) {
 
   if (tabId === "finance") {
     reloadFromStorage();
+    // Admin en vue simple : forcer Mes dettes (pas la caisse)
+    if (isGroupAdmin() && activeFinanceSub === FINANCE_CAISSE_SUB) {
+      activeFinanceSub = FINANCE_LIVE_DETTE_SUB;
+      localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_LIVE_DETTE_SUB);
+    }
     renderFinance();
   }
 
-  if (tabId === "autre-argent") {
+  if (tabId === "ancienne-tournee") {
     reloadFromStorage();
-    renderAutreArgent();
+    renderAncienneTourneeMemberView();
+  }
+
+  if (tabId === "admin") {
+    reloadFromStorage();
+    renderAdmin();
   }
 
   persistActiveTab(tabId);
+  updateSessionUI();
 }
 
 function getAmendesForMember(memberId) {
@@ -2186,28 +3540,88 @@ function getAmendeTypeBadge(typeId) {
   return `<span class="dette-type-badge type-${typeId}">${escapeHtml(label)}</span>`;
 }
 
-function getDetteTableLabelColspan(showAllMembers) {
-  return showAllMembers ? 4 : 3;
+function getDetteCardCopy(amende) {
+  const note = String(amende.note || "").trim();
+  if (isDetteAmende(amende)) {
+    const eventMatch = note.match(/Événement\s*:\s*([^—]+)/i);
+    const potoMatch = note.match(/Poto\s*:\s*(.+)$/i);
+    return {
+      title: eventMatch ? eventMatch[1].trim() : note || "Dette événement",
+      extra: potoMatch ? `Poto ${potoMatch[1].trim()}` : "",
+    };
+  }
+  return {
+    title: note || getAmendeTypeLabel(amende.type),
+    extra: "",
+  };
+}
+
+function canManageAmendesActions() {
+  if (!isLoggedIn()) return false;
+  if (isGroupAdmin()) return true;
+  return hasRoleTabAccess("amendes");
+}
+
+function canRepayAmende(amende) {
+  if (!amende) return false;
+  return canManageAmendesActions();
+}
+
+function buildAmendeActionControls(amende, { showEdit = false } = {}) {
+  if (!canManageAmendesActions()) return "";
+  const remaining = Number(amende.amount) || 0;
+  return `
+    <div class="pret-repay-form amende-action-controls" data-amende-id="${amende.id}">
+      ${
+        showEdit && !isDetteAmende(amende)
+          ? `<button type="button" class="btn-amende-edit" data-id="${amende.id}">Modifier</button>`
+          : ""
+      }
+      <label class="amende-repay-field">
+        <span>Ce versement</span>
+        <input type="number" min="0.5" step="0.5" max="${remaining}" class="amende-repay-input pret-repay-input" data-id="${amende.id}" inputmode="decimal" placeholder="ex. 10" aria-label="Montant de ce versement, reste ${remaining} euros" />
+        <span>€</span>
+      </label>
+      <button type="button" class="btn-primary btn-amende-repay" data-id="${amende.id}">Rembourser</button>
+      <button type="button" class="btn-secondary btn-amende-delete" data-id="${amende.id}">Supprimer</button>
+    </div>
+  `;
+}
+
+function buildDetteCard(amende, { showMember = false, showEdit = false, index = 0 } = {}) {
+  const copy = getDetteCardCopy(amende);
+  const memberName = getMemberById(amende.memberId)?.name || "—";
+  const repaid = Number(amende.repaidAmount) || 0;
+  const metaParts = [
+    showMember ? memberName : "",
+    formatFriendlyDate(amende.date),
+    copy.extra,
+    repaid > 0 ? `déjà ${formatEuro(repaid)}` : "",
+  ].filter(Boolean);
+
+  return `
+    <article class="dette-card type-${escapeHtml(amende.type)}" style="--i: ${index}">
+      ${getAmendeTypeBadge(amende.type)}
+      <div class="dette-card-main">
+        <p class="dette-card-title">${escapeHtml(copy.title)}</p>
+        <p class="dette-card-meta">${escapeHtml(metaParts.join(" · "))}</p>
+      </div>
+      <strong class="dette-card-amount">${formatEuro(amende.amount)}</strong>
+      ${buildAmendeActionControls(amende, { showEdit })}
+    </article>
+  `;
 }
 
 function renderDetteBanner(detteList, showAllMembers = false) {
   if (!amendeDetteWrap || !amendeDetteBody) return;
 
-  const showActions = showAllMembers && canManageTab("amendes");
+  const showEdit = showAllMembers && canManageTab("amendes");
   const total = detteList.reduce((sum, amende) => sum + amende.amount, 0);
-  const labelColspan = getDetteTableLabelColspan(showAllMembers);
-  const colCount = labelColspan + 1 + (showActions ? 1 : 0);
-
-  if (amendeDetteMemberCol) amendeDetteMemberCol.hidden = !showAllMembers;
-  if (amendeDetteActionsCol) amendeDetteActionsCol.hidden = !showActions;
-  if (amendeDetteTotalActionsSpacer) amendeDetteTotalActionsSpacer.hidden = !showActions;
-  if (amendeDetteTotalLabel) amendeDetteTotalLabel.colSpan = labelColspan;
 
   if (detteList.length === 0) {
     amendeDetteWrap.hidden = true;
     amendeDetteBody.innerHTML = "";
     if (amendeDetteSummary) amendeDetteSummary.innerHTML = "";
-    if (amendeDetteTotal) amendeDetteTotal.textContent = formatEuro(0);
     return;
   }
 
@@ -2215,44 +3629,256 @@ function renderDetteBanner(detteList, showAllMembers = false) {
 
   if (amendeDetteSubtitle) {
     amendeDetteSubtitle.textContent = showAllMembers
-      ? "Cotisations non payées après remboursement au poto — validez le paiement pour remettre le montant dans la caisse."
-      : "Vos cotisations événements non payées — à régler auprès du groupe.";
+      ? "Cotisations non payées — un clic pour les remettre en caisse."
+      : "Tes cotisations d'événement encore ouvertes.";
   }
 
   if (amendeDetteSummary) {
     amendeDetteSummary.innerHTML = `
-      <span class="dette-block-total-label">Total</span>
-      <strong class="dette-block-total-amount">${formatEuro(total)}</strong>
-      <span class="dette-block-total-count">${detteList.length} dette${detteList.length > 1 ? "s" : ""}</span>
+      <span class="dette-group-total-count">${detteList.length}</span>
+      <strong>${formatEuro(total)}</strong>
     `;
   }
 
   amendeDetteBody.innerHTML = detteList
-    .map((amende, index) => {
-      const memberName = showAllMembers
-        ? `<td class="dette-col-text dette-member-name">${escapeHtml(getMemberById(amende.memberId)?.name || "—")}</td>`
-        : "";
+    .map((amende, index) =>
+      buildDetteCard(amende, { showMember: showAllMembers, showEdit, index })
+    )
+    .join("");
+}
 
-      const actionsCell = showActions
-        ? `<td class="dette-td-actions">
-            <button type="button" class="btn-primary btn-dette-pay" data-id="${amende.id}">Valider paiement</button>
-          </td>`
-        : "";
+function renderAncienneTourneeDettesAdmin() {
+  const body = document.getElementById("ancienneTourneeBody");
+  const totalEl = document.getElementById("ancienneTourneeTotal");
+  if (ancienneTourneeForm) {
+    const formPanel = ancienneTourneeForm.closest("section");
+    if (formPanel) formPanel.hidden = !hasRoleTabAccess("ancienne-tournee");
+  }
+  if (!body) return;
 
+  const total = ancienneTourneeDettes.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+  if (totalEl) totalEl.textContent = formatEuro(total);
+
+  if (!ancienneTourneeDettes.length) {
+    body.innerHTML = `<tr><td colspan="4" class="empty-cell">Aucune dette enregistrée.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = [...ancienneTourneeDettes]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map((entry) => {
+      const member = getMemberById(entry.memberId);
       return `
-        <tr class="dette-row dette-row--event" style="--dette-row-i: ${index}">
-          ${memberName}
-          <td>${getAmendeTypeBadge("dette")}</td>
-          <td class="dette-col-text dette-col-date">${formatDate(amende.date.split("T")[0])}</td>
-          <td class="dette-col-text dette-col-detail">${escapeHtml(amende.note || "Dette événement")}</td>
-          <td class="dette-td-amount type-dette">${formatEuro(amende.amount)}</td>
-          ${actionsCell}
+        <tr>
+          <td>${formatDate(String(entry.createdAt).split("T")[0])}</td>
+          <td>${escapeHtml(member?.name || "—")}</td>
+          <td class="ancienne-tournee-amount-cell">${formatAncienneTourneeAmountHtml(entry)}</td>
+          <td>
+            <div class="ancienne-tournee-actions">
+              <button type="button" class="btn-secondary btn-ancienne-tournee-add" data-member-id="${escapeHtml(entry.memberId)}">Ajouter</button>
+              <button type="button" class="btn-secondary btn-ancienne-tournee-delete" data-id="${escapeHtml(entry.id)}">Supprimer dette</button>
+              ${buildAncienneTourneeRepayControls(entry)}
+            </div>
+          </td>
         </tr>
       `;
     })
     .join("");
+}
 
-  if (amendeDetteTotal) amendeDetteTotal.textContent = formatEuro(total);
+function renderAncienneTourneeMemberView() {
+  const body = document.getElementById("ancienneTourneeMemberBody");
+  const totalEl = document.getElementById("ancienneTourneeMemberTotal");
+  const current = getCurrentMember();
+  if (!body) return;
+
+  if (!current) {
+    body.innerHTML = `<p class="empty-cell">Connecte-toi pour voir tes dettes.</p>`;
+    if (totalEl) totalEl.textContent = formatEuro(0);
+    return;
+  }
+
+  const financierView = canRepayAncienneTourneeDette();
+  const desc = document.querySelector("#tab-ancienne-tournee .panel-desc");
+  if (desc && !desc.querySelector("#ancienneTourneeMemberTotal")) {
+    desc.textContent = financierView
+      ? "Valide le remboursement des dettes d’ancienne tournée."
+      : "Ce que tu dois encore pour l’ancienne tournée.";
+  }
+  const entries = (financierView ? [...ancienneTourneeDettes] : getAncienneTourneeEntriesFor(current.id)).sort(
+    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
+  );
+  const total = financierView
+    ? entries.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0)
+    : getAncienneTourneeDette(current.id);
+  if (totalEl) totalEl.textContent = formatEuro(total);
+
+  if (!entries.length) {
+    body.innerHTML = `<p class="empty-cell">${
+      financierView ? "Aucune dette d'ancienne tournée." : "Tu n'as pas de dette d'ancienne tournée."
+    }</p>`;
+    return;
+  }
+
+  body.innerHTML = entries
+    .map((entry) => {
+      const member = getMemberById(entry.memberId);
+      return `
+      <article class="ancienne-tournee-row">
+        <span class="ancienne-tournee-row-date">${formatDate(String(entry.createdAt).split("T")[0])}</span>
+        ${financierView ? `<span class="ancienne-tournee-row-poto">${escapeHtml(member?.name || "—")}</span>` : ""}
+        <span class="ancienne-tournee-row-amount">${formatAncienneTourneeAmountHtml(entry)}</span>
+        ${financierView ? buildAncienneTourneeRepayControls(entry) : ""}
+      </article>`;
+    })
+    .join("");
+}
+
+function isFinancierPoste() {
+  const member = getCurrentMember();
+  return !!member && getMemberRole(member.id) === "tresorier";
+}
+
+function canRepayAncienneTourneeDette() {
+  return isLoggedIn() && (isFinancierPoste() || hasRoleTabAccess("ancienne-tournee"));
+}
+
+function addAncienneTourneeDette(memberId, amount) {
+  if (!requireTabAccess("ancienne-tournee", "ajouter une dette d'ancienne tournée")) return;
+
+  const member = getMemberById(memberId);
+  if (!member || member.id === "groupe") {
+    alert("Choisis le poto concerné.");
+    return;
+  }
+
+  const parsedAmount = Math.round(parseFloat(amount) * 100) / 100;
+  if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+    alert("Montant invalide.");
+    return;
+  }
+
+  ancienneTourneeDettes.unshift({
+    id: generateId(),
+    memberId: member.id,
+    amount: parsedAmount,
+    originalAmount: parsedAmount,
+    repaidAmount: 0,
+    repayments: [],
+    createdAt: new Date().toISOString(),
+    createdBy: getCurrentMember()?.id || null,
+  });
+
+  saveAncienneTourneeDettes();
+  if (ancienneTourneeForm) ancienneTourneeForm.reset();
+  const msg = document.getElementById("ancienneTourneeSaveMsg");
+  if (msg) {
+    msg.textContent = `${formatEuro(parsedAmount)} ajoutés à la dette de ${member.name}.`;
+    msg.className = "save-msg save-msg-success";
+    msg.hidden = false;
+  }
+}
+
+function deleteAncienneTourneeDette(entryId) {
+  if (!requireTabAccess("ancienne-tournee", "supprimer une dette d'ancienne tournée")) return;
+  const entry = ancienneTourneeDettes.find((item) => item.id === entryId);
+  if (!entry) return;
+  const member = getMemberById(entry.memberId);
+  if (!confirm(`Supprimer la dette de ${formatEuro(entry.amount)} de ${member?.name || "ce poto"} ?`)) {
+    return;
+  }
+  ancienneTourneeDettes = ancienneTourneeDettes.filter((item) => item.id !== entryId);
+  saveAncienneTourneeDettes();
+}
+
+function repayAncienneTourneeDette(entryId, amountValue) {
+  const entry = ancienneTourneeDettes.find((item) => item.id === entryId);
+  if (!entry) return;
+
+  if (!canRepayAncienneTourneeDette()) {
+    alert("Seuls le Financier ou un poste autorisé peuvent rembourser une dette d'ancienne tournée.");
+    return;
+  }
+
+  const remaining = Math.round((Number(entry.amount) || 0) * 100) / 100;
+  if (remaining <= 0) return;
+
+  const raw = amountValue == null || String(amountValue).trim() === ""
+    ? String(remaining)
+    : String(amountValue).trim().replace(",", ".");
+  const payAmount = Math.round(parseFloat(raw) * 100) / 100;
+  if (Number.isNaN(payAmount) || payAmount <= 0) {
+    alert("Montant invalide.");
+    return;
+  }
+  if (payAmount > remaining) {
+    alert(`Impossible de rembourser ${formatEuro(payAmount)} : il reste ${formatEuro(remaining)}.`);
+    return;
+  }
+
+  const member = getMemberById(entry.memberId);
+  const memberName = member?.name || "ce poto";
+  const nextRemaining = Math.round((remaining - payAmount) * 100) / 100;
+  const isFull = nextRemaining <= 0;
+  if (
+    !confirm(
+      isFull
+        ? `Rembourser ${formatEuro(payAmount)} (${memberName}) ?\nLa dette sera soldée et ${formatEuro(payAmount)} ira dans la caisse disponible.`
+        : `Rembourser ${formatEuro(payAmount)} sur ${formatEuro(remaining)} (${memberName}) ?\nIl restera ${formatEuro(nextRemaining)}.\n${formatEuro(payAmount)} ira dans la caisse disponible.`
+    )
+  ) {
+    return;
+  }
+
+  autreArgent.unshift({
+    id: generateId(),
+    memberId: entry.memberId,
+    amount: payAmount,
+    type: "don",
+    motif: "Remboursement dette ancienne tournée",
+    note: isFull
+      ? "Remboursement dette ancienne tournée (soldée)"
+      : `Remboursement partiel dette ancienne tournée (${formatEuro(payAmount)})`,
+    createdAt: new Date().toISOString(),
+    createdBy: getCurrentMember()?.id || null,
+  });
+  saveAutreArgent(false);
+
+  if (!entry.originalAmount) entry.originalAmount = remaining;
+  entry.repaidAmount = Math.round(((Number(entry.repaidAmount) || 0) + payAmount) * 100) / 100;
+  if (!Array.isArray(entry.repayments)) entry.repayments = [];
+  entry.repayments.unshift({
+    id: generateId(),
+    amount: payAmount,
+    createdAt: new Date().toISOString(),
+    createdBy: getCurrentMember()?.id || null,
+  });
+
+  if (isFull) {
+    ancienneTourneeDettes = ancienneTourneeDettes.filter((item) => item.id !== entryId);
+  } else {
+    entry.amount = nextRemaining;
+  }
+
+  saveAncienneTourneeDettes();
+  renderAutreArgent();
+  renderPrets();
+  renderFinanceDashboard();
+
+  const msg = document.getElementById("ancienneTourneeSaveMsg");
+  if (msg) {
+    msg.textContent = isFull
+      ? `${formatEuro(payAmount)} de ${memberName} — dette soldée, ajouté à la caisse disponible.`
+      : `${formatEuro(payAmount)} de ${memberName} ajouté à la caisse. Reste ${formatEuro(nextRemaining)}.`;
+    msg.className = "save-msg save-msg-success";
+    msg.hidden = false;
+  }
+
+  alert(
+    isFull
+      ? `Dette soldée — ${formatEuro(payAmount)} ajouté à la caisse disponible.\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
+      : `Remboursement partiel comptabilisé — ${formatEuro(payAmount)} en caisse.\nReste dû : ${formatEuro(nextRemaining)}\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
+  );
 }
 
 function renderDebtDashboard(regularAmendes, detteAmendes) {
@@ -2273,103 +3899,87 @@ function renderDebtDashboard(regularAmendes, detteAmendes) {
     }
   });
 
-  const chips = [];
-
-  if (detteAmendes.length > 0) {
-    chips.push(`
-      <div class="dette-chip type-dette">
-        <span class="dette-chip-label">Dettes événements</span>
-        <strong class="dette-chip-amount">${formatEuro(detteTotal)}</strong>
-        <span class="dette-chip-count">${detteAmendes.length}</span>
+  if (grandTotal <= 0 && lineCount === 0) {
+    amendeSummary.innerHTML = `
+      <div class="dette-status dette-status--clear">
+        <span class="dette-status-mark" aria-hidden="true">✓</span>
+        <div class="dette-status-copy">
+          <p class="dette-status-kicker">Tout est à jour</p>
+          <strong class="dette-status-title">Rien à régler</strong>
+          <p class="dette-status-meta">Pas de dette ni d'amende pour le moment.</p>
+        </div>
       </div>
-    `);
+    `;
+    return;
   }
 
+  const chips = [];
+  if (detteAmendes.length > 0) {
+    chips.push(
+      `<span class="dette-pill type-dette">Événements · ${formatEuro(detteTotal)}</span>`
+    );
+  }
   AMENDE_TYPES.forEach((type) => {
     if (counts[type.id] === 0) return;
-    chips.push(`
-      <div class="dette-chip type-${type.id}">
-        <span class="dette-chip-label">${type.label}</span>
-        <strong class="dette-chip-amount">${formatEuro(totals[type.id])}</strong>
-        <span class="dette-chip-count">${counts[type.id]}</span>
-      </div>
-    `);
+    chips.push(
+      `<span class="dette-pill type-${type.id}">${escapeHtml(type.label)} · ${formatEuro(totals[type.id])}</span>`
+    );
   });
 
   amendeSummary.innerHTML = `
-    <div class="dette-dashboard-hero${grandTotal > 0 ? " dette-dashboard-hero--due" : ""}">
-      <span class="dette-dashboard-label">Total à régler</span>
-      <strong class="dette-dashboard-grand">${formatEuro(grandTotal)}</strong>
-      <span class="dette-dashboard-meta">${lineCount} ligne${lineCount > 1 ? "s" : ""}</span>
+    <div class="dette-status dette-status--due">
+      <div class="dette-status-copy">
+        <p class="dette-status-kicker">À régler</p>
+        <strong class="dette-status-amount">${formatEuro(grandTotal)}</strong>
+        <p class="dette-status-meta">${lineCount} ligne${lineCount > 1 ? "s" : ""} en cours</p>
+      </div>
+      ${chips.length ? `<div class="dette-pills">${chips.join("")}</div>` : ""}
     </div>
-    ${chips.length ? `<div class="dette-dashboard-chips">${chips.join("")}</div>` : ""}
   `;
 }
 
 function renderAmendeTable(amendesList, showAllMembers = false) {
-  const showActions = showAllMembers && canManageTab("amendes");
-  const labelColspan = getDetteTableLabelColspan(showAllMembers);
-  const colCount = labelColspan + 1 + (showActions ? 1 : 0);
+  if (!amendeBody) return;
 
-  if (amendeMemberCol) amendeMemberCol.hidden = !showAllMembers;
-  if (amendeActionsCol) amendeActionsCol.hidden = !showActions;
-  if (amendeTotalActionsSpacer) amendeTotalActionsSpacer.hidden = !showActions;
-  if (document.getElementById("amendeTotalLabel")) {
-    document.getElementById("amendeTotalLabel").colSpan = labelColspan;
+  const showEdit = showAllMembers && canManageTab("amendes");
+  const total = amendesList.reduce((sum, amende) => sum + amende.amount, 0);
+
+  if (amendeRegularWrap) {
+    amendeRegularWrap.hidden = amendesList.length === 0;
   }
 
-  amendeBody.innerHTML = "";
+  if (amendeRegularSummary) {
+    amendeRegularSummary.innerHTML = amendesList.length
+      ? `<span class="dette-group-total-count">${amendesList.length}</span>
+         <strong>${formatEuro(total)}</strong>`
+      : "";
+  }
 
   if (amendesList.length === 0) {
-    amendeBody.innerHTML = `
-      <tr>
-        <td colspan="${colCount}" class="dette-empty-cell">Aucune amende pour le moment.</td>
-      </tr>
-    `;
-  } else {
-    amendesList.forEach((amende, index) => {
-      const memberName = showAllMembers
-        ? `<td class="dette-col-text dette-member-name">${escapeHtml(getMemberById(amende.memberId)?.name || "—")}</td>`
-        : "";
-
-      const actionsCell = showActions
-        ? `<td class="dette-td-actions">
-            <button type="button" class="btn-amende-edit" data-id="${amende.id}" title="Modifier">Modifier</button>
-            <button type="button" class="btn-primary btn-amende-pay" data-id="${amende.id}" title="Valider le paiement">Valider paiement</button>
-          </td>`
-        : "";
-
-      const tr = document.createElement("tr");
-      tr.className = "dette-row";
-      tr.style.setProperty("--dette-row-i", String(index));
-      tr.innerHTML = `
-        ${memberName}
-        <td>${getAmendeTypeBadge(amende.type)}</td>
-        <td class="dette-col-text dette-col-date">${formatDate(amende.date.split("T")[0])}</td>
-        <td class="dette-col-text dette-col-detail">${escapeHtml(amende.note || "—")}</td>
-        <td class="dette-td-amount type-${amende.type}">${formatEuro(amende.amount)}</td>
-        ${actionsCell}
-      `;
-      amendeBody.appendChild(tr);
-    });
+    amendeBody.innerHTML = "";
+    return;
   }
 
-  const grandTotal = amendesList.reduce((sum, amende) => sum + amende.amount, 0);
-  const grandTotalEl = document.getElementById("amendeGrandTotal");
-  if (grandTotalEl) grandTotalEl.textContent = formatEuro(grandTotal);
+  amendeBody.innerHTML = amendesList
+    .map((amende, index) =>
+      buildDetteCard(amende, { showMember: showAllMembers, showEdit, index })
+    )
+    .join("");
 }
 
 function renderAmendes() {
   const current = getCurrentMember();
   if (!current) return;
 
-  const canManage = canManageTab("amendes");
+  // Vue compte simple (admin inclus hors Admin) = uniquement ses dettes
+  const canManage = canManageTab("amendes") && !isSimpleAccountView();
 
   if (canManage) {
     amendeTitle.textContent = "Dettes et amendes du groupe";
-    amendeSubtitle.textContent = isGroupAdmin()
-      ? "Vue globale — dettes événements et amendes de tous les membres."
-      : "Vue globale — gestion des dettes et amendes du groupe.";
+    if (amendeSubtitle) {
+      amendeSubtitle.hidden = false;
+      amendeSubtitle.textContent = "Vue d'ensemble — ce qui reste ouvert pour chaque poto.";
+    }
     const allAmendes = getAllAmendes().sort((a, b) => {
       const nameA = getMemberById(a.memberId)?.name || "";
       const nameB = getMemberById(b.memberId)?.name || "";
@@ -2389,8 +3999,11 @@ function renderAmendes() {
     renderDetteBanner(detteAmendes, true);
     renderAmendeTable(regularAmendes, true);
   } else {
-    amendeTitle.textContent = `Mes dettes et amendes — ${current.name}`;
-    amendeSubtitle.textContent = "Vos dettes événements et amendes par type.";
+    amendeTitle.textContent = "Mes dettes et amendes";
+    if (amendeSubtitle) {
+      amendeSubtitle.hidden = false;
+      amendeSubtitle.textContent = `Pour ${current.name} — ce qui reste ouvert, sans le bruit.`;
+    }
     const memberAmendes = getAmendesForMember(current.id);
     const regularAmendes = getRegularAmendes(memberAmendes);
     const detteAmendes = memberAmendes.filter((amende) => isDetteAmende(amende));
@@ -2455,59 +4068,35 @@ function updateAmende(id, memberId, type, amount, note) {
   cancelEditAmende();
 }
 
-function applyDetteRemoval(amende, { restoreCaisse = false, markEventPaid = false } = {}) {
+function applyDetteRemoval(amende, { restoreCaisse = false, markEventPaid = false, restoreAmount = null } = {}) {
   if (!isDetteAmende(amende) || !amende.evenementId) return false;
 
   const evt = getEvenementById(amende.evenementId);
   if (!evt) return false;
+  const amount = restoreAmount != null ? Number(restoreAmount) : Number(amende.amount) || 0;
 
   if (evt.payments?.[amende.memberId]) {
     if (markEventPaid) {
       evt.payments[amende.memberId].paid = true;
       evt.payments[amende.memberId].paidAt = new Date().toISOString();
       evt.payments[amende.memberId].validatedBy = getCurrentMember()?.id || null;
-      evt.payments[amende.memberId].paidAmount = amende.amount;
+      evt.payments[amende.memberId].paidAmount =
+        (Number(evt.payments[amende.memberId].paidAmount) || 0) + amount;
       evt.payments[amende.memberId].debtRepaidAt = new Date().toISOString();
+      delete evt.payments[amende.memberId].convertedToDebt;
+      delete evt.payments[amende.memberId].debtCreatedAt;
     }
-
-    delete evt.payments[amende.memberId].convertedToDebt;
-    delete evt.payments[amende.memberId].debtCreatedAt;
   }
 
   if (restoreCaisse && evt.caisseDebtDeduction) {
-    evt.caisseDebtDeduction = Math.max(0, evt.caisseDebtDeduction - amende.amount);
+    evt.caisseDebtDeduction = Math.max(0, evt.caisseDebtDeduction - amount);
   }
 
   return true;
 }
 
 function validateDettePayment(amendeId) {
-  if (!requireTabAccess("amendes", "valider un paiement de dette")) return;
-
-  const amende = getAmendeById(amendeId);
-  if (!amende || !isDetteAmende(amende)) return;
-
-  const member = getMemberById(amende.memberId);
-  const memberName = member?.name || "ce membre";
-
-  if (
-    !confirm(
-      `Confirmer le remboursement de la dette de ${memberName} (${formatEuro(amende.amount)}) ?\nLe montant retournera dans la caisse brute et disponible.`
-    )
-  ) {
-    return;
-  }
-
-  applyDetteRemoval(amende, { restoreCaisse: true, markEventPaid: true });
-  localStorage.setItem(EVENEMENTS_KEY, JSON.stringify(evenements));
-
-  amendes = amendes.filter((a) => a.id !== amendeId);
-  saveAmendes();
-  renderEvenements();
-
-  alert(
-    `Dette de ${memberName} validée — ${formatEuro(amende.amount)} retourné dans la caisse.\nCaisse disponible : ${formatEuro(getCaisseDisponible())} · Caisse brute : ${formatEuro(getCaisseBrute())}`
-  );
+  repayAmende(amendeId);
 }
 
 function creditAmendeToCaisse(amende) {
@@ -2524,24 +4113,43 @@ function creditAmendeToCaisse(amende) {
   saveAmendesCaisse();
 }
 
-function validateAmendePayment(id) {
-  if (!requireTabAccess("amendes", "valider le paiement d'une amende")) return;
-
+function repayAmende(id, amountValue) {
   const amende = getAmendeById(id);
   if (!amende) return;
 
-  if (isDetteAmende(amende)) {
-    validateDettePayment(id);
+  if (!canRepayAmende(amende)) {
+    alert("Seuls les postes autorisés à Dettes et amendes peuvent rembourser.");
+    return;
+  }
+
+  const remaining = Math.round((Number(amende.amount) || 0) * 100) / 100;
+  if (remaining <= 0) return;
+
+  const typed = String(amountValue ?? "").trim().replace(",", ".");
+  if (!typed) {
+    alert(`Indique le montant de ce versement.\nReste dû : ${formatEuro(remaining)} (tu peux mettre moins).`);
+    return;
+  }
+  const payAmount = Math.round(parseFloat(typed) * 100) / 100;
+  if (Number.isNaN(payAmount) || payAmount <= 0) {
+    alert("Montant invalide.");
+    return;
+  }
+  if (payAmount > remaining) {
+    alert(`Impossible de rembourser ${formatEuro(payAmount)} : il reste ${formatEuro(remaining)}.`);
     return;
   }
 
   const member = getMemberById(amende.memberId);
   const typeLabel = getAmendeTypeLabel(amende.type);
-  const memberName = member ? member.name : "ce membre";
+  const nextRemaining = Math.round((remaining - payAmount) * 100) / 100;
+  const isFull = nextRemaining <= 0;
 
   if (
     !confirm(
-      `Confirmer le paiement de ${memberName} (${typeLabel}, ${formatEuro(amende.amount)}) ?\n\nL'amende sera retirée et ${formatEuro(amende.amount)} sera ajouté à la caisse brute et disponible.`
+      isFull
+        ? `Rembourser ${formatEuro(payAmount)} (${typeLabel.toLowerCase()} de ${member?.name || "ce poto"}) ?\nL'amende sera soldée et ${formatEuro(payAmount)} ira dans la caisse.`
+        : `Rembourser ${formatEuro(payAmount)} sur ${formatEuro(remaining)} (${member?.name || "ce poto"}) ?\nIl restera ${formatEuro(nextRemaining)}.\n${formatEuro(payAmount)} ira dans la caisse.`
     )
   ) {
     return;
@@ -2549,17 +4157,173 @@ function validateAmendePayment(id) {
 
   if (editingAmendeId === id) cancelEditAmende();
 
-  creditAmendeToCaisse(amende);
-  amendes = amendes.filter((a) => a.id !== id);
+  if (isDetteAmende(amende)) {
+    applyDetteRemoval(amende, {
+      restoreCaisse: true,
+      markEventPaid: isFull,
+      restoreAmount: payAmount,
+    });
+    localStorage.setItem(EVENEMENTS_KEY, JSON.stringify(evenements));
+  } else {
+    creditAmendeToCaisse({ ...amende, amount: payAmount });
+  }
+
+  if (isFull) {
+    amendes = amendes.filter((item) => item.id !== id);
+  } else {
+    amende.originalAmount = Number(amende.originalAmount) || remaining;
+    amende.repaidAmount = Math.round(((Number(amende.repaidAmount) || 0) + payAmount) * 100) / 100;
+    amende.amount = nextRemaining;
+  }
+
   saveAmendes();
+  bumpLiveDataRevision();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+  renderEvenements();
+  renderFinanceDashboard();
 
   alert(
-    `Paiement validé pour ${memberName} — ${formatEuro(amende.amount)} ajouté à la caisse.\nCaisse disponible : ${formatEuro(getCaisseDisponible())} · Caisse brute : ${formatEuro(getCaisseBrute())}`
+    isFull
+      ? `Amende soldée — ${formatEuro(payAmount)} ajouté à la caisse.\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
+      : `Remboursement enregistré — ${formatEuro(payAmount)} en caisse.\nReste dû : ${formatEuro(nextRemaining)}\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
   );
 }
 
+function validateAmendePayment(id) {
+  repayAmende(id);
+}
+
 function deleteAmende(id) {
-  validateAmendePayment(id);
+  deleteAmendeRecord(id);
+}
+
+function deleteAmendeRecord(id) {
+  if (!requireTabAccess("amendes", "supprimer une amende")) return;
+
+  const amende = getAmendeById(id);
+  if (!amende) return;
+
+  const member = getMemberById(amende.memberId);
+  const memberName = member?.name || "ce poto";
+  if (
+    !confirm(
+      `Supprimer ${getAmendeTypeLabel(amende.type).toLowerCase()} de ${memberName} (${formatEuro(amende.amount)}) ?\nElle ne sera pas ajoutée à la caisse.`
+    )
+  ) {
+    return;
+  }
+
+  if (editingAmendeId === id) cancelEditAmende();
+
+  if (isDetteAmende(amende)) {
+    applyDetteRemoval(amende, { restoreCaisse: false, markEventPaid: false });
+    localStorage.setItem(EVENEMENTS_KEY, JSON.stringify(evenements));
+  }
+
+  amendes = amendes.filter((item) => item.id !== id);
+  saveAmendes();
+  bumpLiveDataRevision();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+  renderEvenements();
+  renderFinanceDashboard();
+}
+
+function undoAmendePayment(caisseId) {
+  if (!requireTabAccess("amendes", "annuler un encaissement d'amende")) return;
+
+  const entry = amendesCaisse.find((item) => item.id === caisseId);
+  if (!entry) return;
+
+  const member = getMemberById(entry.memberId);
+  const memberName = member?.name || "ce poto";
+  if (
+    !confirm(
+      `Annuler l'encaissement de ${formatEuro(entry.amount)} (${memberName}) ?\nLe montant sort de la caisse et l'amende revient en cours.`
+    )
+  ) {
+    return;
+  }
+
+  amendes.unshift({
+    id: entry.sourceAmendeId || generateId(),
+    memberId: entry.memberId,
+    type: entry.type || "sanctions",
+    amount: Number(entry.amount) || 0,
+    note: entry.note || "",
+    date: entry.paidAt || new Date().toISOString(),
+  });
+
+  amendesCaisse = amendesCaisse.filter((item) => item.id !== caisseId);
+  saveAmendesCaisse();
+  saveAmendes();
+  bumpLiveDataRevision();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+  renderFinanceDashboard();
+}
+
+function renderAmendesAdminHistory() {
+  const openEl = document.getElementById("amendeHistoryOpen");
+  const paidEl = document.getElementById("amendeHistoryPaid");
+  const panel = document.getElementById("amendeHistoryPanel");
+  if (!openEl || !paidEl) return;
+
+  const canSee = hasRoleTabAccess("amendes");
+  if (panel) panel.hidden = !canSee;
+  if (!canSee) {
+    openEl.innerHTML = "";
+    paidEl.innerHTML = "";
+    return;
+  }
+
+  const openList = [...amendes].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const paidList = [...amendesCaisse].sort(
+    (a, b) => new Date(b.paidAt || 0) - new Date(a.paidAt || 0)
+  );
+
+  openEl.innerHTML = openList.length
+    ? openList
+        .map((amende) => {
+          const member = getMemberById(amende.memberId);
+          return `
+            <article class="ancienne-tournee-row amende-history-row">
+              <span class="ancienne-tournee-row-date">${formatFriendlyDate(amende.date)}</span>
+              <span class="ancienne-tournee-row-poto">${escapeHtml(member?.name || "—")}</span>
+              ${getAmendeTypeBadge(amende.type)}
+              <span class="amende-history-note">${escapeHtml(amende.note || "—")}</span>
+              <strong class="ancienne-tournee-row-amount">${formatEuro(amende.amount)}</strong>
+              ${buildAmendeActionControls(amende, { showEdit: true })}
+            </article>
+          `;
+        })
+        .join("")
+    : `<p class="empty-cell">Aucune amende en cours.</p>`;
+
+  paidEl.innerHTML = paidList.length
+    ? paidList
+        .map((entry) => {
+          const member = getMemberById(entry.memberId);
+          return `
+            <article class="ancienne-tournee-row amende-history-row is-paid">
+              <span class="ancienne-tournee-row-date">${formatFriendlyDate(entry.paidAt)}</span>
+              <span class="ancienne-tournee-row-poto">${escapeHtml(member?.name || "—")}</span>
+              ${getAmendeTypeBadge(entry.type)}
+              <span class="amende-history-note">${escapeHtml(entry.note || "—")}</span>
+              <strong class="ancienne-tournee-row-amount">${formatEuro(entry.amount)}</strong>
+              <div class="ancienne-tournee-repay-controls amende-history-actions">
+                <span class="fond-caisse-annuel-done">Encaissée</span>
+                <button type="button" class="btn-secondary btn-amende-undo" data-id="${entry.id}">Annuler</button>
+              </div>
+            </article>
+          `;
+        })
+        .join("")
+    : `<p class="empty-cell">Aucun encaissement pour le moment.</p>`;
 }
 
 function loadPrets() {
@@ -2635,18 +4399,87 @@ function getTotalEvenementsInCaisse() {
 }
 
 function getCaisseBase() {
+  // Fond de départ + fond annuel versé + amendes payées − dettes événements déduites
   return Math.max(
     0,
-    FOND_CAISSE + getTotalAmendesInCaisse() - getTotalEvenementDebtDeductions()
+    getFondCaisse() +
+      getTotalFondCaisseAnnuelVerse() +
+      getTotalAmendesInCaisse() -
+      getTotalEvenementDebtDeductions()
   );
 }
 
-function getTotalAutreArgent() {
-  return autreArgent.reduce((sum, entry) => sum + entry.amount, 0);
+function isAutreArgentRetrait(entry) {
+  return Boolean(entry) && (entry.type === "retrait" || Number(entry.amount) < 0);
 }
 
+function getEntryAmount(entry) {
+  const amount = Number(entry?.amount);
+  return Number.isNaN(amount) ? 0 : amount;
+}
+
+function getTotalDonsOuAides() {
+  return autreArgent.reduce((sum, entry) => {
+    if (isAutreArgentRetrait(entry)) return sum;
+    return sum + Math.max(0, getEntryAmount(entry));
+  }, 0);
+}
+
+function getTotalRetraitsCaisse() {
+  return autreArgent.reduce((sum, entry) => {
+    if (!isAutreArgentRetrait(entry)) return sum;
+    return sum + Math.abs(getEntryAmount(entry));
+  }, 0);
+}
+
+function getTotalAutreArgent() {
+  return getTotalDonsOuAides() - getTotalRetraitsCaisse();
+}
+
+function parseAutreArgentAmount(amount) {
+  const parsedAmount = Math.round(parseFloat(amount) * 100) / 100;
+  if (Number.isNaN(parsedAmount) || parsedAmount <= 0) return null;
+  return parsedAmount;
+}
+
+/**
+ * Caisse brute = caisse disponible + argent des événements encore en caisse.
+ */
 function getCaisseBrute() {
-  return getCaisseBase() + getTotalEvenementsInCaisse() + getTotalAutreArgent();
+  return getCaisseDisponible() + getTotalEvenementsInCaisse();
+}
+
+/**
+ * Impact des prêts sur la caisse :
+ * - prêt accordé → l'argent sort (− montant)
+ * - remboursement → l'argent revient (+ montant remboursé)
+ * Les demandes en vote / refusées ne touchent pas la caisse.
+ */
+function getLoansCashImpact() {
+  return prets.reduce((sum, loan) => {
+    if (!["active", "defaulted", "completed"].includes(loan.status)) return sum;
+    return sum - loan.amount + (loan.totalRepaid || 0);
+  }, 0);
+}
+
+/** Capital encore sorti (prêts actifs non entièrement remboursés) */
+function getLoansCapitalOut() {
+  return getActiveLoans().reduce((sum, loan) => {
+    return sum + Math.max(0, loan.amount - (loan.totalRepaid || 0));
+  }, 0);
+}
+
+/**
+ * Caisse disponible : fond + amendes + dons − prêts sortis + remboursements.
+ * Sert aux prêts (argent libre).
+ */
+function getCaisseDisponible() {
+  return Math.max(0, getCaisseBase() + getTotalAutreArgent() + getLoansCashImpact());
+}
+
+/** Caisse total = caisse disponible + prêts sortis */
+function getCaisseTotal() {
+  return getCaisseDisponible() + getLoansCapitalOut();
 }
 
 function getPendingVoteLoan() {
@@ -2662,6 +4495,7 @@ function canInitiateNewPret() {
   if (!current) return false;
   if (getPendingVoteLoan()) return false;
   if (getBorrowerActiveLoan(current.id)) return false;
+  if (getAncienneTourneeDette(current.id) > 0) return false;
   return true;
 }
 
@@ -2677,10 +4511,6 @@ function getTotalRepaymentsReturned() {
   return getActiveLoans().reduce((sum, loan) => sum + (loan.totalRepaid || 0), 0);
 }
 
-function getCaisseDisponible() {
-  return getCaisseBrute();
-}
-
 function showPretSaveMessage(text, type = "success") {
   if (!pretSaveMsg) return;
   pretSaveMsg.textContent = text;
@@ -2689,7 +4519,8 @@ function showPretSaveMessage(text, type = "success") {
 }
 
 function getBorrowableAmount() {
-  const caisse = getCaisseBrute();
+  // Caisse disponible déjà nette des prêts sortis / remboursements
+  const caisse = getCaisseDisponible();
   return Math.max(0, (caisse - CAISSE_RESERVE) / 2);
 }
 
@@ -2765,9 +4596,6 @@ function upsertLoanNotification(memberId, loanId, type, message) {
 }
 
 function updateLoanNotificationsOnDecision(loan, decision) {
-  const borrower = getMemberById(loan.borrowerId);
-  const borrowerName = borrower?.name || "Un membre";
-
   if (decision === "approved") {
     const dueDates = getLoanDueDates(loan);
     const dueLabel = dueDates
@@ -2780,14 +4608,6 @@ function updateLoanNotificationsOnDecision(loan, decision) {
       "loan_approved",
       `Prêt accordé — ${formatEuro(loan.amount)}. Remboursez 80 % avant le ${dueLabel}.`
     );
-
-    notifications.forEach((notif) => {
-      if (notif.loanId !== loan.id || notif.memberId === loan.borrowerId) return;
-      notif.type = "loan_approved";
-      notif.message = `Prêt accordé pour ${borrowerName} (${formatEuro(loan.amount)}).`;
-      notif.read = false;
-      notif.createdAt = new Date().toISOString();
-    });
   } else {
     upsertLoanNotification(
       loan.borrowerId,
@@ -2795,15 +4615,12 @@ function updateLoanNotificationsOnDecision(loan, decision) {
       "loan_rejected",
       `Prêt refusé — votre demande de ${formatEuro(loan.amount)} a été refusée par le Financier.`
     );
-
-    notifications.forEach((notif) => {
-      if (notif.loanId !== loan.id || notif.memberId === loan.borrowerId) return;
-      notif.type = "loan_rejected";
-      notif.message = `Prêt refusé pour ${borrowerName} (${formatEuro(loan.amount)}).`;
-      notif.read = false;
-      notif.createdAt = new Date().toISOString();
-    });
   }
+
+  notifications = notifications.filter((notif) => {
+    if (notif.loanId !== loan.id) return true;
+    return notif.memberId === loan.borrowerId;
+  });
 }
 
 function clearLoanVoteRequestNotifications(loanId) {
@@ -2846,7 +4663,7 @@ function notifyAllMembersOnLoanInitiated(loan) {
         member.id,
         loan.id,
         "loan_pending",
-        `Demande en cours — votre prêt de ${amountLabel} est en vote. Tous les membres ont été notifiés.`
+        `Demande en cours — votre prêt de ${amountLabel} est en vote.`
       );
       return;
     }
@@ -2972,6 +4789,14 @@ function initiatePret(amount, note) {
     return;
   }
 
+  const ancienneDette = getAncienneTourneeDette(current.id);
+  if (ancienneDette > 0) {
+    alert(
+      `Tu as une dette d'ancienne tournée (${formatEuro(ancienneDette)}). Rembourse-la avant de faire un prêt.`
+    );
+    return;
+  }
+
   const available = getBorrowableAmount();
   if (parsedAmount > available) {
     alert(`Montant trop élevé. Empruntable : ${formatEuro(available)}.`);
@@ -3035,8 +4860,8 @@ function votePret(loanId, vote) {
 const PENDING_FINANCIER_STATUSES = ["voting", "awaiting_financier"];
 
 function financierDecidePret(loanId, decision) {
-  if (!canDecidePrets()) {
-    alert("Seul le Financier peut valider les prêts.");
+  if (!canManagePretsActions()) {
+    alert("Seul le Financier ou un administrateur peut valider les prêts.");
     return;
   }
 
@@ -3067,8 +4892,8 @@ function financierDecidePret(loanId, decision) {
 }
 
 function recordRepayment(loanId, amount) {
-  if (!canDecidePrets()) {
-    alert("Seul le Financier peut enregistrer un remboursement.");
+  if (!canManagePretsActions()) {
+    alert("Seul le Financier ou un administrateur peut enregistrer un remboursement.");
     return;
   }
 
@@ -3102,8 +4927,8 @@ function recordRepayment(loanId, amount) {
 }
 
 function deletePret(loanId) {
-  if (!canDecidePrets()) {
-    alert("Seul le Financier peut supprimer un prêt.");
+  if (!canManagePretsActions()) {
+    alert("Seul le Financier ou un administrateur peut supprimer un prêt.");
     return;
   }
 
@@ -3141,8 +4966,30 @@ function isPretNotification(notif) {
   return Boolean(notif.loanId) || (notif.type && notif.type.startsWith("loan_"));
 }
 
+function isPersonalNotificationFor(notif, memberId) {
+  if (!notif || notif.memberId !== memberId) return false;
+  if (!isPretNotification(notif)) return false;
+
+  if (notif.type === "loan_vote") return true;
+  if (notif.type === "loan_financier") return true;
+
+  if (
+    notif.type === "loan_pending" ||
+    notif.type === "loan_approved" ||
+    notif.type === "loan_rejected" ||
+    notif.type === "loan_deleted"
+  ) {
+    const loan = notif.loanId ? getLoanById(notif.loanId) : null;
+    if (loan) return loan.borrowerId === memberId;
+    return true;
+  }
+
+  return true;
+}
+
 function getPretNotificationsForMember(memberId) {
-  return notifications.filter((notif) => notif.memberId === memberId && isPretNotification(notif));
+  if (!memberId) return [];
+  return notifications.filter((notif) => isPersonalNotificationFor(notif, memberId));
 }
 
 function markPretNotificationsRead() {
@@ -3158,6 +5005,34 @@ function markPretNotificationsRead() {
   });
 
   if (changed) saveNotifications();
+}
+
+function deleteOwnNotification(notificationId) {
+  const current = getCurrentMember();
+  if (!current || !notificationId) return;
+
+  const notif = notifications.find((item) => item.id === notificationId);
+  if (!notif || notif.memberId !== current.id) {
+    alert("Tu ne peux supprimer que tes propres notifications.");
+    return;
+  }
+
+  notifications = notifications.filter((item) => item.id !== notificationId);
+  saveNotifications(false);
+  renderPretNotifications();
+}
+
+function deleteAllOwnNotifications() {
+  const current = getCurrentMember();
+  if (!current) return;
+
+  const mine = getPretNotificationsForMember(current.id);
+  if (!mine.length) return;
+  if (!confirm(`Supprimer tes ${mine.length} notification${mine.length > 1 ? "s" : ""} ?`)) return;
+
+  notifications = notifications.filter((item) => item.memberId !== current.id);
+  saveNotifications(false);
+  renderPretNotifications();
 }
 
 function renderInitiatePretPanel() {
@@ -3176,6 +5051,9 @@ function renderInitiatePretPanel() {
     } else if (ownLoan) {
       pretLockMsg.hidden = false;
       pretLockMsg.textContent = `Vous avez déjà un prêt en cours (${getPretStatusLabel(ownLoan.status).toLowerCase()}).`;
+    } else if (current && getAncienneTourneeDette(current.id) > 0) {
+      pretLockMsg.hidden = false;
+      pretLockMsg.textContent = `Tu as une dette d'ancienne tournée (${formatEuro(getAncienneTourneeDette(current.id))}). Rembourse-la avant de faire un prêt.`;
     } else {
       pretLockMsg.hidden = true;
     }
@@ -3214,21 +5092,48 @@ function renderPretSummary() {
     )
     .join("");
 
+  const fond = getFondCaisse();
+
+  const evenementsTotal = getTotalEvenementsInCaisse();
+  const donsTotal = getTotalAutreArgent();
+  const amendesTotal = getTotalAmendesInCaisse();
+  const loansOut = getLoansCapitalOut();
+  const loansImpact = getLoansCashImpact();
+
+  const fondCard = canViewFondCaisse()
+    ? `<div class="pret-summary-card">
+        <span class="pret-summary-label">Fond de caisse de départ</span>
+        <strong>${formatEuro(fond)}</strong>
+      </div>`
+    : "";
+
   pretSummary.innerHTML = `
     <div class="pret-summary-card pret-summary-main">
       <span class="pret-summary-label">Argent empruntable</span>
       <strong class="pret-summary-amount">${formatEuro(borrowable)}</strong>
-      <span class="pret-summary-formula">(Caisse brute − ${formatEuro(CAISSE_RESERVE)}) ÷ 2</span>
+      <span class="pret-summary-formula">(Caisse disponible − ${formatEuro(CAISSE_RESERVE)}) ÷ 2</span>
     </div>
     <div class="pret-summary-card">
       <span class="pret-summary-label">Caisse disponible</span>
       <strong>${formatEuro(caisseDisponible)}</strong>
-      <span class="pret-summary-formula">Fond + amendes + événements + autre argent</span>
+      <span class="pret-summary-formula">Amendes + dons ou aides − prêts sortis + remboursements</span>
     </div>
     <div class="pret-summary-card">
       <span class="pret-summary-label">Caisse brute</span>
       <strong>${formatEuro(caisseBrute)}</strong>
-      <span class="pret-summary-formula">Fond + amendes + événements + autre argent</span>
+      <span class="pret-summary-formula">Caisse disponible + événements (${formatEuro(evenementsTotal)})</span>
+    </div>
+    <div class="pret-summary-card">
+      <span class="pret-summary-label">Prêts sortis${activeLoans.length ? ` · ${activePretLabel}` : ""}</span>
+      <strong class="pret-summary-amount">${formatEuro(loansOut)}</strong>
+      <span class="pret-summary-formula">Capital encore dehors (prêt − remboursé)</span>
+      ${activeLoans.length ? `<div class="pret-active-details">${activeLoansDetails}</div>` : ""}
+    </div>
+    ${fondCard}
+    <div class="pret-summary-card pret-summary-total">
+      <span class="pret-summary-label">Caisse total</span>
+      <strong class="pret-summary-amount">${formatEuro(getCaisseTotal())}</strong>
+      <span class="pret-summary-formula">Caisse disponible ${formatEuro(caisseDisponible)} + prêts ${formatEuro(loansOut)}</span>
     </div>
     ${
       pendingVote
@@ -3236,15 +5141,6 @@ function renderPretSummary() {
             <span class="pret-summary-label">Demande en vote</span>
             <strong>${escapeHtml(getMemberById(pendingVote.borrowerId)?.name || "—")}</strong>
             <span class="pret-summary-formula">${escapeHtml(getPretStatusLabel(pendingVote.status))} · ${formatEuro(pendingVote.amount)}</span>
-          </div>`
-        : ""
-    }
-    ${
-      activeLoans.length > 0
-        ? `<div class="pret-summary-card">
-            <span class="pret-summary-label">Prêt accordé actif · ${activePretLabel}</span>
-            <strong class="pret-summary-amount">${formatEuro(activeTotal)}</strong>
-            <div class="pret-active-details">${activeLoansDetails}</div>
           </div>`
         : ""
     }
@@ -3256,53 +5152,55 @@ function getUnreadPretNotificationCount(memberId) {
 }
 
 function updatePretTabBadge() {
-  const current = getCurrentMember();
+  // Badge rouge désactivé : ne plus afficher de pastille sur l'onglet Prêt
   const pretsTab = document.querySelector('.tab[data-tab="prets"]');
   if (!pretsTab) return;
-
-  let badge = pretsTab.querySelector(".tab-badge");
-  if (!badge) {
-    badge = document.createElement("span");
-    badge.className = "tab-badge";
-    pretsTab.appendChild(badge);
-  }
-
-  const unread = current ? getUnreadPretNotificationCount(current.id) : 0;
-  if (unread > 0) {
-    badge.textContent = unread > 9 ? "9+" : String(unread);
-    badge.hidden = false;
-  } else {
-    badge.hidden = true;
-  }
+  pretsTab.querySelectorAll(".tab-badge").forEach((badge) => badge.remove());
 }
 
 function renderPretNotifications() {
   const current = getCurrentMember();
-  if (!current) return;
+  if (!current || !pretNotificationsList) {
+    if (pretNotificationsPanel) pretNotificationsPanel.hidden = true;
+    if (pretNotificationsList) pretNotificationsList.innerHTML = "";
+    return;
+  }
 
-  const mine = getPretNotificationsForMember(current.id).slice(0, 20);
+  const mine = getPretNotificationsForMember(current.id)
+    .filter((notif) => notif.memberId === current.id)
+    .slice(0, 20);
   updatePretTabBadge();
 
   if (pretNotificationsPanel) {
     pretNotificationsPanel.hidden = mine.length === 0;
   }
 
-  if (!pretNotificationsList || mine.length === 0) return;
+  const clearAllBtn = document.getElementById("pretNotificationsClearBtn");
+  if (clearAllBtn) clearAllBtn.hidden = mine.length === 0;
 
   pretNotificationsList.innerHTML = mine
     .map(
       (notif) => `
       <li class="pret-notif-item${notif.read ? "" : " pret-notif-unread"}">
-        <p>${escapeHtml(notif.message)}</p>
-        <span class="pret-notif-date">${formatDate(notif.createdAt.split("T")[0])}</span>
+        <div class="pret-notif-body">
+          <p>${escapeHtml(notif.message)}</p>
+          <span class="pret-notif-date">${formatDate(notif.createdAt.split("T")[0])}</span>
+        </div>
+        <button type="button" class="btn-secondary pret-notif-delete" data-id="${escapeHtml(notif.id)}" title="Supprimer cette notification">Supprimer</button>
       </li>
     `
     )
     .join("");
 }
 
+/** Financier, admin, ou poste avec accès Prêts dans Admin */
+function canManagePretsActions() {
+  if (canDecidePrets()) return true;
+  return isAdminWorkspace() && hasRoleTabAccess("prets");
+}
+
 function buildFinancierActions(loan) {
-  if (!canDecidePrets()) return "";
+  if (!canManagePretsActions()) return "";
 
   const canApproveReject = PENDING_FINANCIER_STATUSES.includes(loan.status);
 
@@ -3349,8 +5247,8 @@ function buildLoanCard(loan, mode) {
             : ""
       }
       ${
-        canDecidePrets()
-          ? `<p class="pret-financier-msg">En tant que Financier, vous pouvez accorder ce prêt à tout moment.</p>`
+        canManagePretsActions()
+          ? `<p class="pret-financier-msg">Vous pouvez accorder ce prêt à tout moment.</p>`
           : ""
       }
     `;
@@ -3362,10 +5260,10 @@ function buildLoanCard(loan, mode) {
       <p class="pret-financier-msg">
         ${
           loan.autoApprovedByTimeout
-            ? "Délai de 24 h écoulé — le Financier peut accorder ou refuser."
+            ? "Délai de 24 h écoulé — accorder ou refuser."
             : loan.status === "voting"
-              ? "Vote en cours — le Financier peut accorder à tout moment."
-              : "Tous les membres ont voté Oui — le Financier peut accorder."
+              ? "Vote en cours — vous pouvez accorder à tout moment."
+              : "Tous les membres ont voté Oui — à valider."
         }
       </p>
       <div class="pret-vote-stats">
@@ -3394,7 +5292,7 @@ function buildLoanCard(loan, mode) {
           : ""
       }
       ${
-        canDecidePrets()
+        canManagePretsActions()
           ? `<div class="pret-repay-form">
               <input type="number" class="pret-repay-input" data-loan-id="${loan.id}" min="1" step="1" placeholder="Montant remboursé" />
               <button type="button" class="btn-primary btn-pret-repay" data-loan-id="${loan.id}">Enregistrer remboursement</button>
@@ -3457,7 +5355,7 @@ function renderPrets() {
     financierPretPanel.hidden = !canDecidePrets();
     pretFinancierList.innerHTML = awaitingLoans.length
       ? awaitingLoans.map((loan) => buildLoanCard(loan, "financier")).join("")
-      : `<p class="pret-empty">Aucune demande en attente. Les prêts en vote peuvent être accordés directement depuis « Demandes en vote ».</p>`;
+      : `<p class="pret-empty">Aucune demande en attente.</p>`;
   }
 
   if (pretActiveList) {
@@ -3472,6 +5370,77 @@ function renderPrets() {
 
     pretActiveList.innerHTML = visibleActive.length
       ? visibleActive
+          .map((loan) => {
+            if (loan.status === "active" || loan.status === "defaulted") {
+              return buildLoanCard(loan, "active");
+            }
+            return buildLoanCard(loan, "history");
+          })
+          .join("")
+      : `<p class="pret-empty">Aucun prêt pour le moment.</p>`;
+  }
+
+  // Si l'admin regarde la gestion des prêts, rafraîchir aussi
+  if (isAdminWorkspace() && activeAdminSub === "prets") {
+    renderAdminPrets();
+  }
+}
+
+function renderAdminPrets() {
+  if (!hasRoleTabAccess("prets")) return;
+
+  processLoanStatusUpdates();
+
+  const summaryEl = document.getElementById("adminPretSummary");
+  const votingEl = document.getElementById("adminPretVotingList");
+  const awaitEl = document.getElementById("adminPretFinancierList");
+  const activeEl = document.getElementById("adminPretActiveList");
+
+  const caisseDisponible = getCaisseDisponible();
+  const borrowable = getBorrowableAmount();
+  const activeLoansLive = prets.filter((loan) => loan.status === "active" || loan.status === "defaulted");
+  const votingLoans = prets.filter((loan) => loan.status === "voting");
+  const awaitingLoans = prets.filter((loan) => loan.status === "awaiting_financier");
+  const historyLoans = prets.filter((loan) =>
+    ["active", "defaulted", "completed", "rejected"].includes(loan.status)
+  );
+
+  if (summaryEl) {
+    summaryEl.innerHTML = `
+      <div class="pret-summary-card pret-summary-main">
+        <span class="pret-summary-label">Caisse disponible</span>
+        <strong>${formatEuro(caisseDisponible)}</strong>
+      </div>
+      <div class="pret-summary-card">
+        <span class="pret-summary-label">Empruntable max</span>
+        <strong>${formatEuro(borrowable)}</strong>
+      </div>
+      <div class="pret-summary-card">
+        <span class="pret-summary-label">Prêts en cours</span>
+        <strong>${activeLoansLive.length}</strong>
+      </div>
+      <div class="pret-summary-card">
+        <span class="pret-summary-label">En vote / à valider</span>
+        <strong>${votingLoans.length + awaitingLoans.length}</strong>
+      </div>
+    `;
+  }
+
+  if (votingEl) {
+    votingEl.innerHTML = votingLoans.length
+      ? votingLoans.map((loan) => buildLoanCard(loan, "voting")).join("")
+      : `<p class="pret-empty">Aucune demande en vote.</p>`;
+  }
+
+  if (awaitEl) {
+    awaitEl.innerHTML = awaitingLoans.length
+      ? awaitingLoans.map((loan) => buildLoanCard(loan, "financier")).join("")
+      : `<p class="pret-empty">Aucune demande en attente de validation.</p>`;
+  }
+
+  if (activeEl) {
+    activeEl.innerHTML = historyLoans.length
+      ? historyLoans
           .map((loan) => {
             if (loan.status === "active" || loan.status === "defaulted") {
               return buildLoanCard(loan, "active");
@@ -3879,11 +5848,35 @@ function deleteEvenement(eventId) {
   const evt = getEvenementById(eventId);
   if (!evt) return;
 
-  if (!confirm(`Supprimer l'événement « ${evt.title} » ?`)) return;
+  const relatedDettes = amendes.filter(
+    (amende) => amende.evenementId === eventId
+  );
+
+  const confirmMsg = relatedDettes.length
+    ? `Supprimer l'événement « ${evt.title} » ?\n\nIl disparaîtra chez tous les potos (en cours et paiements).\n${relatedDettes.length} dette(s) événement liée(s) seront aussi supprimées.`
+    : `Supprimer l'événement « ${evt.title} » ?\n\nIl disparaîtra chez tous les potos là où il était en cours, y compris les paiements.`;
+
+  if (!confirm(confirmMsg)) return;
+
+  amendes = amendes.filter((amende) => amende.evenementId !== eventId);
+  localStorage.setItem(AMENDES_KEY, JSON.stringify(amendes));
 
   evenements = evenements.filter((item) => item.id !== eventId);
-  saveEvenements();
-  showEvenementSaveMessage("Événement supprimé.");
+  saveEvenements(false);
+  bumpLiveDataRevision();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+
+  renderAmendes();
+  renderEvenements();
+  renderPrets();
+  renderFinanceDashboard();
+
+  const extra = relatedDettes.length
+    ? ` ${relatedDettes.length} dette(s) liée(s) retirée(s).`
+    : "";
+  showEvenementSaveMessage(`Événement supprimé pour tout le groupe.${extra}`);
 }
 
 function resetClosedEvenements() {
@@ -4235,14 +6228,10 @@ function buildEvenementManagerCard(evt, current) {
   `;
 }
 
-function buildEvenementCard(evt) {
+function buildEvenementCard(evt, { manage = false } = {}) {
   const current = getCurrentMember();
   if (!current) return "";
-
-  if (canManageEvenements()) {
-    return buildEvenementManagerCard(evt, current);
-  }
-
+  if (manage) return buildEvenementManagerCard(evt, current);
   return buildEvenementMemberCard(evt, current);
 }
 
@@ -4260,44 +6249,11 @@ function buildEvenementClosedChip(evt) {
   `;
 }
 
-function renderEvenements() {
-  const current = getCurrentMember();
-  if (!current) return;
-
-  const canManage = canManageEvenements();
-
-  if (evenementListTitle) {
-    evenementListTitle.textContent = canManage ? "Événements du groupe" : `Mes événements — ${current.name}`;
-  }
-  if (evenementListSubtitle) {
-    evenementListSubtitle.textContent = canManage
-      ? "Cotisation de base par membre — saisissez le montant réellement versé (ex. 20 € si la cotisation est 10 €). Le total pour le poto suit les montants saisis."
-      : "Récapitulatif de vos cotisations — total payé et reste à payer.";
-  }
-
-  if (evenementMemberSummary) {
-    if (!canManage && evenements.length > 0) {
-      evenementMemberSummary.hidden = false;
-      evenementMemberSummary.innerHTML = buildEvenementMemberSummary(current);
-    } else {
-      evenementMemberSummary.hidden = true;
-      evenementMemberSummary.innerHTML = "";
-    }
-  }
-
-  if (resetClosedEvenementsBtn) {
-    const closedCount = evenements.filter((evt) => isEvenementClosed(evt)).length;
-    resetClosedEvenementsBtn.hidden = !isGroupAdmin() || closedCount === 0;
-    resetClosedEvenementsBtn.textContent =
-      closedCount > 0
-        ? `Réinitialiser les clôturés (${closedCount})`
-        : "Réinitialiser les clôturés";
-  }
-
-  if (!evenementList) return;
+function renderEvenementListInto(listEl, { manage = false } = {}) {
+  if (!listEl) return;
 
   if (evenements.length === 0) {
-    evenementList.innerHTML = `<p class="pret-empty">Aucun événement pour le moment.</p>`;
+    listEl.innerHTML = `<p class="pret-empty">Aucun événement pour le moment.</p>`;
     return;
   }
 
@@ -4305,7 +6261,7 @@ function renderEvenements() {
   const closedEvents = evenements.filter((evt) => isEvenementClosed(evt));
 
   const activeHtml = activeEvents.length
-    ? activeEvents.map((evt) => buildEvenementCard(evt)).join("")
+    ? activeEvents.map((evt) => buildEvenementCard(evt, { manage })).join("")
     : `<p class="pret-empty evenement-empty-active">Aucun événement en cours.</p>`;
 
   const closedHtml = closedEvents.length
@@ -4319,12 +6275,49 @@ function renderEvenements() {
     `
     : "";
 
-  evenementList.innerHTML = `
+  listEl.innerHTML = `
     <div class="evenement-layout${closedEvents.length ? " evenement-layout-has-closed" : ""}">
       <div class="evenement-list-active">${activeHtml}</div>
       ${closedHtml}
     </div>
   `;
+}
+
+function renderEvenements() {
+  const current = getCurrentMember();
+  if (!current) return;
+
+  const canManage = canManageEvenements();
+
+  if (evenementListTitle) {
+    evenementListTitle.textContent = `Mes événements — ${current.name}`;
+  }
+  if (evenementListSubtitle) {
+    evenementListSubtitle.hidden = true;
+    evenementListSubtitle.textContent = "";
+  }
+
+  if (evenementMemberSummary) {
+    if (evenements.length > 0) {
+      evenementMemberSummary.hidden = false;
+      evenementMemberSummary.innerHTML = buildEvenementMemberSummary(current);
+    } else {
+      evenementMemberSummary.hidden = true;
+      evenementMemberSummary.innerHTML = "";
+    }
+  }
+
+  if (resetClosedEvenementsBtn) {
+    const closedCount = evenements.filter((evt) => isEvenementClosed(evt)).length;
+    resetClosedEvenementsBtn.hidden = !canManage || !isGroupAdmin() || closedCount === 0;
+    resetClosedEvenementsBtn.textContent =
+      closedCount > 0
+        ? `Réinitialiser les clôturés (${closedCount})`
+        : "Réinitialiser les clôturés";
+  }
+
+  renderEvenementListInto(evenementList, { manage: false });
+  renderEvenementListInto(document.getElementById("evenementAdminList"), { manage: canManage });
 }
 
 function render() {
@@ -4339,7 +6332,7 @@ function render() {
   renderAmendes();
   renderEvenements();
   renderAdminList();
-  if (isGroupAdmin()) renderAutreArgent();
+  if (canAccessCaisse()) renderAutreArgent();
 }
 
 function showAutreArgentSaveMessage(text, type = "success") {
@@ -4349,26 +6342,54 @@ function showAutreArgentSaveMessage(text, type = "success") {
   autreArgentSaveMsg.hidden = false;
 }
 
-function addAutreArgent(memberId, amount, note) {
-  if (!requireGroupAdmin("enregistrer de l'autre argent")) return;
+function resolveAutreArgentMember(memberId, { allowGroupe = false } = {}) {
+  const raw = String(memberId || "").trim();
+  if (allowGroupe && (!raw || raw.toLowerCase() === "groupe" || raw.toLowerCase() === "le groupe")) {
+    return { id: "groupe", name: "Le groupe" };
+  }
+  return getMemberById(raw);
+}
 
-  const member = getMemberById(memberId);
-  if (!member) {
-    alert("Membre invalide.");
+function buildAutreArgentNote(motif, detail, fallback) {
+  const motifLabel = String(motif || "").trim();
+  const extra = String(detail || "").trim();
+  if (motifLabel && extra) return `${motifLabel} — ${extra}`;
+  return motifLabel || extra || fallback || "";
+}
+
+function requireCaisseArgentAccess(actionLabel) {
+  if (!isLoggedIn()) {
+    alert("Veuillez vous connecter avec votre nom.");
+    openLoginModal();
+    return false;
+  }
+  if (canManageCaisseArgent()) return true;
+  alert(`Seul le Financier ou un administrateur peut ${actionLabel}.`);
+  return false;
+}
+
+function addAutreArgent(memberId, amount, note, motif) {
+  if (!requireCaisseArgentAccess("enregistrer de l'autre argent")) return;
+
+  const member = resolveAutreArgentMember(memberId);
+  if (!member || member.id === "groupe") {
+    alert("Choisis le poto qui donne ou aide.");
     return;
   }
 
-  const parsedAmount = Math.round(parseFloat(amount) * 100) / 100;
-  if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+  const parsedAmount = parseAutreArgentAmount(amount);
+  if (parsedAmount == null) {
     alert("Montant invalide.");
     return;
   }
 
   autreArgent.unshift({
     id: generateId(),
-    memberId,
+    memberId: member.id,
     amount: parsedAmount,
-    note: note.trim(),
+    type: "don",
+    motif: String(motif || "").trim() || "Don ou aide",
+    note: buildAutreArgentNote(motif, note, "Don ou aide"),
     createdAt: new Date().toISOString(),
     createdBy: getCurrentMember()?.id || null,
   });
@@ -4376,51 +6397,128 @@ function addAutreArgent(memberId, amount, note) {
   saveAutreArgent();
   if (autreArgentForm) autreArgentForm.reset();
   showAutreArgentSaveMessage(
-    `${formatEuro(parsedAmount)} de ${member.name} ajouté à la caisse brute.`
+    `${formatEuro(parsedAmount)} de ${member.name} ajouté à la caisse disponible.`
   );
+  autreArgentListPanel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function withdrawAutreArgent(memberId, amount, note, motif) {
+  if (!requireCaisseArgentAccess("faire un retrait d'argent")) return;
+
+  const member = resolveAutreArgentMember(memberId, { allowGroupe: true }) || {
+    id: "groupe",
+    name: "Le groupe",
+  };
+
+  const parsedAmount = parseAutreArgentAmount(amount);
+  if (parsedAmount == null) {
+    alert("Indique le montant à retirer de la caisse disponible.");
+    return;
+  }
+
+  const caisseDispo = getCaisseDisponible();
+  if (parsedAmount > caisseDispo + 1e-9) {
+    alert(
+      `Impossible de retirer ${formatEuro(parsedAmount)} : la caisse disponible n'a que ${formatEuro(caisseDispo)}.`
+    );
+    return;
+  }
+
+  const motifLabel = String(motif || "").trim() || "Sortie";
+
+  autreArgent.unshift({
+    id: generateId(),
+    memberId: member.id,
+    amount: -parsedAmount,
+    type: "retrait",
+    motif: motifLabel,
+    note: buildAutreArgentNote(motifLabel, note, "Sortie"),
+    createdAt: new Date().toISOString(),
+    createdBy: getCurrentMember()?.id || null,
+  });
+
+  saveAutreArgent();
+  if (autreArgentForm) autreArgentForm.reset();
+  showAutreArgentSaveMessage(
+    `${formatEuro(parsedAmount)} retiré de la caisse disponible (${member.name} — ${motifLabel}).`
+  );
+  autreArgentListPanel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
 function deleteAutreArgent(entryId) {
-  if (!requireGroupAdmin("supprimer une entrée d'autre argent")) return;
+  if (!requireCaisseArgentAccess("supprimer une entrée d'autre argent")) return;
 
   const entry = autreArgent.find((item) => item.id === entryId);
   if (!entry) return;
 
-  const member = getMemberById(entry.memberId);
-  if (!confirm(`Supprimer la contribution de ${formatEuro(entry.amount)} de ${member?.name || "ce membre"} ?`)) {
+  const member =
+    entry.memberId === "groupe"
+      ? { name: "Le groupe" }
+      : getMemberById(entry.memberId);
+  const isWithdraw = isAutreArgentRetrait(entry);
+  const absAmount = Math.abs(getEntryAmount(entry));
+  const actionLabel = isWithdraw ? "ce retrait" : "cette entrée";
+  if (
+    !confirm(
+      `Supprimer ${actionLabel} de ${formatEuro(absAmount)} (${member?.name || "ce membre"}) ?`
+    )
+  ) {
     return;
   }
 
   autreArgent = autreArgent.filter((item) => item.id !== entryId);
   saveAutreArgent();
-  showAutreArgentSaveMessage("Entrée supprimée — montant retiré de la caisse brute.");
+  showAutreArgentSaveMessage(
+    isWithdraw
+      ? "Retrait supprimé — le montant est remis dans la caisse disponible."
+      : "Entrée supprimée — montant retiré de la caisse disponible."
+  );
 }
 
 function renderAutreArgent() {
-  if (!isGroupAdmin() || !autreArgentList) return;
+  renderFondCaissePanel();
 
-  const total = getTotalAutreArgent();
-  if (autreArgentTotal) autreArgentTotal.textContent = formatEuro(total);
+  const fond = getFondCaisse();
+  const contributions = getTotalDonsOuAides();
+  const retraits = getTotalRetraitsCaisse();
+  const caisseDispo = getCaisseDisponible();
+
+  if (!canManageCaisseArgent()) {
+    if (autreArgentFormPanel) autreArgentFormPanel.hidden = true;
+    if (autreArgentListPanel) autreArgentListPanel.hidden = true;
+    return;
+  }
+
+  if (autreArgentFormPanel) autreArgentFormPanel.hidden = false;
+  if (autreArgentListPanel) autreArgentListPanel.hidden = false;
+
+  // Fond de départ : visible uniquement admin (ce panel est déjà admin-only)
+  if (fondCaisseDisplay) fondCaisseDisplay.textContent = formatEuro(fond);
+  const fondAnnuelVerseEl = document.getElementById("fondCaisseAnnuelVerseDisplay");
+  if (fondAnnuelVerseEl) fondAnnuelVerseEl.textContent = formatEuro(getTotalFondCaisseAnnuelVerse());
+  if (autreArgentTotal) autreArgentTotal.textContent = formatEuro(contributions);
+  if (autreArgentRetraitsTotal) autreArgentRetraitsTotal.textContent = formatEuro(retraits);
+  if (autreArgentCaisseTotal) autreArgentCaisseTotal.textContent = formatEuro(caisseDispo);
+  if (autreArgentCaisseDispoLive) autreArgentCaisseDispoLive.textContent = formatEuro(caisseDispo);
+
+  if (!autreArgentList) return;
 
   autreArgentList.innerHTML = autreArgent.length
     ? [...autreArgent]
-        .sort((a, b) => {
-          const nameA = getMemberById(a.memberId)?.name || "";
-          const nameB = getMemberById(b.memberId)?.name || "";
-          const cmp = nameA.localeCompare(nameB, "fr", { sensitivity: "base" });
-          if (cmp !== 0) return cmp;
-          return new Date(b.createdAt) - new Date(a.createdAt);
-        })
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
         .map((entry) => {
           const member = getMemberById(entry.memberId);
+          const isWithdraw = isAutreArgentRetrait(entry);
+          const typeLabel = isWithdraw ? "Retrait" : "Don ou aide";
           return `
-            <tr>
+            <tr class="${isWithdraw ? "autre-argent-retrait" : "autre-argent-entree"}">
               <td>${formatDate(entry.createdAt.split("T")[0])}</td>
-              <td>${escapeHtml(member?.name || "—")}</td>
-              <td>${entry.note ? escapeHtml(entry.note) : "—"}</td>
-              <td><strong>${formatEuro(entry.amount)}</strong></td>
+              <td><span class="autre-argent-type ${isWithdraw ? "is-out" : "is-in"}">${escapeHtml(typeLabel)}</span></td>
+              <td>${escapeHtml(member?.name || "Le groupe")}</td>
+              <td>${entry.note ? escapeHtml(entry.note) : isWithdraw ? "Sortie" : "Don ou aide"}</td>
+              <td><strong>${isWithdraw ? "− " : "+ "}${formatEuro(Math.abs(getEntryAmount(entry)))}</strong></td>
               <td>
-                <button type="button" class="btn-delete btn-autre-argent-delete" data-id="${entry.id}">Supprimer</button>
+                <button type="button" class="btn-secondary btn-autre-argent-delete" data-id="${escapeHtml(entry.id)}">Supprimer</button>
               </td>
             </tr>
           `;
@@ -4428,13 +6526,13 @@ function renderAutreArgent() {
         .join("")
     : `
       <tr>
-        <td colspan="5" class="empty-cell">Aucune contribution pour le moment.</td>
+        <td colspan="6" class="empty-cell">Aucun mouvement pour le moment.</td>
       </tr>
     `;
 }
 
 function assignRole(memberId, roleId) {
-  if (!requireGroupAdmin("nommer les membres de l'équipe administrative")) return;
+  if (!requireTabAccess("bureau", "nommer les membres du bureau")) return;
 
   const member = getMemberById(memberId);
   if (!member) return;
@@ -4462,12 +6560,12 @@ function assignRole(memberId, roleId) {
   roles[roleId] = memberId;
   saveRoles();
   roleForm.reset();
-  bureauAssignOpen = false;
   updateSessionUI();
+  renderBureau();
 }
 
 function clearRole(roleId) {
-  if (!requireGroupAdmin("modifier l'équipe administrative")) return;
+  if (!requireTabAccess("bureau", "modifier le bureau")) return;
 
   const member = getMemberById(roles[roleId]);
   if (!member) return;
@@ -4479,7 +6577,7 @@ function clearRole(roleId) {
 }
 
 async function addMember(name) {
-  if (!requireGroupAdmin("ajouter des membres")) return;
+  if (!requireTabAccess("membres", "ajouter des membres")) return;
 
   const trimmed = name.trim();
   if (!trimmed) return;
@@ -4540,6 +6638,25 @@ function purgeMemberFromTourneeYear(yearData, memberId) {
         if (!Object.keys(monthPartners || {}).length) delete partners[otherId];
       });
       if (!Object.keys(partners).length) delete yearData[key];
+      return;
+    }
+
+    if (key === TOURNEE_BOUFFE_OK_KEY || key === TOURNEE_RECEPTION_DATES_KEY) {
+      if (yearData[key]?.[memberId]) {
+        delete yearData[key][memberId];
+        if (!Object.keys(yearData[key]).length) delete yearData[key];
+      }
+      return;
+    }
+
+    if (key === TOURNEE_RECEPTION_KEY || key === TOURNEE_RISTOURNE_KEY) {
+      const map = yearData[key] || {};
+      Object.keys(map).forEach((monthKey) => {
+        if (!Array.isArray(map[monthKey])) return;
+        map[monthKey] = map[monthKey].filter((id) => id !== memberId);
+        if (map[monthKey].length === 0) delete map[monthKey];
+      });
+      if (!Object.keys(map).length) delete yearData[key];
       return;
     }
 
@@ -4608,6 +6725,11 @@ function purgeMemberReferences(memberId) {
   adminIds = adminIds.filter((adminId) => adminId !== memberId || isOwnerMember(adminId));
   ensureOwnerAdmin();
   autreArgent = autreArgent.filter((entry) => entry.memberId !== memberId);
+  ancienneTourneeDettes = ancienneTourneeDettes.filter((entry) => entry.memberId !== memberId);
+
+  Object.values(fondCaisseAnnuel.years || {}).forEach((yearData) => {
+    if (yearData?.payments) delete yearData.payments[memberId];
+  });
 
   localStorage.setItem(ROLES_KEY, JSON.stringify(roles));
   localStorage.setItem(COTISATIONS_KEY, JSON.stringify(cotisations));
@@ -4619,10 +6741,12 @@ function purgeMemberReferences(memberId) {
   localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
   localStorage.setItem(ADMIN_IDS_KEY, JSON.stringify(adminIds));
   localStorage.setItem(AUTRE_ARGENT_KEY, JSON.stringify(autreArgent));
+  localStorage.setItem(ANCIENNE_TOURNEE_DETTES_KEY, JSON.stringify(ancienneTourneeDettes));
+  localStorage.setItem(FOND_CAISSE_ANNUEL_KEY, JSON.stringify(fondCaisseAnnuel));
 }
 
 function deleteMember(id) {
-  if (!requireGroupAdmin("supprimer des membres")) return;
+  if (!requireTabAccess("membres", "supprimer des membres")) return;
 
   const member = members.find((m) => m.id === id);
   if (!member) return;
@@ -4654,22 +6778,17 @@ function deleteMember(id) {
   render();
 }
 
-memberForm.addEventListener("submit", (e) => {
+memberForm?.addEventListener("submit", (e) => {
   e.preventDefault();
   addMember(memberNameInput.value);
 });
 
-roleForm.addEventListener("submit", (e) => {
+roleForm?.addEventListener("submit", (e) => {
   e.preventDefault();
   const memberId = roleMemberSelect.value;
   const roleId = rolePostSelect.value;
   if (!memberId || !roleId) return;
   assignRole(memberId, roleId);
-});
-
-bureauAssignToggle?.addEventListener("click", () => {
-  bureauAssignOpen = !bureauAssignOpen;
-  updateSessionUI();
 });
 
 tabs.forEach((tab) => {
@@ -4680,6 +6799,12 @@ financeSubtabs?.addEventListener("click", (e) => {
   const btn = e.target.closest(".finance-subtab");
   if (!btn?.dataset.financeSub) return;
   showFinanceSub(btn.dataset.financeSub);
+});
+
+adminSubtabs?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-admin-sub]");
+  if (!btn?.dataset.adminSub) return;
+  showAdminSub(btn.dataset.adminSub);
 });
 
 loginBtn.addEventListener("click", openLoginModal);
@@ -4701,15 +6826,61 @@ changePasswordForm?.addEventListener("submit", (e) => {
   );
 });
 
-saveCotisationsBtn.addEventListener("click", saveCotisationsData);
+saveCotisationsBtn?.addEventListener("click", saveCotisationsData);
 
-tourneeYearSelect?.addEventListener("change", () => {
-  tourneeYear = tourneeYearSelect.value;
+cotisationBody?.addEventListener("click", (e) => {
+  const removeBtn = e.target.closest(".tournee-order-remove");
+  if (!removeBtn || !cotisationBody.contains(removeBtn)) return;
+  e.preventDefault();
+  if (!canEditTourneePlanning()) return;
+
+  const kind = removeBtn.dataset.kind;
+  const monthIndex = Number(removeBtn.dataset.month);
+  const memberId = removeBtn.dataset.member;
+  if (!kind || !memberId || Number.isNaN(monthIndex)) return;
+
+  removeTourneeOrderMember(kind, monthIndex, memberId);
   renderTourneeTable();
 });
+
+cotisationBody?.addEventListener("change", (e) => {
+  const select = e.target.closest(".tournee-order-add");
+  if (!select || !cotisationBody.contains(select)) return;
+  if (!canEditTourneePlanning()) return;
+
+  const kind = select.dataset.kind;
+  const monthIndex = Number(select.dataset.month);
+  const memberId = select.value;
+  if (!kind || !memberId || Number.isNaN(monthIndex)) return;
+
+  addTourneeOrderMember(kind, monthIndex, memberId);
+  renderTourneeTable();
+});
+
+function onTourneeYearChange(selectEl) {
+  if (!selectEl) return;
+  tourneeYear = selectEl.value;
+  if (canEditTourneePlanning() && !tourneeDraft.years[tourneeYear]) {
+    ensureTourneeYearDraft(tourneeYear);
+  }
+  renderTourneeTable();
+}
+
+tourneeYearSelect?.addEventListener("change", () => onTourneeYearChange(tourneeYearSelect));
+tourneeYearPublic?.addEventListener("change", () => onTourneeYearChange(tourneeYearPublic));
+
+// Financier / Admin : marquer OK (tournée déjà prise / bouffe)
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".btn-bouffe-ok");
+  if (!btn) return;
+  e.preventDefault();
+  const memberId = btn.dataset.memberId;
+  if (memberId) toggleTourneeBouffeOk(memberId);
+});
+
 saveTabPermissionsBtn?.addEventListener("click", saveTabPermissionsFromUI);
 
-amendeForm.addEventListener("submit", (e) => {
+amendeForm?.addEventListener("submit", (e) => {
   e.preventDefault();
   const payload = {
     memberId: amendeMemberSelect.value,
@@ -4727,25 +6898,105 @@ amendeForm.addEventListener("submit", (e) => {
 
 amendeCancelBtn?.addEventListener("click", cancelEditAmende);
 
-amendeBody.addEventListener("click", (e) => {
+function handleAmendeCardClick(e) {
   const editBtn = e.target.closest(".btn-amende-edit");
-  const payBtn = e.target.closest(".btn-amende-pay");
+  if (editBtn) {
+    startEditAmende(editBtn.dataset.id);
+    return;
+  }
+  const deleteBtn = e.target.closest(".btn-amende-delete");
+  if (deleteBtn) {
+    deleteAmendeRecord(deleteBtn.dataset.id);
+    return;
+  }
+  const undoBtn = e.target.closest(".btn-amende-undo");
+  if (undoBtn) {
+    undoAmendePayment(undoBtn.dataset.id);
+    return;
+  }
+  const repayBtn = e.target.closest(".btn-amende-repay, .btn-amende-pay, .btn-dette-pay");
+  if (repayBtn) {
+    const wrap = repayBtn.closest(".amende-action-controls, .dette-card, .amende-history-row");
+    const input = wrap?.querySelector(`.amende-repay-input[data-id="${repayBtn.dataset.id}"]`)
+      || wrap?.querySelector(".amende-repay-input");
+    repayAmende(repayBtn.dataset.id, input?.value);
+  }
+}
 
-  if (editBtn) startEditAmende(editBtn.dataset.id);
-  if (payBtn) validateAmendePayment(payBtn.dataset.id);
+amendeBody?.addEventListener("click", handleAmendeCardClick);
+amendeDetteBody?.addEventListener("click", handleAmendeCardClick);
+document.getElementById("amendeHistoryPanel")?.addEventListener("click", handleAmendeCardClick);
+
+pretNotificationsList?.addEventListener("click", (e) => {
+  const deleteBtn = e.target.closest(".pret-notif-delete");
+  if (!deleteBtn) return;
+  deleteOwnNotification(deleteBtn.dataset.id);
 });
 
-amendeDetteBody?.addEventListener("click", (e) => {
-  const payBtn = e.target.closest(".btn-dette-pay");
-  if (payBtn) validateDettePayment(payBtn.dataset.id);
-});
+document.getElementById("pretNotificationsClearBtn")?.addEventListener("click", deleteAllOwnNotifications);
 
 pretForm?.addEventListener("submit", (e) => {
   e.preventDefault();
   initiatePret(pretAmountInput.value, pretNoteInput.value);
 });
 
-document.getElementById("tab-prets")?.addEventListener("click", (e) => {
+fondCaisseForm?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  setFondCaisseAmount(fondCaisseAmountInput?.value);
+});
+
+resetFondCaisseBtn?.addEventListener("click", () => {
+  resetFondCaisse();
+});
+
+fondCaisseFormAdmin?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  setFondCaisseAmount(fondCaisseAmountAdmin?.value);
+});
+
+resetFondCaisseBtnAdmin?.addEventListener("click", () => {
+  resetFondCaisse();
+});
+
+fondCaisseAnnuelForm?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  setFondCaisseAnnuelAmount(fondCaisseAnnuelYearSelect?.value, fondCaisseAnnuelAmountInput?.value);
+});
+
+fondCaisseAnnuelDeleteBtn?.addEventListener("click", () => {
+  deleteFondCaisseAnnuel(fondCaisseAnnuelYearSelect?.value);
+});
+
+fondCaisseAnnuelYearSelect?.addEventListener("change", () => {
+  renderFondCaisseAnnuel();
+});
+
+fondCaisseAnnuelList?.addEventListener("click", (e) => {
+  const undoBtn = e.target.closest(".fond-caisse-annuel-undo");
+  if (undoBtn) {
+    cancelFondCaisseAnnuelPayment(
+      undoBtn.dataset.year,
+      undoBtn.dataset.memberId,
+      undoBtn.dataset.paymentId
+    );
+    return;
+  }
+  const btn = e.target.closest(".btn-fond-caisse-annuel-pay");
+  if (!btn) return;
+  const row = btn.closest(".fond-caisse-annuel-row");
+  const input = row?.querySelector(".fond-caisse-annuel-pay-input");
+  payFondCaisseAnnuel(btn.dataset.year, btn.dataset.memberId, input?.value);
+});
+
+fondCaisseAnnuelList?.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter") return;
+  const input = e.target.closest(".fond-caisse-annuel-pay-input");
+  if (!input) return;
+  e.preventDefault();
+  payFondCaisseAnnuel(input.dataset.year, input.dataset.memberId, input.value);
+});
+
+function handlePretActionClick(e) {
   const yesBtn = e.target.closest(".btn-pret-yes");
   const noBtn = e.target.closest(".btn-pret-no");
   const approveBtn = e.target.closest(".btn-pret-approve");
@@ -4770,31 +7021,98 @@ document.getElementById("tab-prets")?.addEventListener("click", (e) => {
   }
 
   if (repayBtn) {
-    const input = document.querySelector(`.pret-repay-input[data-loan-id="${repayBtn.dataset.loanId}"]`);
+    const root = e.currentTarget;
+    const input =
+      root.querySelector?.(`.pret-repay-input[data-loan-id="${repayBtn.dataset.loanId}"]`) ||
+      document.querySelector(`.pret-repay-input[data-loan-id="${repayBtn.dataset.loanId}"]`);
     if (input) recordRepayment(repayBtn.dataset.loanId, input.value);
   }
 
   if (deletePretBtn) deletePret(deletePretBtn.dataset.loanId);
-});
+}
+
+document.getElementById("tab-prets")?.addEventListener("click", handlePretActionClick);
+document.getElementById("tab-admin")?.addEventListener("click", handlePretActionClick);
 
 adminForm?.addEventListener("submit", (e) => {
   e.preventDefault();
   assignAdmin(adminMemberSelect?.value);
 });
 
+ancienneTourneeForm?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  addAncienneTourneeDette(
+    ancienneTourneeMemberSelect?.value,
+    ancienneTourneeAmountInput?.value
+  );
+});
+
+function prepareAddAncienneTourneeDette(memberId) {
+  if (!ancienneTourneeMemberSelect || !memberId) return;
+  ancienneTourneeMemberSelect.value = memberId;
+  ancienneTourneeAmountInput?.focus();
+  ancienneTourneeForm?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+function handleAncienneTourneeActionClick(e) {
+  const addBtn = e.target.closest(".btn-ancienne-tournee-add");
+  if (addBtn) {
+    prepareAddAncienneTourneeDette(addBtn.dataset.memberId);
+    return;
+  }
+  const repayBtn = e.target.closest(".btn-ancienne-tournee-repay");
+  if (repayBtn) {
+    const row = repayBtn.closest(".ancienne-tournee-row, tr, .ancienne-tournee-repay-controls");
+    const input = row?.querySelector(".ancienne-tournee-repay-input");
+    repayAncienneTourneeDette(repayBtn.dataset.id, input?.value);
+    return;
+  }
+  const deleteBtn = e.target.closest(".btn-ancienne-tournee-delete");
+  if (deleteBtn) deleteAncienneTourneeDette(deleteBtn.dataset.id);
+}
+
+function handleAncienneTourneeKeydown(e) {
+  if (e.key !== "Enter") return;
+  const input = e.target.closest(".ancienne-tournee-repay-input");
+  if (!input) return;
+  e.preventDefault();
+  repayAncienneTourneeDette(input.dataset.id, input.value);
+}
+
+document.getElementById("adminSub-ancienne-tournee")?.addEventListener("click", handleAncienneTourneeActionClick);
+document.getElementById("tab-ancienne-tournee")?.addEventListener("click", handleAncienneTourneeActionClick);
+document.getElementById("adminSub-ancienne-tournee")?.addEventListener("keydown", handleAncienneTourneeKeydown);
+document.getElementById("tab-ancienne-tournee")?.addEventListener("keydown", handleAncienneTourneeKeydown);
+
 autreArgentForm?.addEventListener("submit", (e) => {
   e.preventDefault();
   addAutreArgent(
     autreArgentMemberSelect?.value,
     autreArgentAmountInput?.value,
-    autreArgentNoteInput?.value
+    autreArgentNoteInput?.value,
+    autreArgentMotifSelect?.value
   );
 });
 
-document.getElementById("tab-autre-argent")?.addEventListener("click", (e) => {
+autreArgentWithdrawBtn?.addEventListener("click", (e) => {
+  e.preventDefault();
+  e.stopPropagation();
+  withdrawAutreArgent(
+    autreArgentMemberSelect?.value || "groupe",
+    autreArgentAmountInput?.value,
+    autreArgentNoteInput?.value,
+    autreArgentMotifSelect?.value
+  );
+});
+
+function handleAutreArgentDeleteClick(e) {
   const deleteBtn = e.target.closest(".btn-autre-argent-delete");
   if (deleteBtn) deleteAutreArgent(deleteBtn.dataset.id);
-});
+}
+
+document.getElementById("tab-finance")?.addEventListener("click", handleAutreArgentDeleteClick);
+document.getElementById("tab-admin")?.addEventListener("click", handleAutreArgentDeleteClick);
+autreArgentList?.addEventListener("click", handleAutreArgentDeleteClick);
 
 evenementForm?.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -4808,7 +7126,7 @@ evenementForm?.addEventListener("submit", (e) => {
 
 resetClosedEvenementsBtn?.addEventListener("click", resetClosedEvenements);
 
-document.getElementById("tab-evenements")?.addEventListener("click", (e) => {
+function handleEvenementActionClick(e) {
   const payBtn = e.target.closest(".btn-evenement-pay");
   const editPayBtn = e.target.closest(".btn-evenement-edit-pay");
   const unpayBtn = e.target.closest(".btn-evenement-unpay");
@@ -4817,7 +7135,7 @@ document.getElementById("tab-evenements")?.addEventListener("click", (e) => {
   const closeBtn = e.target.closest(".btn-evenement-close");
 
   const getPayInputValue = (eventId, memberId) =>
-    document.querySelector(
+    e.currentTarget.querySelector(
       `.evenement-pay-input[data-event-id="${eventId}"][data-member-id="${memberId}"]`
     )?.value;
 
@@ -4839,7 +7157,10 @@ document.getElementById("tab-evenements")?.addEventListener("click", (e) => {
   if (deleteBtn) deleteEvenement(deleteBtn.dataset.eventId);
   if (reimburseBtn) reimburseEvenementToBeneficiary(reimburseBtn.dataset.eventId);
   if (closeBtn) closeEvenement(closeBtn.dataset.eventId);
-});
+}
+
+document.getElementById("tab-evenements")?.addEventListener("click", handleEvenementActionClick);
+document.getElementById("tab-admin")?.addEventListener("click", handleEvenementActionClick);
 
 document.querySelectorAll(".tournee-sort-btn").forEach((button) => {
   button.addEventListener("click", () => {
@@ -4910,8 +7231,21 @@ async function initApp() {
   window.potoOnServerDataPulled = () => {
     reloadFromStorage();
     updatePretTabBadge();
+    renderAncienneTourneeMemberView();
+    renderAncienneTourneeDettesAdmin();
+    renderEvenements();
+    renderAmendes();
+    renderFinanceDashboard();
+    renderFondCaisseAnnuel();
     if (document.getElementById("tab-prets")?.classList.contains("active")) {
       renderPrets();
+    }
+    if (document.getElementById("tab-admin")?.classList.contains("active")) {
+      if (activeAdminSub === "ancienne-tournee") renderAncienneTourneeDettesAdmin();
+      if (activeAdminSub === "caisse") {
+        renderFondCaissePanel();
+        renderAutreArgent();
+      }
     }
   };
 

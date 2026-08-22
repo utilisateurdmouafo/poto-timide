@@ -11,8 +11,14 @@ const API_SYNC_KEYS = new Set([
   "poto-timide-evenements",
   "poto-timide-admin-ids",
   "poto-timide-autre-argent",
+  "poto-timide-ancienne-tournee-dettes",
   "poto-timide-finance",
+  "poto-timide-fond-caisse",
+  "poto-timide-fond-caisse-annuel",
+  "poto-timide-data-revision",
 ]);
+
+const DATA_REVISION_KEY = "poto-timide-data-revision";
 
 let authState = {
   loggedIn: false,
@@ -212,16 +218,125 @@ function mergePrets(local, server) {
   );
 }
 
+function mergeAutreArgent(local, server) {
+  const localArr = Array.isArray(local) ? local : [];
+  const serverArr = Array.isArray(server) ? server : [];
+  const byId = new Map();
+
+  [...serverArr, ...localArr].forEach((entry) => {
+    if (!entry?.id) return;
+    const existing = byId.get(entry.id);
+    if (!existing || new Date(entry.createdAt || 0) >= new Date(existing.createdAt || 0)) {
+      byId.set(entry.id, entry);
+    }
+  });
+
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+  );
+}
+
+function countEvenementPaid(evt) {
+  if (!evt?.payments) return 0;
+  return Object.values(evt.payments).filter((payment) => payment && payment.paid).length;
+}
+
+function mergeEvenements(local, server) {
+  const localArr = Array.isArray(local) ? local : [];
+  const serverArr = Array.isArray(server) ? server : [];
+  const byId = new Map();
+
+  serverArr.forEach((evt) => {
+    if (evt?.id) byId.set(evt.id, evt);
+  });
+
+  const now = Date.now();
+  localArr.forEach((evt) => {
+    if (!evt?.id) return;
+
+    const existing = byId.get(evt.id);
+    if (existing) {
+      const localPaid = countEvenementPaid(evt);
+      const serverPaid = countEvenementPaid(existing);
+      if (localPaid > serverPaid) {
+        byId.set(evt.id, {
+          ...existing,
+          ...evt,
+          payments: { ...(existing.payments || {}), ...(evt.payments || {}) },
+        });
+      } else if (evt.reimbursedToBeneficiary && !existing.reimbursedToBeneficiary) {
+        byId.set(evt.id, evt);
+      } else if (evt.closedAt && !existing.closedAt) {
+        byId.set(evt.id, { ...existing, closedAt: evt.closedAt, closedBy: evt.closedBy });
+      }
+      return;
+    }
+
+    const created = new Date(evt.createdAt || 0).getTime();
+    if (Number.isFinite(created) && now - created < 20000) {
+      byId.set(evt.id, evt);
+    }
+  });
+
+  return [...byId.values()].sort(
+    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+  );
+}
+
+function pruneEvenementAmendes(amendesList, evenementsList) {
+  const eventIds = new Set(
+    (Array.isArray(evenementsList) ? evenementsList : [])
+      .map((evt) => evt?.id)
+      .filter(Boolean)
+  );
+  return (Array.isArray(amendesList) ? amendesList : []).filter(
+    (amende) => !amende?.evenementId || eventIds.has(amende.evenementId)
+  );
+}
+
 function mergeSharedLiveData(localPayload, serverData) {
   const merged = { ...serverData };
-  merged["poto-timide-notifications"] = mergeNotifications(
-    localPayload["poto-timide-notifications"],
-    serverData["poto-timide-notifications"]
+  const serverRevision = getDataRevision(serverData);
+
+  // After an intentional server wipe (revision > 0 and empty arrays),
+  // never re-merge stale browser notifications/loans back in.
+  const serverNotifs = serverData["poto-timide-notifications"];
+  const serverPrets = serverData["poto-timide-prets"];
+
+  if (serverRevision > 0 && Array.isArray(serverNotifs) && serverNotifs.length === 0) {
+    merged["poto-timide-notifications"] = [];
+  } else {
+    merged["poto-timide-notifications"] = mergeNotifications(
+      localPayload["poto-timide-notifications"],
+      serverNotifs
+    );
+  }
+
+  if (serverRevision > 0 && Array.isArray(serverPrets) && serverPrets.length === 0) {
+    merged["poto-timide-prets"] = [];
+  } else {
+    merged["poto-timide-prets"] = mergePrets(localPayload["poto-timide-prets"], serverPrets);
+  }
+
+  merged["poto-timide-autre-argent"] = mergeAutreArgent(
+    localPayload["poto-timide-autre-argent"],
+    serverData["poto-timide-autre-argent"]
   );
-  merged["poto-timide-prets"] = mergePrets(
-    localPayload["poto-timide-prets"],
-    serverData["poto-timide-prets"]
+
+  merged["poto-timide-ancienne-tournee-dettes"] = mergeAutreArgent(
+    localPayload["poto-timide-ancienne-tournee-dettes"],
+    serverData["poto-timide-ancienne-tournee-dettes"]
   );
+
+  merged["poto-timide-evenements"] = mergeEvenements(
+    localPayload["poto-timide-evenements"],
+    serverData["poto-timide-evenements"]
+  );
+  merged["poto-timide-amendes"] = pruneEvenementAmendes(
+    merged["poto-timide-amendes"],
+    merged["poto-timide-evenements"]
+  );
+
   return merged;
 }
 
@@ -237,6 +352,46 @@ async function pushLocalDataToServer(payload = getLocalDataPayload()) {
     body: JSON.stringify(payload),
   });
   return true;
+}
+
+function getDataRevision(payload) {
+  const raw = payload?.[DATA_REVISION_KEY];
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function serverHasFrozenPlanning(serverData) {
+  const finance = serverData?.["poto-timide-finance"];
+  if (finance?.planningFrozen === true) return true;
+  const source = String(finance?.source || "");
+  if (source === "planning-baseline-frozen" || source === "mois-de-reception-import") return true;
+  const years = serverData?.["poto-timide-tournee"]?.years || {};
+  return Object.values(years).some((year) =>
+    Object.keys(year || {}).some((k) => k !== "partners" && Array.isArray(year[k]) && year[k].length)
+  );
+}
+
+/** Planning figé : toujours le serveur gagne pour cotisations / tournée / finance. */
+const FROZEN_PLANNING_KEYS = [
+  "poto-timide-cotisations",
+  "poto-timide-tournee",
+  "poto-timide-finance",
+];
+
+function applyFrozenPlanningFromServer(target, serverData) {
+  if (!serverHasFrozenPlanning(serverData)) return target;
+  const next = { ...target };
+  FROZEN_PLANNING_KEYS.forEach((key) => {
+    if (serverData[key] !== undefined) next[key] = serverData[key];
+  });
+  // Membres + admin du baseline serveur si présents
+  if (Array.isArray(serverData["poto-timide-members"]) && serverData["poto-timide-members"].length) {
+    next["poto-timide-members"] = serverData["poto-timide-members"];
+  }
+  if (serverData["poto-timide-data-revision"] !== undefined) {
+    next["poto-timide-data-revision"] = serverData["poto-timide-data-revision"];
+  }
+  return next;
 }
 
 async function loadDataFromServer() {
@@ -257,24 +412,86 @@ async function loadDataFromServer() {
     throw err;
   }
 
+  const localRevision = getDataRevision(localPayload);
+  const serverRevision = getDataRevision(serverData);
+
+  // Server reset / newer revision always wins — prevents stale browser cache
+  // from re-uploading old dettes, prêts, finance, etc.
+  if (serverRevision > localRevision) {
+    const mergedLive = mergeSharedLiveData(localPayload, serverData);
+    writeServerDataToLocal({
+      ...serverData,
+      "poto-timide-ancienne-tournee-dettes": mergedLive["poto-timide-ancienne-tournee-dettes"],
+      "poto-timide-autre-argent": mergedLive["poto-timide-autre-argent"],
+      "poto-timide-prets": mergedLive["poto-timide-prets"],
+      "poto-timide-notifications": mergedLive["poto-timide-notifications"],
+    });
+    return { source: "server-revision", pushed: false };
+  }
+
+  // Planning figé (cotisations + mois de réception) : toujours afficher le serveur au login
+  if (serverHasFrozenPlanning(serverData)) {
+    const merged = applyFrozenPlanningFromServer(
+      mergeSharedLiveData(localPayload, serverData),
+      serverData
+    );
+    writeServerDataToLocal(merged);
+    return { source: "server-frozen-planning", pushed: false };
+  }
+
   const localScore = dataRichness(localPayload);
   const serverScore = dataRichness(serverData);
 
-  if (serverLooksEmpty(serverData, status) && localScore > 0) {
+  if (serverLooksEmpty(serverData, status) && localScore > 0 && serverRevision === 0) {
     await pushLocalDataToServer(localPayload);
     return { source: "local", pushed: true };
   }
 
-  if (localScore > serverScore + 2) {
+  if (localScore > serverScore + 2 && serverRevision === localRevision) {
     const mergedLive = mergeSharedLiveData(localPayload, serverData);
     const payloadToPush = { ...localPayload };
     payloadToPush["poto-timide-prets"] = mergedLive["poto-timide-prets"];
     payloadToPush["poto-timide-notifications"] = mergedLive["poto-timide-notifications"];
+    payloadToPush["poto-timide-evenements"] = mergedLive["poto-timide-evenements"];
+    payloadToPush["poto-timide-amendes"] = mergedLive["poto-timide-amendes"];
+    // Never let local reintroduce cleared financial data over empty server arrays
+    // when revisions match after an intentional wipe.
+    const protectIfEmpty = [
+      "poto-timide-amendes",
+      "poto-timide-amendes-caisse",
+      "poto-timide-prets",
+      "poto-timide-notifications",
+      "poto-timide-autre-argent",
+      "poto-timide-evenements",
+    ];
+    protectIfEmpty.forEach((key) => {
+      if (Array.isArray(serverData[key]) && serverData[key].length === 0) {
+        payloadToPush[key] = [];
+      }
+    });
+    if (serverData["poto-timide-fond-caisse"] === 0) {
+      payloadToPush["poto-timide-fond-caisse"] = 0;
+    }
+    if (serverData["poto-timide-finance"]?.cleared) {
+      payloadToPush["poto-timide-finance"] = serverData["poto-timide-finance"];
+    }
+    // Ne jamais écraser le planning figé du serveur avec un vieux cache navigateur
+    if (serverHasFrozenPlanning(serverData)) {
+      FROZEN_PLANNING_KEYS.forEach((key) => {
+        payloadToPush[key] = serverData[key];
+      });
+      if (serverData["poto-timide-members"]) {
+        payloadToPush["poto-timide-members"] = serverData["poto-timide-members"];
+      }
+    }
     await pushLocalDataToServer(payloadToPush);
+    writeServerDataToLocal({ ...serverData, ...payloadToPush });
     return { source: "local", pushed: true };
   }
 
-  writeServerDataToLocal(mergeSharedLiveData(localPayload, serverData));
+  writeServerDataToLocal(
+    applyFrozenPlanningFromServer(mergeSharedLiveData(localPayload, serverData), serverData)
+  );
   return { source: "server", pushed: false };
 }
 
@@ -284,14 +501,57 @@ async function pullSharedUpdatesFromServer() {
   try {
     const serverData = await apiFetch("/api/data");
     const localPayload = getLocalDataPayload();
-    const merged = mergeSharedLiveData(localPayload, serverData);
+    const serverRevision = getDataRevision(serverData);
+    const localRevision = getDataRevision(localPayload);
     const originalSetItem = localStorage.setItem.bind(localStorage);
 
-    ["poto-timide-prets", "poto-timide-notifications"].forEach((key) => {
+    // Full server wipe wins
+    if (serverRevision > localRevision) {
+      writeServerDataToLocal(serverData);
+      originalSetItem(
+        "poto-timide-autre-argent",
+        JSON.stringify(
+          mergeAutreArgent(localPayload["poto-timide-autre-argent"], serverData["poto-timide-autre-argent"])
+        )
+      );
+      originalSetItem(
+        "poto-timide-ancienne-tournee-dettes",
+        JSON.stringify(
+          mergeAutreArgent(
+            localPayload["poto-timide-ancienne-tournee-dettes"],
+            serverData["poto-timide-ancienne-tournee-dettes"]
+          )
+        )
+      );
+      if (typeof window.potoOnServerDataPulled === "function") {
+        window.potoOnServerDataPulled();
+      }
+      return true;
+    }
+
+    const merged = mergeSharedLiveData(localPayload, serverData);
+
+    [
+      "poto-timide-prets",
+      "poto-timide-notifications",
+      "poto-timide-autre-argent",
+      "poto-timide-ancienne-tournee-dettes",
+      "poto-timide-evenements",
+    ].forEach((key) => {
       if (merged[key] !== undefined) {
         originalSetItem(key, JSON.stringify(merged[key]));
       }
     });
+
+    originalSetItem(
+      "poto-timide-amendes",
+      JSON.stringify(
+        pruneEvenementAmendes(
+          localPayload["poto-timide-amendes"],
+          merged["poto-timide-evenements"]
+        )
+      )
+    );
 
     if (typeof window.potoOnServerDataPulled === "function") {
       window.potoOnServerDataPulled();
@@ -336,7 +596,7 @@ function startPeriodicSync() {
     if (!authState.loggedIn) return;
     await pullSharedUpdatesFromServer();
     await flushServerSync();
-  }, 15000);
+  }, 4000);
 }
 
 function stopPeriodicSync() {

@@ -3,25 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#e8edf3" />
+  <meta name="theme-color" content="#d8dee6" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>Poto Timide</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=amende-partial-1" />
 </head>
 <body>
   <div class="app" id="app">
     <header class="header">
       <div class="header-inner">
         <a class="brand" href="#" onclick="return false" aria-label="Poto Timide">
-          <svg class="bbc-logo" width="120" height="28" viewBox="0 0 120 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <path d="M8.2 4.5C6.4 4.5 5 5.9 5 7.6V20.4C5 22.1 6.4 23.5 8.2 23.5C9.9 23.5 11.3 22.1 11.3 20.4V7.6C11.3 5.9 9.9 4.5 8.2 4.5Z" fill="#0071EB"/>
-            <path d="M18.8 4.5C17 4.5 15.6 5.9 15.6 7.6V20.4C15.6 22.1 17 23.5 18.8 23.5C20.5 23.5 21.9 22.1 21.9 20.4V7.6C21.9 5.9 20.5 4.5 18.8 4.5Z" fill="#0071EB"/>
-            <text x="30" y="19" fill="#1A1A1A" font-family="Plus Jakarta Sans, sans-serif" font-size="15" font-weight="700">Poto Timide</text>
-          </svg>
+          <span class="brand-mark" aria-hidden="true">PT</span>
+          <span class="brand-name">Poto Timide</span>
         </a>
         <div class="header-actions">
           <span class="admin-badge" id="userStatus">Non connecté</span>
@@ -31,296 +28,97 @@
       </div>
     </header>
 
+    <!--
+      Deux espaces séparés :
+      • Onglets du compte simple (test / usage quotidien)
+      • Onglet Admin (manipulations admin uniquement)
+    -->
     <nav class="tabs" aria-label="Navigation principale">
       <button class="tab active" data-tab="membres">Membres</button>
-      <button class="tab" data-tab="tournee">Organisation de la tournée</button>
-      <button class="tab" data-tab="amendes">Mes dettes et amendes</button>
-      <button class="tab" data-tab="prets">Prêt</button>
+      <button class="tab" data-tab="tournee">Tournée</button>
+      <button class="tab" data-tab="prets">Prêts</button>
       <button class="tab" data-tab="evenements">Événements</button>
       <button class="tab" data-tab="finance">Finance</button>
-      <button class="tab" data-tab="autre-argent" id="tabBtnAutreArgent" hidden>Autre argent</button>
+      <button class="tab" data-tab="ancienne-tournee">Dette ancienne tournée</button>
+      <button class="tab tab-admin-entry" data-tab="admin" id="tabBtnAdmin" hidden>Admin</button>
     </nav>
 
-    <main class="main">
-      <div class="tab-content active" id="tab-membres">
-        <p class="info-msg" id="membresLockMsg">
-          Seul un <strong>administrateur</strong> peut nommer les membres de l'équipe administrative.
-        </p>
+    <p class="simple-view-banner" id="simpleViewBanner" hidden></p>
 
+    <main class="main">
+      <!-- ========== MEMBRES ========== -->
+      <div class="tab-content active" id="tab-membres">
         <section class="panel bureau-panel" aria-label="Équipe administrative">
           <div class="bureau-head">
             <h2>Équipe administrative</h2>
-            <button type="button" class="bureau-edit-toggle" id="bureauAssignToggle" hidden>
-              Attribuer un poste
-            </button>
-          </div>
-          <div class="bureau-assign admin-section" id="rolesPanel" hidden>
-            <form id="roleForm" class="bureau-assign-form">
-              <select id="roleMember" required aria-label="Membre">
-                <option value="">Choisir un membre…</option>
-              </select>
-              <select id="rolePost" required aria-label="Poste">
-                <option value="">Choisir un poste…</option>
-                <option value="president">Président</option>
-                <option value="vice-president">Vice président</option>
-                <option value="censeur">Censeur</option>
-                <option value="tresorier">Financier</option>
-                <option value="vice-tresorier">Vice financier</option>
-                <option value="charge-affaires">Chargé d'activité</option>
-                <option value="vice-charge-affaires">Vice chargé d'activité</option>
-              </select>
-              <button type="submit" class="btn-compact btn-primary">Attribuer</button>
-            </form>
           </div>
           <ul class="bureau-grid" id="bureauList"></ul>
         </section>
 
-        <section class="panel admin-section" id="adminRolesPanel" hidden>
-          <h2>Administrateurs du groupe</h2>
-          <p class="panel-desc">Les administrateurs gèrent les membres, les accès et l'onglet Autre argent.</p>
-          <ul class="admin-list" id="adminList"></ul>
-          <form id="adminForm" class="role-form">
-            <label>
-              Membre
-              <select id="adminMemberSelect" required>
-                <option value="">— Choisir un membre —</option>
-              </select>
-            </label>
-            <button type="submit" class="btn-primary">Nommer administrateur</button>
-          </form>
-        </section>
-
-        <section class="panel admin-section" id="tabPermissionsPanel" hidden>
-          <h2>Accès aux onglets</h2>
-          <p class="panel-desc">
-            Les administrateurs ont toujours accès à tout. Choisissez quels postes du bureau peuvent gérer chaque onglet.
-          </p>
-          <div class="table-wrap">
-            <table class="permissions-table" id="tabPermissionsTable">
-              <thead>
-                <tr>
-                  <th>Onglet</th>
-                </tr>
-              </thead>
-              <tbody id="tabPermissionsBody"></tbody>
-            </table>
-          </div>
-          <button type="button" class="btn-primary" id="saveTabPermissionsBtn">Enregistrer les accès</button>
-          <p class="save-msg" id="tabPermissionsMsg" hidden></p>
-        </section>
-
-        <section class="panel add-panel admin-section" id="addMemberPanel" hidden>
-          <div class="panel-head">
-            <h2>Ajouter un membre</h2>
-            <p class="counter" id="memberCounter">0 / 50 membres</p>
-          </div>
-          <form id="memberForm" class="add-form">
-            <input
-              type="text"
-              id="memberName"
-              placeholder="Nom du membre"
-              maxlength="50"
-              required
-            />
-            <button type="submit" class="btn-primary" id="submitBtn">Ajouter</button>
-          </form>
-          <p class="limit-msg" id="limitMsg" hidden>Maximum de 50 membres atteint.</p>
-        </section>
-
         <section class="panel list-panel">
           <h2>Liste des membres</h2>
+          <p class="panel-desc" id="membresLockMsg" hidden></p>
           <ul class="member-list" id="memberList"></ul>
         </section>
       </div>
 
+      <!-- ========== TOURNÉE ========== -->
       <div class="tab-content" id="tab-tournee">
         <section class="panel tour-panel">
           <div class="panel-head">
             <div>
               <h2>Organisation de la tournée</h2>
               <p class="panel-desc">
-                Sélectionnez librement un ou plusieurs <strong>mois</strong> par personne.
-                Le statut affiche qui reçoit chaque mois (ex. <em>Dario Juin · Ferlin Juin</em>).
+                Planning de la tournée : septembre à juin, ordre de réception et ordre de ristourne.
+                <span id="tourneeEditHint" hidden></span>
               </p>
             </div>
             <div class="tournee-head-actions">
               <label class="tournee-year-label">
                 Année
-                <select id="tourneeYear" class="tournee-year-select"></select>
+                <select id="tourneeYearPublic" class="tournee-year-select"></select>
               </label>
-              <button type="button" class="btn-primary" id="saveCotisationsBtn" hidden>Enregistrer</button>
             </div>
           </div>
 
-          <p class="info-msg" id="tourneeInfoMsg">
-            Tous les membres peuvent consulter ce tableau. Seuls les gestionnaires autorisés peuvent modifier.
-          </p>
-          <p class="save-msg" id="saveMsg" hidden></p>
+          <p class="info-msg" id="tourneeInfoMsg" hidden></p>
 
           <div class="table-wrap">
-            <table class="cotisation-table tournee-unified-table">
+            <table class="cotisation-table tournee-unified-table tournee-planning-table">
               <thead>
                 <tr>
-                  <th>
-                    <button type="button" class="tournee-sort-btn" data-sort="name">
-                      Nom <span class="tournee-sort-indicator" aria-hidden="true"></span>
-                    </button>
-                  </th>
-                  <th>Cotisation (€)</th>
-                  <th>
-                    <button type="button" class="tournee-sort-btn" data-sort="month">
-                      Mois de tournée <span class="tournee-sort-indicator" aria-hidden="true"></span>
-                    </button>
-                  </th>
-                  <th>
-                    <button type="button" class="tournee-sort-btn" data-sort="status">
-                      Statut <span class="tournee-sort-indicator" aria-hidden="true"></span>
-                    </button>
-                  </th>
+                  <th>N°</th>
+                  <th>Mois</th>
+                  <th>Ordre de réception</th>
+                  <th>Ordre de ristourne</th>
                 </tr>
               </thead>
-              <tbody id="cotisationBody"></tbody>
-              <tfoot>
-                <tr>
-                  <td colspan="2">Total mensuel</td>
-                  <td colspan="2" id="cotisationTotal">0 €</td>
-                </tr>
-              </tfoot>
+              <tbody id="cotisationBodyPublic"></tbody>
             </table>
           </div>
         </section>
       </div>
 
-      <div class="tab-content" id="tab-amendes">
-        <section class="panel" id="addAmendePanel" hidden>
-          <h2 id="amendeFormTitle">Ajouter une amende</h2>
-          <p class="panel-desc">Réservé aux gestionnaires — ajoutez, modifiez ou supprimez les amendes.</p>
-          <form id="amendeForm" class="amende-form">
-            <label>
-              Membre
-              <select id="amendeMember" required>
-                <option value="">— Choisir un membre —</option>
-              </select>
-            </label>
-            <label>
-              Type d'amende
-              <select id="amendeType" required>
-                <option value="">— Choisir le type —</option>
-                <option value="absence">Absence</option>
-                <option value="retard">Retard</option>
-                <option value="bavardage">Bavardage</option>
-                <option value="sanctions">Sanctions</option>
-              </select>
-            </label>
-            <label>
-              Montant (€)
-              <input type="number" id="amendeAmount" min="0" step="0.5" placeholder="0" required />
-            </label>
-            <label>
-              Note (optionnel)
-              <input type="text" id="amendeNote" placeholder="Ex : Réunion du 15 juin" maxlength="100" />
-            </label>
-            <div class="amende-form-actions">
-              <button type="submit" class="btn-primary" id="amendeSubmitBtn">Ajouter l'amende</button>
-              <button type="button" class="btn-secondary" id="amendeCancelBtn" hidden>Annuler</button>
-            </div>
-          </form>
-        </section>
-
-        <section class="panel amende-panel">
-          <h2 id="amendeTitle">Mes dettes et amendes</h2>
-          <p class="panel-desc" id="amendeSubtitle">Consultez vos dettes événements et amendes par type.</p>
-
-          <div class="dette-dashboard" id="amendeSummary"></div>
-
-          <section class="dette-block dette-block-events" id="amendeDetteWrap" hidden>
-            <div class="dette-block-head">
-              <div class="dette-block-title">
-                <span class="dette-block-icon dette-block-icon--event" aria-hidden="true">É</span>
-                <div>
-                  <h3>Dettes événements</h3>
-                  <p class="dette-block-desc" id="amendeDetteSubtitle">Cotisations non payées transférées après remboursement au poto.</p>
-                </div>
-              </div>
-              <div class="dette-block-total" id="amendeDetteSummary"></div>
-            </div>
-            <div class="dette-table-wrap">
-              <table class="dette-table amende-dette-table">
-                <thead>
-                  <tr>
-                    <th id="amendeDetteMemberCol" class="dette-col-text" hidden>Membre</th>
-                    <th>Type</th>
-                    <th class="dette-col-text">Date</th>
-                    <th class="dette-col-text">Détail</th>
-                    <th class="dette-th-amount">Montant</th>
-                    <th id="amendeDetteActionsCol" class="dette-th-actions" hidden>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="amendeDetteBody"></tbody>
-                <tfoot>
-                  <tr>
-                    <td id="amendeDetteTotalLabel">Total dettes</td>
-                    <td id="amendeDetteTotal" class="dette-td-amount">0 €</td>
-                    <td id="amendeDetteTotalActionsSpacer" hidden></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </section>
-
-          <section class="dette-block dette-block-amendes">
-            <div class="dette-block-head">
-              <div class="dette-block-title">
-                <span class="dette-block-icon dette-block-icon--amende" aria-hidden="true">A</span>
-                <div>
-                  <h3>Amendes</h3>
-                  <p class="dette-block-desc">Absences, retards, bavardages et sanctions.</p>
-                </div>
-              </div>
-            </div>
-            <div class="dette-table-wrap">
-              <table class="dette-table amende-table">
-                <thead>
-                  <tr>
-                    <th id="amendeMemberCol" class="dette-col-text" hidden>Membre</th>
-                    <th>Type</th>
-                    <th class="dette-col-text">Date</th>
-                    <th class="dette-col-text">Détail</th>
-                    <th class="dette-th-amount">Montant</th>
-                    <th id="amendeActionsCol" class="dette-th-actions" hidden>Actions</th>
-                  </tr>
-                </thead>
-                <tbody id="amendeBody"></tbody>
-                <tfoot>
-                  <tr>
-                    <td id="amendeTotalLabel">Total amendes</td>
-                    <td id="amendeGrandTotal" class="dette-td-amount">0 €</td>
-                    <td id="amendeTotalActionsSpacer" hidden></td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          </section>
-        </section>
-      </div>
-
+      <!-- ========== PRÊTS ========== -->
       <div class="tab-content" id="tab-prets">
         <section class="panel">
           <h2>Prêts du groupe</h2>
-          <p class="panel-desc">Demandez un prêt, les membres votent sous 24 h. Le Financier peut dire Oui à tout moment pour accorder immédiatement.</p>
-
+          <p class="panel-desc">Demandez un prêt : les membres votent sous 24 h.</p>
           <div class="pret-summary" id="pretSummary"></div>
           <p class="save-msg" id="pretSaveMsg" hidden></p>
         </section>
 
         <section class="panel" id="pretNotificationsPanel">
-          <h2>Notifications</h2>
+          <div class="panel-head">
+            <h2>Notifications</h2>
+            <button type="button" class="btn-secondary" id="pretNotificationsClearBtn" hidden>Tout supprimer</button>
+          </div>
           <ul class="pret-notif-list" id="pretNotificationsList"></ul>
         </section>
 
         <section class="panel" id="initiatePretPanel">
           <h2>Initier un prêt</h2>
-          <p class="panel-desc">Une demande en vote à la fois. Une fois un prêt accordé, une autre personne peut en demander un nouveau. Max : (caisse brute − 300 €) ÷ 2.</p>
+          <p class="panel-desc">Une demande en vote à la fois. Max : (caisse disponible − 300 €) ÷ 2.</p>
           <p class="info-msg" id="pretLockMsg" hidden></p>
           <form id="pretForm" class="pret-form">
             <label>
@@ -337,13 +135,13 @@
 
         <section class="panel">
           <h2>Demandes en vote</h2>
-          <p class="panel-desc">Tous les membres (sauf l'emprunteur) doivent voter Oui sous 24 h.</p>
+
           <div id="pretVotingList" class="pret-loan-list"></div>
         </section>
 
         <section class="panel" id="financierPretPanel" hidden>
           <h2>Validation Financier</h2>
-          <p class="panel-desc">Réservé au Financier — dès que vous cliquez Oui, le prêt est accordé. Refus et suppression possibles à tout moment.</p>
+          <p class="panel-desc">Validez ou refusez les demandes de prêt.</p>
           <div id="pretFinancierList" class="pret-loan-list"></div>
         </section>
 
@@ -353,109 +151,523 @@
         </section>
       </div>
 
+      <!-- ========== ÉVÉNEMENTS ========== -->
       <div class="tab-content" id="tab-evenements">
-        <section class="panel" id="addEvenementPanel" hidden>
-          <h2>Créer un événement</h2>
-          <p class="panel-desc">Sélectionnez le poto concerné, donnez un titre et indiquez la somme à cotiser par chaque autre membre.</p>
-          <form id="evenementForm" class="evenement-form">
-            <label>
-              Poto concerné
-              <select id="evenementMember" required>
-                <option value="">— Choisir le poto —</option>
-              </select>
-            </label>
-            <label>
-              Titre
-              <input type="text" id="evenementTitle" placeholder="Ex : Accouchement de Vitran" maxlength="80" required />
-            </label>
-            <label>
-              Cotisation par membre (€)
-              <input type="number" id="evenementAmount" min="1" step="0.5" placeholder="Ex : 10" required />
-            </label>
-            <label class="evenement-form-wide">
-              Description (optionnel)
-              <input type="text" id="evenementDesc" placeholder="Détails de l'événement" maxlength="150" />
-            </label>
-            <button type="submit" class="btn-primary">Créer l'événement</button>
-          </form>
-        </section>
-
         <section class="panel">
           <div class="evenement-list-head">
             <div>
               <h2 id="evenementListTitle">Événements du groupe</h2>
-              <p class="panel-desc" id="evenementListSubtitle">Chaque membre cotise le même montant, sauf le poto concerné.</p>
+              <p class="panel-desc" id="evenementListSubtitle" hidden></p>
             </div>
-            <button type="button" class="btn-secondary evenement-reset-closed-btn" id="resetClosedEvenementsBtn" hidden>
-              Réinitialiser les clôturés
-            </button>
           </div>
-          <p class="save-msg" id="evenementSaveMsg" hidden></p>
           <div id="evenementMemberSummary" class="evenement-member-summary-wrap" hidden></div>
           <div id="evenementList" class="evenement-list"></div>
         </section>
       </div>
 
+      <!-- ========== FINANCE (compte simple) ========== -->
       <div class="tab-content" id="tab-finance">
         <section class="panel finance-panel">
-          <h2>Finance Poto Vitran</h2>
-          <p class="panel-desc" id="financeSubtitle">Archive importée depuis Finance poto_vitran.xlsx — journal, cotisations, ancienne tournée, amendes et prêts.</p>
+          <h2>Finance</h2>
+          <p class="panel-desc" id="financeSubtitle" hidden></p>
           <div class="finance-dashboard" id="financeDashboard"></div>
-          <nav class="finance-subtabs" id="financeSubtabs" aria-label="Sections finance">
-            <button type="button" class="finance-subtab active" data-finance-sub="journal">Journal</button>
-            <button type="button" class="finance-subtab" data-finance-sub="cotisations">Cotisations</button>
-            <button type="button" class="finance-subtab" data-finance-sub="ancienne-tournee">Ancienne tournée</button>
-            <button type="button" class="finance-subtab" data-finance-sub="amendes">Amendes</button>
-            <button type="button" class="finance-subtab" data-finance-sub="prets">Prêts</button>
+          <nav class="finance-subtabs" id="financeSubtabs" aria-label="Sous-onglets finance">
+            <button type="button" class="finance-subtab active" data-finance-sub="dettes-amendes">Mes dettes</button>
+            <button type="button" class="finance-subtab" data-finance-sub="caisse" id="financeSubCaisse" hidden>Caisse</button>
+            <button type="button" class="finance-subtab" data-finance-sub="archives">Archives</button>
           </nav>
           <div class="finance-subcontent" id="financeSubcontent"></div>
         </section>
+
+        <!-- Live: dettes & amendes -->
+        <div id="financeDettesAmendes" class="finance-live-section" hidden>
+          <section class="panel amende-panel">
+            <div class="amende-head">
+              <h2 id="amendeTitle">Mes dettes et amendes</h2>
+              <p class="panel-desc" id="amendeSubtitle">Un aperçu clair de ce que tu dois encore.</p>
+            </div>
+            <div class="dette-dashboard" id="amendeSummary"></div>
+
+            <div class="dette-feed">
+              <section class="dette-group dette-group-events" id="amendeDetteWrap" hidden>
+                <div class="dette-group-head">
+                  <div>
+                    <h3>Événements</h3>
+                    <p class="dette-block-desc" id="amendeDetteSubtitle">Cotisations non réglées après un événement.</p>
+                  </div>
+                  <div class="dette-group-total" id="amendeDetteSummary"></div>
+                </div>
+                <div class="dette-card-list" id="amendeDetteBody"></div>
+              </section>
+
+              <section class="dette-group dette-group-amendes" id="amendeRegularWrap" hidden>
+                <div class="dette-group-head">
+                  <div>
+                    <h3>Amendes</h3>
+                    <p class="dette-block-desc">Absences, retards, bavardages et sanctions.</p>
+                  </div>
+                  <div class="dette-group-total" id="amendeRegularSummary"></div>
+                </div>
+                <div class="dette-card-list" id="amendeBody"></div>
+              </section>
+            </div>
+          </section>
+        </div>
+
+        <!-- Caisse pour Financier (non-admin) uniquement dans Finance -->
+        <div id="financeCaisse" class="finance-live-section" hidden>
+          <section class="panel" id="fondCaissePanel">
+            <h2>Fond de caisse de départ</h2>
+            <p class="panel-desc">Somme de base de la caisse du groupe.</p>
+            <form id="fondCaisseForm" class="pret-form fond-caisse-form">
+              <label>
+                Montant de départ (€)
+                <input type="number" id="fondCaisseAmount" min="0" step="1" placeholder="Ex : 1000" required />
+              </label>
+              <div class="fond-caisse-actions">
+                <button type="submit" class="btn-primary">Enregistrer le fond</button>
+                <button type="button" class="btn-secondary" id="resetFondCaisseBtn">Réinitialiser le fond</button>
+              </div>
+            </form>
+            <p class="save-msg" id="fondCaisseSaveMsg" hidden></p>
+            <p class="panel-desc">
+              Fond actuel : <strong id="fondCaisseDisplayFinancier">0 €</strong>
+            </p>
+          </section>
+        </div>
       </div>
 
-      <div class="tab-content" id="tab-autre-argent">
-        <section class="panel">
-          <h2>Autre argent</h2>
-          <p class="panel-desc">Contributions volontaires des potos — visibles et gérables uniquement par les administrateurs. Ces montants sont ajoutés à la caisse brute.</p>
-          <form id="autreArgentForm" class="autre-argent-form">
-            <label>
-              Poto
-              <select id="autreArgentMember" required>
-                <option value="">— Choisir le poto —</option>
-              </select>
-            </label>
-            <label>
-              Montant (€)
-              <input type="number" id="autreArgentAmount" min="1" step="0.5" placeholder="Ex : 50" required />
-            </label>
-            <label class="autre-argent-form-wide">
-              Motif (optionnel)
-              <input type="text" id="autreArgentNote" placeholder="Ex : Don personnel" maxlength="120" />
-            </label>
-            <button type="submit" class="btn-primary">Ajouter à la caisse brute</button>
-          </form>
-        </section>
-
+      <!-- ========== DETTE ANCIENNE TOURNÉE ========== -->
+      <div class="tab-content" id="tab-ancienne-tournee">
         <section class="panel">
           <div class="panel-head">
             <div>
-              <h2>Contributions enregistrées</h2>
-              <p class="panel-desc">Total en caisse brute : <strong id="autreArgentTotal">0 €</strong></p>
+              <h2>Dette ancienne tournée</h2>
+              <p class="panel-desc">Ce que tu dois encore pour l’ancienne tournée.</p>
             </div>
           </div>
-          <p class="save-msg" id="autreArgentSaveMsg" hidden></p>
-          <div class="table-wrap">
-            <table class="cotisation-table autre-argent-table">
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Poto</th>
-                  <th>Motif</th>
-                  <th>Montant</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody id="autreArgentList"></tbody>
-            </table>
+          <p class="panel-desc">Total : <strong id="ancienneTourneeMemberTotal">0 €</strong></p>
+          <div class="ancienne-tournee-list" id="ancienneTourneeMemberBody"></div>
+        </section>
+      </div>
+
+      <!-- ========== ADMIN (manipulations uniquement) ========== -->
+      <div class="tab-content" id="tab-admin">
+        <section class="panel finance-panel gestion-panel admin-workspace-panel">
+          <div class="admin-workspace-head">
+            <div>
+              <h2>Administration</h2>
+              <p class="panel-desc">Configuration du groupe.</p>
+            </div>
+          </div>
+          <nav class="finance-subtabs gestion-subtabs" id="adminSubtabs" aria-label="Sous-onglets admin">
+            <button type="button" class="finance-subtab gestion-subtab active" data-admin-sub="membres">Membres</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="bureau">Bureau</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="admins">Admins</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="acces">Accès</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="tournee">Tournée</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="ancienne-tournee">Dette ancienne tournée</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="caisse">Caisse</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="prets">Prêts</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="amendes">Amendes</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="evenements">Événements</button>
+          </nav>
+          <div class="gestion-subcontent" id="adminSubcontent">
+            <div class="gestion-subpanel is-active" id="adminSub-membres" data-admin-panel="membres">
+              <section class="panel add-panel admin-section" id="addMemberPanel">
+                <div class="panel-head">
+                  <h2>Ajouter un membre</h2>
+                  <p class="counter" id="memberCounter">0 / 50 membres</p>
+                </div>
+                <form id="memberForm" class="add-form">
+                  <input type="text" id="memberName" placeholder="Nom du membre" maxlength="50" required />
+                  <button type="submit" class="btn-primary" id="submitBtn">Ajouter</button>
+                </form>
+                <p class="limit-msg" id="limitMsg" hidden>Maximum de 50 membres atteint.</p>
+              </section>
+              <section class="panel list-panel">
+                <h2>Actions sur les membres</h2>
+
+                <ul class="member-list" id="memberListAdmin"></ul>
+              </section>
+            </div>
+
+            <div class="gestion-subpanel" id="adminSub-bureau" data-admin-panel="bureau" hidden>
+              <section class="panel bureau-panel">
+                <div class="bureau-head">
+                  <h2>Postes du bureau</h2>
+                </div>
+                <div class="bureau-assign admin-section" id="rolesPanel">
+                  <form id="roleForm" class="bureau-assign-form">
+                    <select id="roleMember" required aria-label="Membre">
+                      <option value="">Choisir un membre…</option>
+                    </select>
+                    <select id="rolePost" required aria-label="Poste">
+                      <option value="">Choisir un poste…</option>
+                      <option value="president">Président</option>
+                      <option value="vice-president">Vice président</option>
+                      <option value="censeur">Censeur</option>
+                      <option value="tresorier">Financier</option>
+                      <option value="vice-tresorier">Vice financier</option>
+                      <option value="charge-affaires">Chargé d'activité</option>
+                      <option value="vice-charge-affaires">Vice chargé d'activité</option>
+                    </select>
+                    <button type="submit" class="btn-compact btn-primary">Attribuer</button>
+                  </form>
+                </div>
+                <ul class="bureau-grid" id="bureauListGestion"></ul>
+              </section>
+            </div>
+
+            <div class="gestion-subpanel" id="adminSub-admins" data-admin-panel="admins" hidden>
+              <section class="panel admin-section" id="adminRolesPanel">
+                <h2>Administrateurs du groupe</h2>
+                <ul class="admin-list" id="adminList"></ul>
+                <form id="adminForm" class="role-form">
+                  <label>
+                    Membre
+                    <select id="adminMemberSelect" required>
+                      <option value="">— Choisir un membre —</option>
+                    </select>
+                  </label>
+                  <button type="submit" class="btn-primary">Nommer administrateur</button>
+                </form>
+              </section>
+            </div>
+
+            <div class="gestion-subpanel" id="adminSub-acces" data-admin-panel="acces" hidden>
+              <section class="panel admin-section" id="tabPermissionsPanel">
+                <h2>Accès aux fonctions</h2>
+                <p class="panel-desc">Cochez quels postes peuvent gérer chaque onglet Admin. Admins et Accès restent réservés aux administrateurs.</p>
+                <div class="table-wrap">
+                  <table class="permissions-table" id="tabPermissionsTable">
+                    <thead>
+                      <tr>
+                        <th>Zone</th>
+                      </tr>
+                    </thead>
+                    <tbody id="tabPermissionsBody"></tbody>
+                  </table>
+                </div>
+                <button type="button" class="btn-primary" id="saveTabPermissionsBtn">Enregistrer les accès</button>
+                <p class="save-msg" id="tabPermissionsMsg" hidden></p>
+              </section>
+            </div>
+
+            <div class="gestion-subpanel" id="adminSub-tournee" data-admin-panel="tournee" hidden>
+              <section class="panel tour-panel">
+                <div class="panel-head">
+                  <div>
+                    <h2>Organisation de la tournée</h2>
+                    <p class="panel-desc">Planning septembre → juin : ordre de réception et ordre de ristourne.</p>
+                  </div>
+                  <div class="tournee-head-actions">
+                    <label class="tournee-year-label">
+                      Année
+                      <select id="tourneeYear" class="tournee-year-select"></select>
+                    </label>
+                    <button type="button" class="btn-primary" id="saveCotisationsBtn">Enregistrer</button>
+                  </div>
+                </div>
+                <p class="save-msg" id="saveMsg" hidden></p>
+                <div class="table-wrap">
+                  <table class="cotisation-table tournee-unified-table tournee-planning-table">
+                    <thead>
+                      <tr>
+                        <th>N°</th>
+                        <th>Mois</th>
+                        <th>Ordre de réception</th>
+                        <th>Ordre de ristourne</th>
+                      </tr>
+                    </thead>
+                    <tbody id="cotisationBody"></tbody>
+                  </table>
+                </div>
+                <div class="tournee-cotisations-block" id="tourneeCotisationsBlock" hidden>
+                  <h3>Montants de cotisation</h3>
+                  <p class="panel-desc">Ces montants s’affichent dans l’ordre de ristourne.</p>
+                  <div class="table-wrap">
+                    <table class="cotisation-table tournee-amounts-table">
+                      <thead>
+                        <tr>
+                          <th>Nom</th>
+                          <th>Cotisation (€)</th>
+                        </tr>
+                      </thead>
+                      <tbody id="tourneeCotisationBody"></tbody>
+                      <tfoot>
+                        <tr>
+                          <td>Total mensuel</td>
+                          <td id="cotisationTotal">0 €</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              </section>
+            </div>
+
+            <div class="gestion-subpanel" id="adminSub-ancienne-tournee" data-admin-panel="ancienne-tournee" hidden>
+              <section class="panel">
+                <h2>Ajouter une dette ancienne tournée</h2>
+                <p class="panel-desc">Choisis un poto et ajoute le montant qu’il doit. Il le verra dans son onglet Dette ancienne tournée.</p>
+                <form id="ancienneTourneeForm" class="autre-argent-form">
+                  <label>
+                    Poto
+                    <select id="ancienneTourneeMember" required>
+                      <option value="">— Choisir le poto —</option>
+                    </select>
+                  </label>
+                  <label>
+                    Montant (€)
+                    <input type="number" id="ancienneTourneeAmount" min="0.5" step="0.5" placeholder="Ex : 50" required />
+                  </label>
+                  <div class="autre-argent-form-actions">
+                    <button type="submit" class="btn-primary">Ajouter la dette</button>
+                  </div>
+                </form>
+                <p class="save-msg" id="ancienneTourneeSaveMsg" hidden></p>
+              </section>
+              <section class="panel">
+                <div class="panel-head">
+                  <div>
+                    <h2>Dettes enregistrées</h2>
+                    <p class="panel-desc">Total : <strong id="ancienneTourneeTotal">0 €</strong></p>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table class="cotisation-table autre-argent-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Poto</th>
+                        <th>Montant</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="ancienneTourneeBody"></tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+
+            <div class="gestion-subpanel" id="adminSub-caisse" data-admin-panel="caisse" hidden>
+              <div class="caisse-fonds-grid">
+              <section class="panel" id="fondCaissePanelAdmin">
+                <h2>Fond de caisse de départ</h2>
+                <p class="panel-desc">Somme de base déjà dans la caisse (brute + disponible).</p>
+                <form id="fondCaisseFormAdmin" class="pret-form fond-caisse-form">
+                  <label>
+                    Montant de départ (€)
+                    <input type="number" id="fondCaisseAmountAdmin" min="0" step="1" placeholder="Ex : 1000" required />
+                  </label>
+                  <div class="fond-caisse-actions">
+                    <button type="submit" class="btn-primary">Enregistrer le fond</button>
+                    <button type="button" class="btn-secondary" id="resetFondCaisseBtnAdmin">Réinitialiser</button>
+                  </div>
+                </form>
+                <p class="save-msg" id="fondCaisseSaveMsgAdmin" hidden></p>
+              </section>
+
+              <section class="panel" id="fondCaisseAnnuelPanel">
+                <h2>Fond de caisse</h2>
+                <p class="panel-desc">Somme que chaque poto verse au départ, chaque année. Il peut payer en plusieurs fois : chaque versement entre dans la caisse, le reste reste dû.</p>
+                <form id="fondCaisseAnnuelForm" class="pret-form fond-caisse-form">
+                  <label>
+                    Année
+                    <select id="fondCaisseAnnuelYear"></select>
+                  </label>
+                  <label>
+                    Montant par poto (€)
+                    <input type="number" id="fondCaisseAnnuelAmount" min="0" step="0.5" placeholder="Ex : 50" required />
+                  </label>
+                  <div class="fond-caisse-actions">
+                    <button type="submit" class="btn-primary">Enregistrer pour l'année</button>
+                    <button type="button" class="btn-secondary" id="fondCaisseAnnuelDeleteBtn" hidden>Supprimer ce fond</button>
+                  </div>
+                </form>
+                <p class="save-msg" id="fondCaisseAnnuelSaveMsg" hidden></p>
+                <p class="panel-desc" id="fondCaisseAnnuelSummary"></p>
+                <div class="fond-caisse-annuel-list" id="fondCaisseAnnuelList"></div>
+              </section>
+              </div>
+
+              <section class="panel" id="autreArgentFormPanel">
+                <h2>Autre argent</h2>
+                <p class="panel-desc">
+                  Ajouter un don ou une aide, ou retirer de l’argent de la caisse disponible (sortie, etc.).
+                  Caisse disponible : <strong id="autreArgentCaisseDispoLive">0 €</strong>
+                </p>
+                <form id="autreArgentForm" class="autre-argent-form">
+                  <label>
+                    Poto
+                    <select id="autreArgentMember">
+                      <option value="">— Choisir le poto —</option>
+                    </select>
+                  </label>
+                  <label>
+                    Montant (€)
+                    <input type="number" id="autreArgentAmount" min="1" step="0.5" placeholder="Ex : 50" required />
+                  </label>
+                  <label>
+                    Motif
+                    <select id="autreArgentMotif">
+                      <option value="">— Choisir —</option>
+                      <option value="Don ou aide">Don ou aide</option>
+                      <option value="Sortie">Sortie</option>
+                      <option value="Autre">Autre</option>
+                    </select>
+                  </label>
+                  <label>
+                    Détail (optionnel)
+                    <input type="text" id="autreArgentNote" placeholder="Ex : bowling, restaurant…" maxlength="120" />
+                  </label>
+                  <div class="autre-argent-form-actions">
+                    <button type="submit" class="btn-primary">Ajouter à la caisse disponible</button>
+                    <button type="button" class="btn-secondary" id="autreArgentWithdrawBtn">Retrait d'argent</button>
+                  </div>
+                </form>
+              </section>
+
+              <section class="panel" id="autreArgentListPanel">
+                <div class="panel-head">
+                  <div>
+                    <h2>Historique</h2>
+                    <p class="panel-desc">
+                      Fond départ : <strong id="fondCaisseDisplay">0 €</strong>
+                      · Fond versé : <strong id="fondCaisseAnnuelVerseDisplay">0 €</strong>
+                      · Dons ou aides : <strong id="autreArgentTotal">0 €</strong>
+                      · Retraits : <strong id="autreArgentRetraitsTotal">0 €</strong>
+                      · Caisse disponible : <strong id="autreArgentCaisseTotal">0 €</strong>
+                    </p>
+                  </div>
+                </div>
+                <p class="save-msg" id="autreArgentSaveMsg" hidden></p>
+                <div class="table-wrap">
+                  <table class="cotisation-table autre-argent-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Poto</th>
+                        <th>Motif</th>
+                        <th>Montant</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody id="autreArgentList"></tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+
+            <div class="gestion-subpanel" id="adminSub-prets" data-admin-panel="prets" hidden>
+              <section class="panel">
+                <h2>Gestion des prêts</h2>
+                <div id="adminPretSummary" class="pret-summary"></div>
+              </section>
+              <section class="panel">
+                <h2>Demandes en vote</h2>
+                <div id="adminPretVotingList" class="pret-loan-list"></div>
+              </section>
+              <section class="panel">
+                <h2>À valider</h2>
+                <div id="adminPretFinancierList" class="pret-loan-list"></div>
+              </section>
+              <section class="panel">
+                <h2>Prêts en cours et historique</h2>
+                <div id="adminPretActiveList" class="pret-loan-list"></div>
+              </section>
+            </div>
+
+            <div class="gestion-subpanel" id="adminSub-amendes" data-admin-panel="amendes" hidden>
+              <section class="panel" id="addAmendePanel" hidden>
+                <h2 id="amendeFormTitle">Ajouter une amende</h2>
+                <p class="panel-desc">Ajoutez, modifiez ou supprimez les amendes.</p>
+                <form id="amendeForm" class="amende-form">
+                  <label>
+                    Membre
+                    <select id="amendeMember" required>
+                      <option value="">— Choisir un membre —</option>
+                    </select>
+                  </label>
+                  <label>
+                    Type d'amende
+                    <select id="amendeType" required>
+                      <option value="">— Choisir le type —</option>
+                      <option value="absence">Absence</option>
+                      <option value="retard">Retard</option>
+                      <option value="bavardage">Bavardage</option>
+                      <option value="sanctions">Sanctions</option>
+                    </select>
+                  </label>
+                  <label>
+                    Montant (€)
+                    <input type="number" id="amendeAmount" min="0" step="0.5" placeholder="0" required />
+                  </label>
+                  <label>
+                    Note (optionnel)
+                    <input type="text" id="amendeNote" placeholder="Ex : Réunion du 15 juin" maxlength="100" />
+                  </label>
+                  <div class="amende-form-actions">
+                    <button type="submit" class="btn-primary" id="amendeSubmitBtn">Ajouter l'amende</button>
+                    <button type="button" class="btn-secondary" id="amendeCancelBtn" hidden>Annuler</button>
+                  </div>
+                </form>
+              </section>
+              <section class="panel" id="amendeHistoryPanel">
+                <div class="panel-head">
+                  <div>
+                    <h2>Historique des amendes</h2>
+                    <p class="panel-desc">Toutes les amendes saisies : en cours et déjà encaissées. Tu peux modifier, rembourser, supprimer ou annuler un encaissement.</p>
+                  </div>
+                </div>
+                <h3 class="amende-history-title">En cours</h3>
+                <div id="amendeHistoryOpen" class="amende-history-list"></div>
+                <h3 class="amende-history-title">Encaissées</h3>
+                <div id="amendeHistoryPaid" class="amende-history-list"></div>
+              </section>
+            </div>
+
+            <div class="gestion-subpanel" id="adminSub-evenements" data-admin-panel="evenements" hidden>
+              <section class="panel" id="addEvenementPanel" hidden>
+                <h2>Créer un événement</h2>
+                <form id="evenementForm" class="evenement-form">
+                  <label>
+                    Poto concerné
+                    <select id="evenementMember" required>
+                      <option value="">— Choisir le poto —</option>
+                    </select>
+                  </label>
+                  <label>
+                    Titre
+                    <input type="text" id="evenementTitle" placeholder="Ex : Accouchement de Vitran" maxlength="80" required />
+                  </label>
+                  <label>
+                    Cotisation par membre (€)
+                    <input type="number" id="evenementAmount" min="1" step="0.5" placeholder="Ex : 10" required />
+                  </label>
+                  <label class="evenement-form-wide">
+                    Description (optionnel)
+                    <input type="text" id="evenementDesc" placeholder="Détails de l'événement" maxlength="150" />
+                  </label>
+                  <button type="submit" class="btn-primary">Créer l'événement</button>
+                </form>
+              </section>
+              <section class="panel">
+                <div class="evenement-list-head">
+                  <div>
+                    <h2>Gérer les événements</h2>
+                    <p class="panel-desc">Création, paiements, remboursement au poto et clôture.</p>
+                  </div>
+                  <button type="button" class="btn-secondary evenement-reset-closed-btn" id="resetClosedEvenementsBtn" hidden>
+                    Réinitialiser les clôturés
+                  </button>
+                </div>
+                <p class="save-msg" id="evenementSaveMsg" hidden></p>
+                <div id="evenementAdminList" class="evenement-list"></div>
+              </section>
+            </div>
           </div>
         </section>
       </div>
@@ -465,11 +677,7 @@
   <div class="modal-overlay open" id="loginModal">
     <div class="modal">
       <div class="modal-hero">
-        <svg class="modal-bbc-logo" width="48" height="48" viewBox="0 0 48 48" fill="none" aria-hidden="true">
-          <rect width="48" height="48" rx="12" fill="#E8F2FD"/>
-          <path d="M16 14C14.3 14 13 15.3 13 17V31C13 32.7 14.3 34 16 34C17.7 34 19 32.7 19 31V17C19 15.3 17.7 14 16 14Z" fill="#0071EB"/>
-          <path d="M28 14C26.3 14 25 15.3 25 17V31C25 32.7 26.3 34 28 34C29.7 34 31 32.7 31 31V17C31 15.3 29.7 14 28 14Z" fill="#0071EB"/>
-        </svg>
+        <span class="modal-brand-mark" aria-hidden="true">PT</span>
         <h3>Connexion membre</h3>
         <p class="modal-desc">Identifiant = votre <strong>nom</strong>. Mot de passe initial : <strong>1234</strong>.</p>
       </div>
@@ -517,7 +725,7 @@
     </div>
   </div>
 
-  <script src="api-client.js"></script>
-  <script src="app.js"></script>
+  <script src="api-client.js?v=resync-1"></script>
+  <script src="app.js?v=amende-partial-1"></script>
 </body>
 </html>

@@ -1,8 +1,10 @@
 node_modules/
-data/
-*.db
-*.db-wal
-*.db-shm
+data/*.db
+data/*.db-*
+data/backup-*.json
+data/snapshot-*.json
 .env
-sync-secret.txt
-backups/
+.DS_Store
+*.log
+finance-vitran.json.bak
+tools/render/*.exe
