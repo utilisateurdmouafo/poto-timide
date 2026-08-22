@@ -18,7 +18,8 @@ const API_SYNC_KEYS = new Set([
   "poto-timide-data-revision",
 ]);
 
-const DATA_REVISION_KEY = "poto-timide-data-revision";
+const LAST_USER_KEY = "poto-last-user";
+const SESSION_HINT_KEY = "poto-timide-session";
 
 let authState = {
   loggedIn: false,
@@ -30,6 +31,7 @@ let syncTimer = null;
 let pendingSyncPayload = {};
 let periodicSyncTimer = null;
 let nativeSetItem = null;
+let syncing = false;
 
 function rawSetItem(key, value) {
   const fn = nativeSetItem || localStorage.setItem.bind(localStorage);
@@ -51,18 +53,15 @@ async function apiFetch(url, options = {}) {
   }
 
   if (!res.ok) {
-    const message = body?.error || `Erreur ${res.status}`;
-    throw new Error(message);
+    throw new Error(body?.error || `Erreur ${res.status}`);
   }
 
   return body;
 }
 
-const SESSION_HINT_KEY = "poto-timide-session";
-
 function persistSessionHint(member) {
   if (!member?.id) return;
-  localStorage.setItem(
+  rawSetItem(
     SESSION_HINT_KEY,
     JSON.stringify({
       memberId: member.id,
@@ -74,6 +73,15 @@ function persistSessionHint(member) {
 
 function clearSessionHint() {
   localStorage.removeItem(SESSION_HINT_KEY);
+}
+
+function rememberLoginName(username) {
+  const normalized = String(username || "").trim();
+  if (normalized) rawSetItem(LAST_USER_KEY, normalized);
+}
+
+function getRememberedLoginName() {
+  return localStorage.getItem(LAST_USER_KEY) || "";
 }
 
 async function checkServerSession() {
@@ -129,17 +137,6 @@ async function apiEnsureMemberUser(memberId) {
   return apiFetch(`/api/admin/ensure-user/${memberId}`, { method: "POST" });
 }
 
-const LAST_USER_KEY = "poto-last-user";
-
-function rememberLoginName(username) {
-  const normalized = String(username || "").trim();
-  if (normalized) localStorage.setItem(LAST_USER_KEY, normalized);
-}
-
-function getRememberedLoginName() {
-  return localStorage.getItem(LAST_USER_KEY) || "";
-}
-
 function getLocalDataPayload() {
   const payload = {};
   API_SYNC_KEYS.forEach((key) => {
@@ -148,445 +145,50 @@ function getLocalDataPayload() {
     try {
       payload[key] = JSON.parse(raw);
     } catch {
-      /* ignore corrupted cache */
+      /* ignore */
     }
   });
   return payload;
 }
 
 function writeServerDataToLocal(serverData) {
-  Object.entries(serverData).forEach(([key, value]) => {
+  Object.entries(serverData || {}).forEach(([key, value]) => {
+    if (!API_SYNC_KEYS.has(key)) return;
     rawSetItem(key, JSON.stringify(value));
   });
 }
 
-function dataRichness(data) {
-  if (!data || typeof data !== "object") return 0;
-  const members = Array.isArray(data["poto-timide-members"]) ? data["poto-timide-members"].length : 0;
-  const roles = Object.keys(data["poto-timide-roles"] || {}).length;
-  const cotisations = Object.keys(data["poto-timide-cotisations"] || {}).length;
-  const tourneeYears = Object.keys(data["poto-timide-tournee"]?.years || {}).length;
-  const amendes = Array.isArray(data["poto-timide-amendes"]) ? data["poto-timide-amendes"].length : 0;
-  const evenements = Array.isArray(data["poto-timide-evenements"])
-    ? data["poto-timide-evenements"].length
-    : 0;
-  const prets = Array.isArray(data["poto-timide-prets"]) ? data["poto-timide-prets"].length : 0;
-  const notifications = Array.isArray(data["poto-timide-notifications"])
-    ? data["poto-timide-notifications"].length
-    : 0;
-  return members + roles * 3 + cotisations * 2 + tourneeYears * 5 + amendes + evenements * 2 + prets * 4 + notifications;
-}
-
-function isRecentLocalItem(item, windowMs = 20000) {
-  const created = new Date(item?.createdAt || 0).getTime();
-  return Number.isFinite(created) && Date.now() - created < windowMs;
-}
-
-function mergeNotifications(local, server) {
-  const localArr = Array.isArray(local) ? local : [];
-  const serverArr = Array.isArray(server) ? server : [];
-  const byKey = new Map();
-
-  serverArr.forEach((notif) => {
-    if (!notif) return;
-    const key = notif.id || `${notif.memberId}:${notif.loanId}:${notif.type}`;
-    byKey.set(key, notif);
-  });
-
-  localArr.forEach((notif) => {
-    if (!notif) return;
-    const key = notif.id || `${notif.memberId}:${notif.loanId}:${notif.type}`;
-    const existing = byKey.get(key);
-    if (existing) {
-      if (new Date(notif.createdAt || 0) >= new Date(existing.createdAt || 0)) {
-        byKey.set(key, notif);
-      }
-      return;
-    }
-    if (isRecentLocalItem(notif)) byKey.set(key, notif);
-  });
-
-  return [...byKey.values()].sort(
-    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-  );
-}
-
-function mergePrets(local, server) {
-  const localArr = Array.isArray(local) ? local : [];
-  const serverArr = Array.isArray(server) ? server : [];
-  const byId = new Map();
-
-  serverArr.forEach((loan) => {
-    if (loan?.id) byId.set(loan.id, loan);
-  });
-
-  localArr.forEach((loan) => {
-    if (!loan?.id) return;
-    const existing = byId.get(loan.id);
-    if (existing) {
-      const existingVotes = Object.keys(existing.votes || {}).length;
-      const incomingVotes = Object.keys(loan.votes || {}).length;
-      const existingRepay = (existing.repayments || []).length;
-      const incomingRepay = (loan.repayments || []).length;
-      if (incomingVotes > existingVotes || incomingRepay > existingRepay) {
-        byId.set(loan.id, {
-          ...existing,
-          ...loan,
-          votes: { ...(existing.votes || {}), ...(loan.votes || {}) },
-        });
-      }
-      return;
-    }
-    if (isRecentLocalItem(loan)) byId.set(loan.id, loan);
-  });
-
-  return [...byId.values()].sort(
-    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-  );
-}
-
-function mergeAutreArgent(local, server) {
-  const localArr = Array.isArray(local) ? local : [];
-  const serverArr = Array.isArray(server) ? server : [];
-  const byId = new Map();
-
-  serverArr.forEach((entry) => {
-    if (entry?.id) byId.set(entry.id, entry);
-  });
-
-  localArr.forEach((entry) => {
-    if (!entry?.id) return;
-    if (byId.has(entry.id)) return;
-    if (isRecentLocalItem(entry)) byId.set(entry.id, entry);
-  });
-
-  return [...byId.values()].sort(
-    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-  );
-}
-
-function countEvenementPaid(evt) {
-  if (!evt?.payments) return 0;
-  return Object.values(evt.payments).filter((payment) => payment && payment.paid).length;
-}
-
-function mergeEvenements(local, server) {
-  const localArr = Array.isArray(local) ? local : [];
-  const serverArr = Array.isArray(server) ? server : [];
-  const byId = new Map();
-
-  serverArr.forEach((evt) => {
-    if (evt?.id) byId.set(evt.id, evt);
-  });
-
-  const now = Date.now();
-  localArr.forEach((evt) => {
-    if (!evt?.id) return;
-
-    const existing = byId.get(evt.id);
-    if (existing) {
-      const localPaid = countEvenementPaid(evt);
-      const serverPaid = countEvenementPaid(existing);
-      if (localPaid > serverPaid) {
-        byId.set(evt.id, {
-          ...existing,
-          ...evt,
-          payments: { ...(existing.payments || {}), ...(evt.payments || {}) },
-        });
-      } else if (evt.reimbursedToBeneficiary && !existing.reimbursedToBeneficiary) {
-        byId.set(evt.id, evt);
-      } else if (evt.closedAt && !existing.closedAt) {
-        byId.set(evt.id, { ...existing, closedAt: evt.closedAt, closedBy: evt.closedBy });
-      }
-      return;
-    }
-
-    const created = new Date(evt.createdAt || 0).getTime();
-    if (Number.isFinite(created) && now - created < 20000) {
-      byId.set(evt.id, evt);
-    }
-  });
-
-  return [...byId.values()].sort(
-    (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-  );
-}
-
-function pruneEvenementAmendes(amendesList, evenementsList) {
-  const eventIds = new Set(
-    (Array.isArray(evenementsList) ? evenementsList : [])
-      .map((evt) => evt?.id)
-      .filter(Boolean)
-  );
-  return (Array.isArray(amendesList) ? amendesList : []).filter(
-    (amende) => !amende?.evenementId || eventIds.has(amende.evenementId)
-  );
-}
-
-function mergeSharedLiveData(localPayload, serverData) {
-  const merged = { ...serverData };
-  const serverRevision = getDataRevision(serverData);
-
-  // After an intentional server wipe (revision > 0 and empty arrays),
-  // never re-merge stale browser notifications/loans back in.
-  const serverNotifs = serverData["poto-timide-notifications"];
-  const serverPrets = serverData["poto-timide-prets"];
-
-  if (serverRevision > 0 && Array.isArray(serverNotifs) && serverNotifs.length === 0) {
-    merged["poto-timide-notifications"] = [];
-  } else {
-    merged["poto-timide-notifications"] = mergeNotifications(
-      localPayload["poto-timide-notifications"],
-      serverNotifs
-    );
-  }
-
-  if (serverRevision > 0 && Array.isArray(serverPrets) && serverPrets.length === 0) {
-    merged["poto-timide-prets"] = [];
-  } else {
-    merged["poto-timide-prets"] = mergePrets(localPayload["poto-timide-prets"], serverPrets);
-  }
-
-  merged["poto-timide-autre-argent"] = mergeAutreArgent(
-    localPayload["poto-timide-autre-argent"],
-    serverData["poto-timide-autre-argent"]
-  );
-
-  merged["poto-timide-ancienne-tournee-dettes"] = mergeAutreArgent(
-    localPayload["poto-timide-ancienne-tournee-dettes"],
-    serverData["poto-timide-ancienne-tournee-dettes"]
-  );
-
-  merged["poto-timide-evenements"] = mergeEvenements(
-    localPayload["poto-timide-evenements"],
-    serverData["poto-timide-evenements"]
-  );
-  merged["poto-timide-amendes"] = pruneEvenementAmendes(
-    merged["poto-timide-amendes"],
-    merged["poto-timide-evenements"]
-  );
-
-  return merged;
-}
-
-function serverLooksEmpty(serverData, status) {
-  if (status?.looksEmpty) return true;
-  return dataRichness(serverData) <= 15;
-}
-
-async function pushLocalDataToServer(payload = getLocalDataPayload()) {
-  if (!authState.loggedIn || Object.keys(payload).length === 0) return false;
-  await apiFetch("/api/data", {
-    method: "PUT",
-    body: JSON.stringify(payload),
-  });
-  return true;
-}
-
-function getDataRevision(payload) {
-  const raw = payload?.[DATA_REVISION_KEY];
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : 0;
-}
-
-function serverHasFrozenPlanning(serverData) {
-  const finance = serverData?.["poto-timide-finance"];
-  if (finance?.planningFrozen === true) return true;
-  const source = String(finance?.source || "");
-  if (source === "planning-baseline-frozen" || source === "mois-de-reception-import") return true;
-  const years = serverData?.["poto-timide-tournee"]?.years || {};
-  return Object.values(years).some((year) =>
-    Object.keys(year || {}).some((k) => k !== "partners" && Array.isArray(year[k]) && year[k].length)
-  );
-}
-
-/** Planning figé : toujours le serveur gagne pour cotisations / tournée / finance. */
-const FROZEN_PLANNING_KEYS = [
-  "poto-timide-cotisations",
-  "poto-timide-tournee",
-  "poto-timide-finance",
-];
-
-function applyFrozenPlanningFromServer(target, serverData) {
-  if (!serverHasFrozenPlanning(serverData)) return target;
-  const next = { ...target };
-  FROZEN_PLANNING_KEYS.forEach((key) => {
-    if (serverData[key] !== undefined) next[key] = serverData[key];
-  });
-  // Membres + admin du baseline serveur si présents
-  if (Array.isArray(serverData["poto-timide-members"]) && serverData["poto-timide-members"].length) {
-    next["poto-timide-members"] = serverData["poto-timide-members"];
-  }
-  if (serverData["poto-timide-data-revision"] !== undefined) {
-    next["poto-timide-data-revision"] = serverData["poto-timide-data-revision"];
-  }
-  return next;
+function hasPendingEdits() {
+  return Object.keys(pendingSyncPayload).length > 0;
 }
 
 async function loadDataFromServer() {
-  const localPayload = getLocalDataPayload();
-  let serverData = {};
-  let status = null;
-
   try {
-    [serverData, status] = await Promise.all([
-      apiFetch("/api/data"),
-      apiFetch("/api/data/status").catch(() => null),
-    ]);
+    const serverData = await apiFetch("/api/data");
+    writeServerDataToLocal(serverData);
+    return { source: "server", pushed: false };
   } catch (err) {
-    if (Object.keys(localPayload).length > 0) {
-      console.warn("Serveur indisponible, utilisation du cache local.", err);
+    if (Object.keys(getLocalDataPayload()).length > 0) {
+      console.warn("Serveur indisponible, cache local conservé.", err);
       return { source: "local", pushed: false };
     }
     throw err;
   }
-
-  const localRevision = getDataRevision(localPayload);
-  const serverRevision = getDataRevision(serverData);
-
-  // Server reset / newer revision always wins — prevents stale browser cache
-  // from re-uploading old dettes, prêts, finance, etc.
-  if (serverRevision > localRevision) {
-    const mergedLive = mergeSharedLiveData(localPayload, serverData);
-    writeServerDataToLocal({
-      ...serverData,
-      "poto-timide-ancienne-tournee-dettes": mergedLive["poto-timide-ancienne-tournee-dettes"],
-      "poto-timide-autre-argent": mergedLive["poto-timide-autre-argent"],
-      "poto-timide-prets": mergedLive["poto-timide-prets"],
-      "poto-timide-notifications": mergedLive["poto-timide-notifications"],
-    });
-    return { source: "server-revision", pushed: false };
-  }
-
-  // Planning figé (cotisations + mois de réception) : toujours afficher le serveur au login
-  if (serverHasFrozenPlanning(serverData)) {
-    const merged = applyFrozenPlanningFromServer(
-      mergeSharedLiveData(localPayload, serverData),
-      serverData
-    );
-    writeServerDataToLocal(merged);
-    return { source: "server-frozen-planning", pushed: false };
-  }
-
-  const localScore = dataRichness(localPayload);
-  const serverScore = dataRichness(serverData);
-
-  if (serverLooksEmpty(serverData, status) && localScore > 0 && serverRevision === 0) {
-    await pushLocalDataToServer(localPayload);
-    return { source: "local", pushed: true };
-  }
-
-  if (localScore > serverScore + 2 && serverRevision === localRevision) {
-    const mergedLive = mergeSharedLiveData(localPayload, serverData);
-    const payloadToPush = { ...localPayload };
-    payloadToPush["poto-timide-prets"] = mergedLive["poto-timide-prets"];
-    payloadToPush["poto-timide-notifications"] = mergedLive["poto-timide-notifications"];
-    payloadToPush["poto-timide-evenements"] = mergedLive["poto-timide-evenements"];
-    payloadToPush["poto-timide-amendes"] = mergedLive["poto-timide-amendes"];
-    // Never let local reintroduce cleared financial data over empty server arrays
-    // when revisions match after an intentional wipe.
-    const protectIfEmpty = [
-      "poto-timide-amendes",
-      "poto-timide-amendes-caisse",
-      "poto-timide-prets",
-      "poto-timide-notifications",
-      "poto-timide-autre-argent",
-      "poto-timide-evenements",
-    ];
-    protectIfEmpty.forEach((key) => {
-      if (Array.isArray(serverData[key]) && serverData[key].length === 0) {
-        payloadToPush[key] = [];
-      }
-    });
-    if (serverData["poto-timide-fond-caisse"] === 0) {
-      payloadToPush["poto-timide-fond-caisse"] = 0;
-    }
-    if (serverData["poto-timide-finance"]?.cleared) {
-      payloadToPush["poto-timide-finance"] = serverData["poto-timide-finance"];
-    }
-    // Ne jamais écraser le planning figé du serveur avec un vieux cache navigateur
-    if (serverHasFrozenPlanning(serverData)) {
-      FROZEN_PLANNING_KEYS.forEach((key) => {
-        payloadToPush[key] = serverData[key];
-      });
-      if (serverData["poto-timide-members"]) {
-        payloadToPush["poto-timide-members"] = serverData["poto-timide-members"];
-      }
-    }
-    await pushLocalDataToServer(payloadToPush);
-    writeServerDataToLocal({ ...serverData, ...payloadToPush });
-    return { source: "local", pushed: true };
-  }
-
-  writeServerDataToLocal(
-    applyFrozenPlanningFromServer(mergeSharedLiveData(localPayload, serverData), serverData)
-  );
-  return { source: "server", pushed: false };
 }
 
 async function pullSharedUpdatesFromServer() {
-  if (!authState.loggedIn) return false;
+  if (!authState.loggedIn || hasPendingEdits() || syncing) return false;
 
   try {
     const serverData = await apiFetch("/api/data");
-    const localPayload = getLocalDataPayload();
-    const serverRevision = getDataRevision(serverData);
-    const localRevision = getDataRevision(localPayload);
-
-    // Full server wipe wins
-    if (serverRevision > localRevision) {
-      writeServerDataToLocal(serverData);
-      rawSetItem(
-        "poto-timide-autre-argent",
-        JSON.stringify(
-          mergeAutreArgent(localPayload["poto-timide-autre-argent"], serverData["poto-timide-autre-argent"])
-        )
-      );
-      rawSetItem(
-        "poto-timide-ancienne-tournee-dettes",
-        JSON.stringify(
-          mergeAutreArgent(
-            localPayload["poto-timide-ancienne-tournee-dettes"],
-            serverData["poto-timide-ancienne-tournee-dettes"]
-          )
-        )
-      );
-      if (typeof window.potoOnServerDataPulled === "function") {
-        window.potoOnServerDataPulled();
-      }
-      return true;
-    }
-
-    const merged = mergeSharedLiveData(localPayload, serverData);
-
-    [
-      "poto-timide-prets",
-      "poto-timide-notifications",
-      "poto-timide-autre-argent",
-      "poto-timide-ancienne-tournee-dettes",
-      "poto-timide-evenements",
-    ].forEach((key) => {
-      if (merged[key] !== undefined) {
-        rawSetItem(key, JSON.stringify(merged[key]));
-      }
-    });
-
-    rawSetItem(
-      "poto-timide-amendes",
-      JSON.stringify(
-        pruneEvenementAmendes(
-          localPayload["poto-timide-amendes"],
-          merged["poto-timide-evenements"]
-        )
-      )
-    );
-
+    if (hasPendingEdits()) return false;
+    writeServerDataToLocal(serverData);
     if (typeof window.potoOnServerDataPulled === "function") {
       window.potoOnServerDataPulled();
     }
     return true;
   } catch (err) {
-    console.warn("Récupération des prêts/notifications échouée.", err);
+    console.warn("Récupération serveur échouée.", err);
     return false;
   }
 }
@@ -598,13 +200,13 @@ function queueServerSync(key, rawValue) {
   } catch {
     return;
   }
-
   clearTimeout(syncTimer);
-  syncTimer = setTimeout(flushServerSync, 350);
+  syncTimer = setTimeout(flushServerSync, 200);
 }
 
 async function flushServerSync() {
-  if (!authState.loggedIn || Object.keys(pendingSyncPayload).length === 0) return;
+  if (!authState.loggedIn || !hasPendingEdits() || syncing) return;
+  syncing = true;
   const payload = { ...pendingSyncPayload };
   pendingSyncPayload = {};
   try {
@@ -615,10 +217,10 @@ async function flushServerSync() {
   } catch (err) {
     Object.assign(pendingSyncPayload, payload);
     console.warn("Synchronisation serveur échouée, nouvel essai plus tard.", err);
+  } finally {
+    syncing = false;
   }
 }
-
-window.flushPotoServerSync = flushServerSync;
 
 function startPeriodicSync() {
   stopPeriodicSync();
@@ -640,15 +242,13 @@ function installStorageSync() {
   nativeSetItem = localStorage.setItem.bind(localStorage);
   localStorage.setItem = function patchedSetItem(key, value) {
     nativeSetItem(key, value);
-    if (API_SYNC_KEYS.has(key)) {
-      queueServerSync(key, value);
-    }
+    if (API_SYNC_KEYS.has(key)) queueServerSync(key, value);
   };
 }
 
 function installUnloadSync() {
   window.addEventListener("pagehide", () => {
-    if (!authState.loggedIn || Object.keys(pendingSyncPayload).length === 0) return;
+    if (!authState.loggedIn || !hasPendingEdits()) return;
     const payload = { ...pendingSyncPayload };
     pendingSyncPayload = {};
     fetch("/api/data", {
@@ -661,15 +261,14 @@ function installUnloadSync() {
   });
 
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "hidden") {
-      flushServerSync();
-    }
+    if (document.visibilityState === "hidden") flushServerSync();
   });
 }
 
 installStorageSync();
 installUnloadSync();
 
+window.flushPotoServerSync = flushServerSync;
 window.potoFlushSync = flushServerSync;
 window.potoPullSharedUpdates = pullSharedUpdatesFromServer;
 window.potoStartPeriodicSync = startPeriodicSync;

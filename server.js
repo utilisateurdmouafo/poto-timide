@@ -395,10 +395,10 @@ async function seedDatabase() {
   await enforceOwnerSafeguards();
   await seedFinanceIfMissing();
 
-  // Fige cotisations + mois de réception (baseline) pour chaque démarrage / connexion
+  // Applique le planning figé seulement s'il manque (ne pas écraser les données live)
   await ensureFrozenPlanning(
     { getData, setData, ensureUserForMember },
-    { force: true }
+    { force: false }
   );
 
   await backupDatabase();
@@ -758,19 +758,6 @@ function createApp() {
   app.put("/api/data", requireAuth, async (req, res) => {
     try {
       const payload = await sanitizePayloadForOwner(req.body || {});
-      const hasIncomingRev = Object.prototype.hasOwnProperty.call(payload, "poto-timide-data-revision");
-      const incomingRev = Number(payload["poto-timide-data-revision"]);
-      const currentRev = Number((await getData("poto-timide-data-revision")) || 0);
-      // Snapshot complet trop vieux : on ignore. Les sync partielles (sans révision)
-      // restent acceptées — sinon une suppression de prêt ne part jamais.
-      if (
-        hasIncomingRev &&
-        Number.isFinite(currentRev) &&
-        Number.isFinite(incomingRev) &&
-        incomingRev < currentRev
-      ) {
-        return res.json({ ok: true, ignored: true, reason: "stale-revision" });
-      }
 
       for (const [key, value] of Object.entries(payload)) {
         if (STORAGE_KEYS.includes(key)) {
