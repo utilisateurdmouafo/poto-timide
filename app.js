@@ -2552,8 +2552,15 @@ function updateSessionUI() {
     userStatus.classList.remove("admin-active", "member-active");
   }
 
-  loginBtn.hidden = loggedIn;
-  logoutBtn.hidden = !loggedIn;
+  if (loginBtn) {
+    loginBtn.hidden = loggedIn;
+    loginBtn.setAttribute("aria-hidden", loggedIn ? "true" : "false");
+  }
+  if (logoutBtn) {
+    logoutBtn.hidden = !loggedIn;
+    logoutBtn.setAttribute("aria-hidden", loggedIn ? "false" : "true");
+  }
+  document.body.classList.toggle("is-logged-in", loggedIn);
   if (loggedIn) updatePretTabBadge();
 
   // Pas de bannière / messages « vue simple » pour les membres
@@ -7203,6 +7210,7 @@ async function restoreLoggedInApp() {
   } else {
     appEl.classList.remove("app-blurred");
   }
+  updateSessionUI();
 }
 
 async function initApp() {
