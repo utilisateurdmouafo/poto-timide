@@ -758,9 +758,17 @@ function createApp() {
   app.put("/api/data", requireAuth, async (req, res) => {
     try {
       const payload = await sanitizePayloadForOwner(req.body || {});
+      const hasIncomingRev = Object.prototype.hasOwnProperty.call(payload, "poto-timide-data-revision");
       const incomingRev = Number(payload["poto-timide-data-revision"]);
       const currentRev = Number((await getData("poto-timide-data-revision")) || 0);
-      if (Number.isFinite(currentRev) && currentRev > 0 && (!Number.isFinite(incomingRev) || incomingRev < currentRev)) {
+      // Snapshot complet trop vieux : on ignore. Les sync partielles (sans révision)
+      // restent acceptées — sinon une suppression de prêt ne part jamais.
+      if (
+        hasIncomingRev &&
+        Number.isFinite(currentRev) &&
+        Number.isFinite(incomingRev) &&
+        incomingRev < currentRev
+      ) {
         return res.json({ ok: true, ignored: true, reason: "stale-revision" });
       }
 

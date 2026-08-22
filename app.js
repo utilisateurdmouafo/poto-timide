@@ -4960,6 +4960,9 @@ function deletePret(loanId) {
 
   saveNotifications(false);
   savePrets();
+  if (typeof window.flushPotoServerSync === "function") {
+    window.flushPotoServerSync();
+  }
 }
 
 function isPretNotification(notif) {

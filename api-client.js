@@ -29,6 +29,12 @@ let authState = {
 let syncTimer = null;
 let pendingSyncPayload = {};
 let periodicSyncTimer = null;
+let nativeSetItem = null;
+
+function rawSetItem(key, value) {
+  const fn = nativeSetItem || localStorage.setItem.bind(localStorage);
+  fn.call(localStorage, key, value);
+}
 
 async function apiFetch(url, options = {}) {
   const res = await fetch(url, {
@@ -150,7 +156,7 @@ function getLocalDataPayload() {
 
 function writeServerDataToLocal(serverData) {
   Object.entries(serverData).forEach(([key, value]) => {
-    localStorage.setItem(key, JSON.stringify(value));
+    rawSetItem(key, JSON.stringify(value));
   });
 }
 
@@ -171,18 +177,33 @@ function dataRichness(data) {
   return members + roles * 3 + cotisations * 2 + tourneeYears * 5 + amendes + evenements * 2 + prets * 4 + notifications;
 }
 
+function isRecentLocalItem(item, windowMs = 20000) {
+  const created = new Date(item?.createdAt || 0).getTime();
+  return Number.isFinite(created) && Date.now() - created < windowMs;
+}
+
 function mergeNotifications(local, server) {
   const localArr = Array.isArray(local) ? local : [];
   const serverArr = Array.isArray(server) ? server : [];
   const byKey = new Map();
 
-  [...localArr, ...serverArr].forEach((notif) => {
+  serverArr.forEach((notif) => {
+    if (!notif) return;
+    const key = notif.id || `${notif.memberId}:${notif.loanId}:${notif.type}`;
+    byKey.set(key, notif);
+  });
+
+  localArr.forEach((notif) => {
     if (!notif) return;
     const key = notif.id || `${notif.memberId}:${notif.loanId}:${notif.type}`;
     const existing = byKey.get(key);
-    if (!existing || new Date(notif.createdAt || 0) >= new Date(existing.createdAt || 0)) {
-      byKey.set(key, notif);
+    if (existing) {
+      if (new Date(notif.createdAt || 0) >= new Date(existing.createdAt || 0)) {
+        byKey.set(key, notif);
+      }
+      return;
     }
+    if (isRecentLocalItem(notif)) byKey.set(key, notif);
   });
 
   return [...byKey.values()].sort(
@@ -195,22 +216,28 @@ function mergePrets(local, server) {
   const serverArr = Array.isArray(server) ? server : [];
   const byId = new Map();
 
-  [...localArr, ...serverArr].forEach((loan) => {
+  serverArr.forEach((loan) => {
+    if (loan?.id) byId.set(loan.id, loan);
+  });
+
+  localArr.forEach((loan) => {
     if (!loan?.id) return;
     const existing = byId.get(loan.id);
-    if (!existing) {
-      byId.set(loan.id, loan);
+    if (existing) {
+      const existingVotes = Object.keys(existing.votes || {}).length;
+      const incomingVotes = Object.keys(loan.votes || {}).length;
+      const existingRepay = (existing.repayments || []).length;
+      const incomingRepay = (loan.repayments || []).length;
+      if (incomingVotes > existingVotes || incomingRepay > existingRepay) {
+        byId.set(loan.id, {
+          ...existing,
+          ...loan,
+          votes: { ...(existing.votes || {}), ...(loan.votes || {}) },
+        });
+      }
       return;
     }
-
-    const existingVotes = Object.keys(existing.votes || {}).length;
-    const incomingVotes = Object.keys(loan.votes || {}).length;
-    const existingDate = new Date(existing.createdAt || 0).getTime();
-    const incomingDate = new Date(loan.createdAt || 0).getTime();
-
-    if (incomingVotes > existingVotes || incomingDate >= existingDate) {
-      byId.set(loan.id, loan);
-    }
+    if (isRecentLocalItem(loan)) byId.set(loan.id, loan);
   });
 
   return [...byId.values()].sort(
@@ -223,12 +250,14 @@ function mergeAutreArgent(local, server) {
   const serverArr = Array.isArray(server) ? server : [];
   const byId = new Map();
 
-  [...serverArr, ...localArr].forEach((entry) => {
+  serverArr.forEach((entry) => {
+    if (entry?.id) byId.set(entry.id, entry);
+  });
+
+  localArr.forEach((entry) => {
     if (!entry?.id) return;
-    const existing = byId.get(entry.id);
-    if (!existing || new Date(entry.createdAt || 0) >= new Date(existing.createdAt || 0)) {
-      byId.set(entry.id, entry);
-    }
+    if (byId.has(entry.id)) return;
+    if (isRecentLocalItem(entry)) byId.set(entry.id, entry);
   });
 
   return [...byId.values()].sort(
@@ -503,18 +532,17 @@ async function pullSharedUpdatesFromServer() {
     const localPayload = getLocalDataPayload();
     const serverRevision = getDataRevision(serverData);
     const localRevision = getDataRevision(localPayload);
-    const originalSetItem = localStorage.setItem.bind(localStorage);
 
     // Full server wipe wins
     if (serverRevision > localRevision) {
       writeServerDataToLocal(serverData);
-      originalSetItem(
+      rawSetItem(
         "poto-timide-autre-argent",
         JSON.stringify(
           mergeAutreArgent(localPayload["poto-timide-autre-argent"], serverData["poto-timide-autre-argent"])
         )
       );
-      originalSetItem(
+      rawSetItem(
         "poto-timide-ancienne-tournee-dettes",
         JSON.stringify(
           mergeAutreArgent(
@@ -539,11 +567,11 @@ async function pullSharedUpdatesFromServer() {
       "poto-timide-evenements",
     ].forEach((key) => {
       if (merged[key] !== undefined) {
-        originalSetItem(key, JSON.stringify(merged[key]));
+        rawSetItem(key, JSON.stringify(merged[key]));
       }
     });
 
-    originalSetItem(
+    rawSetItem(
       "poto-timide-amendes",
       JSON.stringify(
         pruneEvenementAmendes(
@@ -590,12 +618,14 @@ async function flushServerSync() {
   }
 }
 
+window.flushPotoServerSync = flushServerSync;
+
 function startPeriodicSync() {
   stopPeriodicSync();
   periodicSyncTimer = setInterval(async () => {
     if (!authState.loggedIn) return;
-    await pullSharedUpdatesFromServer();
     await flushServerSync();
+    await pullSharedUpdatesFromServer();
   }, 4000);
 }
 
@@ -607,9 +637,9 @@ function stopPeriodicSync() {
 }
 
 function installStorageSync() {
-  const originalSetItem = localStorage.setItem.bind(localStorage);
+  nativeSetItem = localStorage.setItem.bind(localStorage);
   localStorage.setItem = function patchedSetItem(key, value) {
-    originalSetItem(key, value);
+    nativeSetItem(key, value);
     if (API_SYNC_KEYS.has(key)) {
       queueServerSync(key, value);
     }
