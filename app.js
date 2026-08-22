@@ -2538,7 +2538,7 @@ function updateSessionUI() {
     const roleLabel = roleId ? getRoleLabel(roleId) : null;
 
     if (isAdmin) {
-      userStatus.textContent = `Administrateur : ${current.name}`;
+      userStatus.innerHTML = `<span class="badge-crown" aria-hidden="true">👑</span> Administrateur : ${escapeHtml(current.name)}`;
     } else if (roleLabel) {
       userStatus.textContent = `Connecté : ${current.name} (${roleLabel})`;
     } else {
