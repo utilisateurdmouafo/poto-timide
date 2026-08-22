@@ -3,29 +3,23 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <meta name="theme-color" content="#F0F9FF" />
+  <meta name="theme-color" content="#0369A1" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <title>Poto Timide</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;700&family=Outfit:wght@400;500;600;700;800&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=hide-login-1" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css?v=ocean-photo-4" />
 </head>
 <body>
   <div class="app" id="app">
     <header class="topbar">
       <div class="topbar-card">
-        <div class="header-inner">
+        <div class="header-brand-row">
           <a class="brand" href="#" onclick="return false" aria-label="Poto Timide">
-            <svg class="brand-wave" viewBox="0 0 72 56" fill="none" aria-hidden="true">
-              <circle cx="54" cy="13" r="8" fill="#67E8F9"/>
-              <path d="M6 32c8.5-14 15-14 26 0 11 14 17.5 14 32 0" stroke="#0EA5E9" stroke-width="6.2" stroke-linecap="round"/>
-              <path d="M10 43c7.5-11 13-11 22 0 9 11 15 11 28 0" stroke="#38BDF8" stroke-width="5.2" stroke-linecap="round"/>
-            </svg>
             <span class="brand-text">
               <span class="brand-name">Poto Timide</span>
-              <span class="brand-tagline">Web app</span>
             </span>
           </a>
           <div class="header-actions">
@@ -40,21 +34,22 @@
             </button>
           </div>
         </div>
-        <nav class="tabs" aria-label="Navigation principale">
+        <div class="header-inner">
+          <nav class="tabs" aria-label="Navigation principale">
           <button class="tab active" data-tab="membres">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M16 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM8 8.5a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0ZM20 19v-1.2c0-2.1-2.5-3.8-5.5-3.8h-5C6.5 14 4 15.7 4 17.8V19M20 19v-1.4c0-1.6-1.6-3-3.8-3.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M3.6 19c.4-3 2.7-5 5.4-5s5 2 5.4 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="16.5" cy="8.6" r="2.3" stroke="currentColor" stroke-width="1.7"/><path d="M20.8 19c-.3-2.3-1.8-3.9-4-4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
             Membres
           </button>
           <button class="tab" data-tab="tournee">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 16V7.8A2.8 2.8 0 0 1 6.8 5h10.4A2.8 2.8 0 0 1 20 7.8V16M4 16h16M4 16v2.2A1.8 1.8 0 0 0 5.8 20h.7M20 16v2.2a1.8 1.8 0 0 1-1.8 1.8h-.7M8 19.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm11 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0ZM7 12h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="6.5" width="18" height="9.5" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M3 12h18" stroke="currentColor" stroke-width="1.7"/><circle cx="7.2" cy="17.6" r="1.35" stroke="currentColor" stroke-width="1.6"/><circle cx="16.8" cy="17.6" r="1.35" stroke="currentColor" stroke-width="1.6"/><path d="M7 6.5V5.2h5V6.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
             Tournée
           </button>
           <button class="tab" data-tab="prets">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 13.5c0 1.4 1.8 2.5 4 2.5s4-1.1 4-2.5-1.8-2.5-4-2.5-4 1.1-4 2.5Z" stroke="currentColor" stroke-width="1.7"/><path d="M12 8v1.2M8.2 10.2 7 9.2m8.8 1-1.2 1M4.8 14.5c.6 2.8 3.5 5 7.2 5s6.6-2.2 7.2-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M8 6.5c.8-1.4 2.2-2 4-2s3.2.6 4 2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 13.2V11a1.15 1.15 0 0 1 2.3 0v2.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M10.3 12.8V8.7a1.15 1.15 0 1 1 2.3 0v4.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M12.6 12.2V9.4a1.15 1.15 0 1 1 2.3 0v3.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M14.9 13.2v-1.2a1.15 1.15 0 1 1 2.3 0V15c0 2.3-1.8 4.1-4.5 4.1H11c-2.2 0-3.8-1.3-4.6-3.1L5.2 13.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><circle cx="16.6" cy="7.1" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M16.6 5.7v2.8M15.4 7.1h2.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
             Prêts
           </button>
           <button class="tab" data-tab="evenements">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M4 10h16M8 3.5V7m8-3.5V7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M4 10h16M8 3.6V7m8-3.4V7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
             Événements
           </button>
           <button class="tab" data-tab="finance">
@@ -62,7 +57,6 @@
             Finance
           </button>
           <button class="tab" data-tab="ancienne-tournee">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 4.5h7.2L19 9.2V19a1.5 1.5 0 0 1-1.5 1.5h-10A1.5 1.5 0 0 1 6 19V6a1.5 1.5 0 0 1 1-1.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14 4.5V9h4.5M8.5 13h7m-7 3.5h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
             Dette ancienne tournée
           </button>
           <button class="tab tab-admin-entry" data-tab="admin" id="tabBtnAdmin" hidden>
@@ -70,6 +64,7 @@
             Admin
           </button>
         </nav>
+        </div>
       </div>
     </header>
 
@@ -594,6 +589,7 @@
             <div class="gestion-subpanel" id="adminSub-prets" data-admin-panel="prets" hidden>
               <section class="panel">
                 <h2>Gestion des prêts</h2>
+                <p class="save-msg" id="adminPretSaveMsg" hidden></p>
                 <div id="adminPretSummary" class="pret-summary"></div>
               </section>
               <section class="panel">
@@ -707,11 +703,7 @@
   <div class="modal-overlay open" id="loginModal">
     <div class="modal">
       <div class="modal-hero">
-        <svg class="brand-wave brand-wave-modal" viewBox="0 0 72 56" fill="none" aria-hidden="true">
-          <circle cx="54" cy="13" r="8" fill="#67E8F9"/>
-          <path d="M6 32c8.5-14 15-14 26 0 11 14 17.5 14 32 0" stroke="#0EA5E9" stroke-width="6.2" stroke-linecap="round"/>
-          <path d="M10 43c7.5-11 13-11 22 0 9 11 15 11 28 0" stroke="#38BDF8" stroke-width="5.2" stroke-linecap="round"/>
-        </svg>
+        <span class="brand-name brand-name-modal">Poto Timide</span>
         <h3>Connexion membre</h3>
         <p class="modal-desc">Identifiant = votre <strong>nom</strong>. Mot de passe initial : <strong>1234</strong>.</p>
       </div>
@@ -729,6 +721,22 @@
           <button type="submit" class="btn-primary">Se connecter</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="confirmModal">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+      <div class="modal-hero">
+        <span class="brand-name brand-name-modal">Poto Timide</span>
+        <h3 id="confirmModalTitle">Confirmation</h3>
+        <p class="modal-desc" id="confirmModalDesc"></p>
+      </div>
+      <div class="confirm-modal-actions">
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" id="confirmModalCancel">Annuler</button>
+          <button type="button" class="btn-primary" id="confirmModalOk">OK</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -760,6 +768,6 @@
   </div>
 
   <script src="api-client.js?v=sync-simple-1"></script>
-  <script src="app.js?v=hide-login-1"></script>
+  <script src="app.js?v=confirm-modal-2"></script>
 </body>
 </html>

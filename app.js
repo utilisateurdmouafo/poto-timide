@@ -1553,15 +1553,15 @@ function setFondCaisseAmount(amount) {
   return true;
 }
 
-function resetFondCaisse() {
+async function resetFondCaisse() {
   if (!requireFondCaisseEditor("réinitialiser le fond de caisse de départ")) return false;
 
   const current = getFondCaisse();
   if (
-    !confirm(
+    !(await appConfirm(
       `Réinitialiser le fond de caisse de départ à ${formatEuro(DEFAULT_FOND_CAISSE)} ?\n` +
         `Montant actuel : ${formatEuro(current)}.`
-    )
+    ))
   ) {
     return false;
   }
@@ -1705,7 +1705,7 @@ function setFondCaisseAnnuelAmount(year, amount) {
   }
 }
 
-function deleteFondCaisseAnnuel(year) {
+async function deleteFondCaisseAnnuel(year) {
   if (!canManageCaisseArgent() && !canEditFondCaisse()) {
     alert("Seul le Financier ou un administrateur peut supprimer le fond de caisse.");
     return;
@@ -1724,7 +1724,7 @@ function deleteFondCaisseAnnuel(year) {
   if (totals.paid > 0) {
     message += `\n\n${formatEuro(totals.paid)} déjà versés seront retirés de la caisse.`;
   }
-  if (!confirm(message)) return;
+  if (!(await appConfirm(message))) return;
 
   delete fondCaisseAnnuel.years[key];
   saveFondCaisseAnnuel();
@@ -1742,7 +1742,7 @@ function deleteFondCaisseAnnuel(year) {
   }
 }
 
-function payFondCaisseAnnuel(year, memberId, amountValue) {
+async function payFondCaisseAnnuel(year, memberId, amountValue) {
   if (!canManageCaisseArgent()) {
     alert("Seul le Financier ou un administrateur peut encaisser un fond de caisse.");
     return;
@@ -1773,11 +1773,11 @@ function payFondCaisseAnnuel(year, memberId, amountValue) {
   const nextDue = Math.round((due - payAmount) * 100) / 100;
   const isPartial = nextDue > 0;
   if (
-    !confirm(
+    !(await appConfirm(
       isPartial
         ? `Versement de ${formatEuro(payAmount)} pour ${member.name} ?\nIl restera ${formatEuro(nextDue)} à payer.\n${formatEuro(payAmount)} entre dans la caisse.`
         : `Verser ${formatEuro(payAmount)} pour ${member.name} ?\nFond ${year} soldé — le montant entre dans la caisse.`
-    )
+    ))
   ) {
     return;
   }
@@ -1810,7 +1810,7 @@ function payFondCaisseAnnuel(year, memberId, amountValue) {
   );
 }
 
-function cancelFondCaisseAnnuelPayment(year, memberId, paymentId) {
+async function cancelFondCaisseAnnuelPayment(year, memberId, paymentId) {
   if (!canManageCaisseArgent()) {
     alert("Seul le Financier ou un administrateur peut annuler un versement.");
     return;
@@ -1835,9 +1835,9 @@ function cancelFondCaisseAnnuelPayment(year, memberId, paymentId) {
 
   const memberName = member?.name || "ce poto";
   if (
-    !confirm(
+    !(await appConfirm(
       `Annuler le versement de ${formatEuro(cancelAmount)} (${memberName}) ?\nCe montant sortira de la caisse et reviendra dans son reste dû.`
-    )
+    ))
   ) {
     return;
   }
@@ -2370,6 +2370,97 @@ function closeChangePasswordModal() {
   }
 }
 
+const confirmModal = document.getElementById("confirmModal");
+const confirmModalTitle = document.getElementById("confirmModalTitle");
+const confirmModalDesc = document.getElementById("confirmModalDesc");
+const confirmModalOk = document.getElementById("confirmModalOk");
+const confirmModalCancel = document.getElementById("confirmModalCancel");
+const confirmModalQueue = [];
+
+function isAppDialogOpen() {
+  return confirmModalQueue.length > 0;
+}
+
+function presentConfirmModal() {
+  const item = confirmModalQueue[0];
+  if (!item || !confirmModal) return;
+  const {
+    title = "Confirmation",
+    message = "",
+    okLabel = "OK",
+    cancelLabel = "Annuler",
+    showCancel = true,
+  } = item.opts;
+  if (confirmModalTitle) confirmModalTitle.textContent = title;
+  if (confirmModalDesc) confirmModalDesc.textContent = message;
+  if (confirmModalOk) confirmModalOk.textContent = okLabel;
+  if (confirmModalCancel) {
+    confirmModalCancel.textContent = cancelLabel;
+    confirmModalCancel.hidden = !showCancel;
+  }
+  confirmModal.classList.add("open");
+  appEl.classList.add("app-blurred");
+  confirmModalOk?.focus();
+}
+
+function closeConfirmModal(result) {
+  const item = confirmModalQueue.shift();
+  const showCancel = item?.opts?.showCancel !== false;
+  confirmModal?.classList.remove("open");
+  if (
+    !confirmModalQueue.length &&
+    !loginModal?.classList.contains("open") &&
+    !changePasswordModal?.classList.contains("open")
+  ) {
+    appEl.classList.remove("app-blurred");
+  }
+  if (item?.resolve) item.resolve(showCancel ? Boolean(result) : true);
+  if (confirmModalQueue.length) presentConfirmModal();
+}
+
+function openConfirmModal(opts = {}) {
+  return new Promise((resolve) => {
+    confirmModalQueue.push({ opts, resolve });
+    if (confirmModalQueue.length === 1) presentConfirmModal();
+  });
+}
+
+function appConfirm(message, title = "Confirmation") {
+  return openConfirmModal({
+    title,
+    message: String(message ?? ""),
+    okLabel: "OK",
+    cancelLabel: "Annuler",
+    showCancel: true,
+  });
+}
+
+function appAlert(message, title = "Poto Timide") {
+  return openConfirmModal({
+    title,
+    message: String(message ?? ""),
+    okLabel: "OK",
+    showCancel: false,
+  });
+}
+
+window.alert = (message) => {
+  appAlert(message);
+};
+
+confirmModalOk?.addEventListener("click", () => closeConfirmModal(true));
+confirmModalCancel?.addEventListener("click", () => closeConfirmModal(false));
+confirmModal?.addEventListener("click", (e) => {
+  if (e.target !== confirmModal) return;
+  closeConfirmModal(confirmModalQueue[0]?.opts?.showCancel === false);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (!confirmModal?.classList.contains("open")) return;
+  e.preventDefault();
+  closeConfirmModal(confirmModalQueue[0]?.opts?.showCancel === false);
+});
+
 function bindFormEnterKey(form, inputs, onSubmit) {
   if (!form) return;
   const fields = inputs.filter(Boolean);
@@ -2494,9 +2585,9 @@ async function resetMemberPassword(memberId) {
   }
 
   if (
-    !confirm(
+    !(await appConfirm(
       `Réinitialiser le mot de passe de ${member.name} à 1234 ?\nIl devra le changer à la prochaine connexion.`
-    )
+    ))
   ) {
     return;
   }
@@ -2847,7 +2938,7 @@ function assignAdmin(memberId) {
   if (adminForm) adminForm.reset();
 }
 
-function removeAdmin(memberId) {
+async function removeAdmin(memberId) {
   if (!requireGroupAdmin("retirer un administrateur")) return;
 
   if (isOwnerMember(memberId)) {
@@ -2863,7 +2954,7 @@ function removeAdmin(memberId) {
   const member = getMemberById(memberId);
   if (!member) return;
 
-  if (!confirm(`Retirer les droits administrateur de « ${member.name} » ?`)) return;
+  if (!(await appConfirm(`Retirer les droits administrateur de « ${member.name} » ?`))) return;
 
   adminIds = adminIds.filter((id) => id !== memberId);
   saveAdminIds();
@@ -3786,19 +3877,19 @@ function addAncienneTourneeDette(memberId, amount) {
   }
 }
 
-function deleteAncienneTourneeDette(entryId) {
+async function deleteAncienneTourneeDette(entryId) {
   if (!requireTabAccess("ancienne-tournee", "supprimer une dette d'ancienne tournée")) return;
   const entry = ancienneTourneeDettes.find((item) => item.id === entryId);
   if (!entry) return;
   const member = getMemberById(entry.memberId);
-  if (!confirm(`Supprimer la dette de ${formatEuro(entry.amount)} de ${member?.name || "ce poto"} ?`)) {
+  if (!(await appConfirm(`Supprimer la dette de ${formatEuro(entry.amount)} de ${member?.name || "ce poto"} ?`))) {
     return;
   }
   ancienneTourneeDettes = ancienneTourneeDettes.filter((item) => item.id !== entryId);
   saveAncienneTourneeDettes();
 }
 
-function repayAncienneTourneeDette(entryId, amountValue) {
+async function repayAncienneTourneeDette(entryId, amountValue) {
   const entry = ancienneTourneeDettes.find((item) => item.id === entryId);
   if (!entry) return;
 
@@ -3828,11 +3919,11 @@ function repayAncienneTourneeDette(entryId, amountValue) {
   const nextRemaining = Math.round((remaining - payAmount) * 100) / 100;
   const isFull = nextRemaining <= 0;
   if (
-    !confirm(
+    !(await appConfirm(
       isFull
         ? `Rembourser ${formatEuro(payAmount)} (${memberName}) ?\nLa dette sera soldée et ${formatEuro(payAmount)} ira dans la caisse disponible.`
         : `Rembourser ${formatEuro(payAmount)} sur ${formatEuro(remaining)} (${memberName}) ?\nIl restera ${formatEuro(nextRemaining)}.\n${formatEuro(payAmount)} ira dans la caisse disponible.`
-    )
+    ))
   ) {
     return;
   }
@@ -4120,7 +4211,7 @@ function creditAmendeToCaisse(amende) {
   saveAmendesCaisse();
 }
 
-function repayAmende(id, amountValue) {
+async function repayAmende(id, amountValue) {
   const amende = getAmendeById(id);
   if (!amende) return;
 
@@ -4153,11 +4244,11 @@ function repayAmende(id, amountValue) {
   const isFull = nextRemaining <= 0;
 
   if (
-    !confirm(
+    !(await appConfirm(
       isFull
         ? `Rembourser ${formatEuro(payAmount)} (${typeLabel.toLowerCase()} de ${member?.name || "ce poto"}) ?\nL'amende sera soldée et ${formatEuro(payAmount)} ira dans la caisse.`
         : `Rembourser ${formatEuro(payAmount)} sur ${formatEuro(remaining)} (${member?.name || "ce poto"}) ?\nIl restera ${formatEuro(nextRemaining)}.\n${formatEuro(payAmount)} ira dans la caisse.`
-    )
+    ))
   ) {
     return;
   }
@@ -4206,7 +4297,7 @@ function deleteAmende(id) {
   deleteAmendeRecord(id);
 }
 
-function deleteAmendeRecord(id) {
+async function deleteAmendeRecord(id) {
   if (!requireTabAccess("amendes", "supprimer une amende")) return;
 
   const amende = getAmendeById(id);
@@ -4215,9 +4306,9 @@ function deleteAmendeRecord(id) {
   const member = getMemberById(amende.memberId);
   const memberName = member?.name || "ce poto";
   if (
-    !confirm(
+    !(await appConfirm(
       `Supprimer ${getAmendeTypeLabel(amende.type).toLowerCase()} de ${memberName} (${formatEuro(amende.amount)}) ?\nElle ne sera pas ajoutée à la caisse.`
-    )
+    ))
   ) {
     return;
   }
@@ -4239,7 +4330,7 @@ function deleteAmendeRecord(id) {
   renderFinanceDashboard();
 }
 
-function undoAmendePayment(caisseId) {
+async function undoAmendePayment(caisseId) {
   if (!requireTabAccess("amendes", "annuler un encaissement d'amende")) return;
 
   const entry = amendesCaisse.find((item) => item.id === caisseId);
@@ -4248,9 +4339,9 @@ function undoAmendePayment(caisseId) {
   const member = getMemberById(entry.memberId);
   const memberName = member?.name || "ce poto";
   if (
-    !confirm(
+    !(await appConfirm(
       `Annuler l'encaissement de ${formatEuro(entry.amount)} (${memberName}) ?\nLe montant sort de la caisse et l'amende revient en cours.`
-    )
+    ))
   ) {
     return;
   }
@@ -4519,10 +4610,12 @@ function getTotalRepaymentsReturned() {
 }
 
 function showPretSaveMessage(text, type = "success") {
-  if (!pretSaveMsg) return;
-  pretSaveMsg.textContent = text;
-  pretSaveMsg.className = `save-msg save-msg-${type}`;
-  pretSaveMsg.hidden = false;
+  [pretSaveMsg, document.getElementById("adminPretSaveMsg")].forEach((el) => {
+    if (!el) return;
+    el.textContent = text;
+    el.className = `save-msg save-msg-${type}`;
+    el.hidden = false;
+  });
 }
 
 function getBorrowableAmount() {
@@ -4898,6 +4991,30 @@ function financierDecidePret(loanId, decision) {
   savePrets();
 }
 
+function ensureLoanRepayments(loan) {
+  if (!loan) return [];
+  if (!Array.isArray(loan.repayments)) loan.repayments = [];
+  loan.repayments.forEach((repay) => {
+    if (repay && !repay.id) repay.id = generateId();
+  });
+  return loan.repayments;
+}
+
+function syncLoanRepaidFromHistory(loan) {
+  const list = ensureLoanRepayments(loan);
+  loan.totalRepaid = Math.round(
+    list.reduce((sum, repay) => sum + (Number(repay.amount) || 0), 0) * 100
+  ) / 100;
+  const balance = getLoanBalance(loan);
+  if (balance <= 0) {
+    loan.status = "completed";
+    return;
+  }
+  if (loan.status === "completed") {
+    loan.status = loan.interestApplied || loan.interestAmount ? "defaulted" : "active";
+  }
+}
+
 function recordRepayment(loanId, amount) {
   if (!canManagePretsActions()) {
     alert("Seul le Financier ou un administrateur peut enregistrer un remboursement.");
@@ -4907,22 +5024,30 @@ function recordRepayment(loanId, amount) {
   const loan = getLoanById(loanId);
   if (!loan || !["active", "defaulted"].includes(loan.status)) return;
 
-  const parsedAmount = parseFloat(amount);
+  const raw = String(amount ?? "").trim().replace(",", ".");
+  const parsedAmount = Math.round(parseFloat(raw) * 100) / 100;
   if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
     alert("Montant invalide.");
     return;
   }
 
+  const remaining = getLoanBalance(loan);
+  if (parsedAmount > remaining) {
+    alert(`Impossible de rembourser ${formatEuro(parsedAmount)} : il reste ${formatEuro(remaining)}.`);
+    return;
+  }
+
   const current = getCurrentMember();
-  loan.totalRepaid = Math.round(((loan.totalRepaid || 0) + parsedAmount) * 100) / 100;
+  ensureLoanRepayments(loan);
   loan.repayments.push({
+    id: generateId(),
     amount: parsedAmount,
     date: new Date().toISOString(),
     recordedBy: current?.id || null,
   });
+  syncLoanRepaidFromHistory(loan);
 
-  if (getLoanBalance(loan) <= 0) {
-    loan.status = "completed";
+  if (loan.status === "completed") {
     notifyBorrower(loan, "loan_completed", `Votre prêt de ${formatEuro(loan.amount)} est entièrement remboursé.`);
     saveNotifications(false);
   }
@@ -4933,7 +5058,75 @@ function recordRepayment(loanId, amount) {
   );
 }
 
-function deletePret(loanId) {
+async function undoLoanRepayment(loanId, repaymentId) {
+  if (!canManagePretsActions()) {
+    alert("Seul le Financier ou un administrateur peut annuler un remboursement.");
+    return;
+  }
+
+  const loan = getLoanById(loanId);
+  if (!loan) return;
+  const repayments = ensureLoanRepayments(loan);
+  const repayment = repayments.find((item) => item.id === repaymentId) || repayments[repayments.length - 1];
+  if (!repayment) return;
+
+  const borrower = getMemberById(loan.borrowerId);
+  const borrowerName = borrower?.name || "ce membre";
+  const amount = Math.round((Number(repayment.amount) || 0) * 100) / 100;
+  const confirmed = await openConfirmModal({
+    title: "Annuler ce remboursement ?",
+    message: `Annuler le remboursement de ${formatEuro(amount)} (${borrowerName}) ?\n\nCe montant sort de la caisse et revient sur le reste dû du prêt.`,
+    okLabel: "OK",
+    cancelLabel: "Annuler",
+  });
+  if (!confirmed) return;
+
+  loan.repayments = repayments.filter((item) => item.id !== repayment.id);
+  const wasCompleted = loan.status === "completed";
+  syncLoanRepaidFromHistory(loan);
+
+  savePrets();
+  if (typeof window.flushPotoServerSync === "function") {
+    window.flushPotoServerSync();
+  } else if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+
+  const remaining = getLoanBalance(loan);
+  showPretSaveMessage(
+    wasCompleted && remaining > 0
+      ? `Remboursement de ${formatEuro(amount)} annulé. Le prêt est de nouveau en cours, reste ${formatEuro(remaining)}.`
+      : `Remboursement de ${formatEuro(amount)} annulé. Reste dû : ${formatEuro(remaining)}. Caisse : ${formatEuro(getCaisseDisponible())}.`
+  );
+}
+
+function buildLoanRepaymentsBlock(loan) {
+  const repayments = [...ensureLoanRepayments(loan)].reverse();
+  if (!repayments.length) return "";
+  const canUndo = canManagePretsActions();
+  return `
+    <div class="pret-repay-history">
+      <p class="pret-repay-history-title">Remboursements enregistrés</p>
+      <ul class="pret-repay-list">
+        ${repayments
+          .map(
+            (repay) => `
+          <li class="pret-repay-item">
+            <span>${formatEuro(repay.amount)} · ${formatFriendlyDate(repay.date || repay.createdAt)}</span>
+            ${
+              canUndo
+                ? `<button type="button" class="btn-secondary btn-pret-repay-undo" data-loan-id="${escapeHtml(loan.id)}" data-repay-id="${escapeHtml(repay.id)}">Annuler</button>`
+                : ""
+            }
+          </li>`
+          )
+          .join("")}
+      </ul>
+    </div>
+  `;
+}
+
+async function deletePret(loanId) {
   if (!canManagePretsActions()) {
     alert("Seul le Financier ou un administrateur peut supprimer un prêt.");
     return;
@@ -4946,9 +5139,9 @@ function deletePret(loanId) {
   const borrowerName = borrower?.name || "ce membre";
 
   if (
-    !confirm(
+    !(await appConfirm(
       `Supprimer définitivement le prêt de ${borrowerName} (${formatEuro(loan.amount)}) ?`
-    )
+    ))
   ) {
     return;
   }
@@ -5032,13 +5225,13 @@ function deleteOwnNotification(notificationId) {
   renderPretNotifications();
 }
 
-function deleteAllOwnNotifications() {
+async function deleteAllOwnNotifications() {
   const current = getCurrentMember();
   if (!current) return;
 
   const mine = getPretNotificationsForMember(current.id);
   if (!mine.length) return;
-  if (!confirm(`Supprimer tes ${mine.length} notification${mine.length > 1 ? "s" : ""} ?`)) return;
+  if (!(await appConfirm(`Supprimer tes ${mine.length} notification${mine.length > 1 ? "s" : ""} ?`))) return;
 
   notifications = notifications.filter((item) => item.memberId !== current.id);
   saveNotifications(false);
@@ -5304,11 +5497,12 @@ function buildLoanCard(loan, mode) {
       ${
         canManagePretsActions()
           ? `<div class="pret-repay-form">
-              <input type="number" class="pret-repay-input" data-loan-id="${loan.id}" min="1" step="1" placeholder="Montant remboursé" />
+              <input type="number" class="pret-repay-input" data-loan-id="${loan.id}" min="0.5" step="0.5" max="${balance}" placeholder="Montant remboursé" inputmode="decimal" aria-label="Montant remboursé, reste ${formatEuro(balance)}" />
               <button type="button" class="btn-primary btn-pret-repay" data-loan-id="${loan.id}">Enregistrer remboursement</button>
             </div>`
           : ""
       }
+      ${buildLoanRepaymentsBlock(loan)}
     `;
   }
 
@@ -5324,6 +5518,7 @@ function buildLoanCard(loan, mode) {
       ${financierSection}
       ${activeSection}
       ${mode === "active" && balance > 0 ? `<p class="pret-balance">Reste à payer : <strong>${formatEuro(balance)}</strong></p>` : ""}
+      ${mode === "history" ? buildLoanRepaymentsBlock(loan) : ""}
       ${financierControls}
     </article>
   `;
@@ -5771,7 +5966,7 @@ function cancelEvenementPayment(eventId, memberId) {
   );
 }
 
-function closeEvenement(eventId) {
+async function closeEvenement(eventId) {
   if (!canManageEvenements()) {
     alert("Seuls les gestionnaires autorisés peuvent clôturer un événement.");
     return;
@@ -5785,7 +5980,7 @@ function closeEvenement(eventId) {
     return;
   }
 
-  if (!confirm(`Clôturer « ${evt.title} » ?\nIl sera rangé discrètement sur le côté.`)) return;
+  if (!(await appConfirm(`Clôturer « ${evt.title} » ?\nIl sera rangé discrètement sur le côté.`))) return;
 
   evt.closed = true;
   evt.closedAt = new Date().toISOString();
@@ -5795,7 +5990,7 @@ function closeEvenement(eventId) {
   showEvenementSaveMessage(`Événement « ${evt.title} » clôturé.`);
 }
 
-function reimburseEvenementToBeneficiary(eventId) {
+async function reimburseEvenementToBeneficiary(eventId) {
   if (!canManageEvenements()) {
     alert("Seuls les gestionnaires autorisés peuvent rembourser le poto.");
     return;
@@ -5824,7 +6019,7 @@ function reimburseEvenementToBeneficiary(eventId) {
     confirmMsg += `\n\n${unpaidMembers.length} membre(s) n'ont pas payé (${formatEuro(unpaidTotal)}) :\n${names}\n→ dettes enregistrées dans Mes dettes et amendes.\n→ ${formatEuro(unpaidTotal)} déduit de la caisse brute et disponible.`;
   }
 
-  if (!confirm(confirmMsg)) return;
+  if (!(await appConfirm(confirmMsg))) return;
 
   const debtMembers = createEvenementDebts(evt);
 
@@ -5849,7 +6044,7 @@ function reimburseEvenementToBeneficiary(eventId) {
   showEvenementSaveMessage(message);
 }
 
-function deleteEvenement(eventId) {
+async function deleteEvenement(eventId) {
   if (!canManageEvenements()) {
     alert("Seuls les gestionnaires autorisés peuvent supprimer un événement.");
     return;
@@ -5866,7 +6061,7 @@ function deleteEvenement(eventId) {
     ? `Supprimer l'événement « ${evt.title} » ?\n\nIl disparaîtra chez tous les potos (en cours et paiements).\n${relatedDettes.length} dette(s) événement liée(s) seront aussi supprimées.`
     : `Supprimer l'événement « ${evt.title} » ?\n\nIl disparaîtra chez tous les potos là où il était en cours, y compris les paiements.`;
 
-  if (!confirm(confirmMsg)) return;
+  if (!(await appConfirm(confirmMsg))) return;
 
   amendes = amendes.filter((amende) => amende.evenementId !== eventId);
   localStorage.setItem(AMENDES_KEY, JSON.stringify(amendes));
@@ -5889,7 +6084,7 @@ function deleteEvenement(eventId) {
   showEvenementSaveMessage(`Événement supprimé pour tout le groupe.${extra}`);
 }
 
-function resetClosedEvenements() {
+async function resetClosedEvenements() {
   if (!requireGroupAdmin("réinitialiser les événements clôturés")) return;
 
   const closedEvents = evenements.filter((evt) => isEvenementClosed(evt));
@@ -5899,9 +6094,9 @@ function resetClosedEvenements() {
   }
 
   if (
-    !confirm(
+    !(await appConfirm(
       `Supprimer définitivement ${closedEvents.length} événement(s) clôturé(s) ?\n\nLa colonne « Clôturés » sera vidée. Cette action est irréversible.`
-    )
+    ))
   ) {
     return;
   }
@@ -6455,7 +6650,7 @@ function withdrawAutreArgent(memberId, amount, note, motif) {
   autreArgentListPanel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-function deleteAutreArgent(entryId) {
+async function deleteAutreArgent(entryId) {
   if (!requireCaisseArgentAccess("supprimer une entrée d'autre argent")) return;
 
   const entry = autreArgent.find((item) => item.id === entryId);
@@ -6469,9 +6664,9 @@ function deleteAutreArgent(entryId) {
   const absAmount = Math.abs(getEntryAmount(entry));
   const actionLabel = isWithdraw ? "ce retrait" : "cette entrée";
   if (
-    !confirm(
+    !(await appConfirm(
       `Supprimer ${actionLabel} de ${formatEuro(absAmount)} (${member?.name || "ce membre"}) ?`
-    )
+    ))
   ) {
     return;
   }
@@ -6541,7 +6736,7 @@ function renderAutreArgent() {
     `;
 }
 
-function assignRole(memberId, roleId) {
+async function assignRole(memberId, roleId) {
   if (!requireTabAccess("bureau", "nommer les membres du bureau")) return;
 
   const member = getMemberById(memberId);
@@ -6560,7 +6755,7 @@ function assignRole(memberId, roleId) {
       ? `« ${previousMember.name} » occupe déjà ce poste. Le remplacer par « ${member.name} » ?`
       : `Attribuer ce poste à « ${member.name} » ?`;
 
-    if (!confirm(msg)) return;
+    if (!(await appConfirm(msg))) return;
   }
 
   Object.keys(roles).forEach((key) => {
@@ -6574,13 +6769,13 @@ function assignRole(memberId, roleId) {
   renderBureau();
 }
 
-function clearRole(roleId) {
+async function clearRole(roleId) {
   if (!requireTabAccess("bureau", "modifier le bureau")) return;
 
   const member = getMemberById(roles[roleId]);
   if (!member) return;
 
-  if (confirm(`Retirer « ${member.name} » du poste de ${getRoleLabel(roleId)} ?`)) {
+  if (await appConfirm(`Retirer « ${member.name} » du poste de ${getRoleLabel(roleId)} ?`)) {
     delete roles[roleId];
     saveRoles();
   }
@@ -6755,7 +6950,7 @@ function purgeMemberReferences(memberId) {
   localStorage.setItem(FOND_CAISSE_ANNUEL_KEY, JSON.stringify(fondCaisseAnnuel));
 }
 
-function deleteMember(id) {
+async function deleteMember(id) {
   if (!requireTabAccess("membres", "supprimer des membres")) return;
 
   const member = members.find((m) => m.id === id);
@@ -6767,9 +6962,9 @@ function deleteMember(id) {
   }
 
   if (
-    !confirm(
+    !(await appConfirm(
       `Supprimer le membre « ${member.name} » ?\n\nIl sera retiré de la tournée, des cotisations, amendes, événements, prêts et de toutes les autres données.`
-    )
+    ))
   ) {
     return;
   }
@@ -7006,12 +7201,13 @@ fondCaisseAnnuelList?.addEventListener("keydown", (e) => {
   payFondCaisseAnnuel(input.dataset.year, input.dataset.memberId, input.value);
 });
 
-function handlePretActionClick(e) {
+async function handlePretActionClick(e) {
   const yesBtn = e.target.closest(".btn-pret-yes");
   const noBtn = e.target.closest(".btn-pret-no");
   const approveBtn = e.target.closest(".btn-pret-approve");
   const rejectBtn = e.target.closest(".btn-pret-reject");
   const repayBtn = e.target.closest(".btn-pret-repay");
+  const undoRepayBtn = e.target.closest(".btn-pret-repay-undo");
   const deletePretBtn = e.target.closest(".btn-pret-delete");
 
   if (yesBtn) votePret(yesBtn.dataset.loanId, "yes");
@@ -7019,13 +7215,13 @@ function handlePretActionClick(e) {
 
   if (approveBtn) {
     const borrower = getMemberById(getLoanById(approveBtn.dataset.loanId)?.borrowerId);
-    if (confirm(`Accorder immédiatement le prêt de ${borrower?.name || "ce membre"} ?`)) {
+    if (await appConfirm(`Accorder immédiatement le prêt de ${borrower?.name || "ce membre"} ?`)) {
       financierDecidePret(approveBtn.dataset.loanId, "approved");
     }
   }
 
   if (rejectBtn) {
-    if (confirm("Refuser cette demande de prêt ?")) {
+    if (await appConfirm("Refuser cette demande de prêt ?")) {
       financierDecidePret(rejectBtn.dataset.loanId, "rejected");
     }
   }
@@ -7036,6 +7232,10 @@ function handlePretActionClick(e) {
       root.querySelector?.(`.pret-repay-input[data-loan-id="${repayBtn.dataset.loanId}"]`) ||
       document.querySelector(`.pret-repay-input[data-loan-id="${repayBtn.dataset.loanId}"]`);
     if (input) recordRepayment(repayBtn.dataset.loanId, input.value);
+  }
+
+  if (undoRepayBtn) {
+    undoLoanRepayment(undoRepayBtn.dataset.loanId, undoRepayBtn.dataset.repayId);
   }
 
   if (deletePretBtn) deletePret(deletePretBtn.dataset.loanId);
