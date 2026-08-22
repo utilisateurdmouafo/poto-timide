@@ -169,18 +169,9 @@ async function main() {
     }
   }
 
-  for (const row of sessionRows) {
-    await turso.execute({
-      sql: "INSERT INTO sessions (sid, sess, expired) VALUES (?, ?, ?) ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expired = excluded.expired",
-      args: [row.sid, row.sess, row.expired],
-    });
-  }
-  const localSids = new Set(sessionRows.map((row) => row.sid));
   const remoteSessions = await rowsToMap(turso, "SELECT sid FROM sessions");
   for (const row of remoteSessions) {
-    if (!localSids.has(row.sid)) {
-      await turso.execute({ sql: "DELETE FROM sessions WHERE sid = ?", args: [row.sid] });
-    }
+    await turso.execute({ sql: "DELETE FROM sessions WHERE sid = ?", args: [row.sid] });
   }
 
   const tursoApp = await rowsToMap(turso, "SELECT key, value FROM app_data");
@@ -197,6 +188,13 @@ async function main() {
     `  Amendes ${tursoSummary.amendes} · Événements ${tursoSummary.evenements} · Prêts ${tursoSummary.prets} · Autre argent ${tursoSummary.autre} · Fond ${tursoSummary.fond}`
   );
   console.log(`  Comptes : ${tursoUsers.map((u) => u.username).join(", ")}`);
+
+  const revision = Date.now();
+  await turso.execute({
+    sql: "INSERT INTO app_data (key, value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+    args: ["poto-timide-data-revision", JSON.stringify(revision)],
+  });
+  console.log(`Révision serveur : ${revision} (les vieux caches navigateur ne réécraseront pas la base)`);
 
   const mismatches = [];
   if (localSummary.members !== tursoSummary.members) mismatches.push("members");

@@ -758,6 +758,11 @@ function createApp() {
   app.put("/api/data", requireAuth, async (req, res) => {
     try {
       const payload = await sanitizePayloadForOwner(req.body || {});
+      const incomingRev = Number(payload["poto-timide-data-revision"]);
+      const currentRev = Number((await getData("poto-timide-data-revision")) || 0);
+      if (Number.isFinite(currentRev) && Number.isFinite(incomingRev) && incomingRev < currentRev) {
+        return res.json({ ok: true, ignored: true, reason: "stale-revision" });
+      }
 
       for (const [key, value] of Object.entries(payload)) {
         if (STORAGE_KEYS.includes(key)) {
