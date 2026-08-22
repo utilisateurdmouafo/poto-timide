@@ -1,36 +1,42 @@
-/* Palette 6 — carte blanche type maquette */
+/* Palette Océan Moderne — motif officiel */
 :root {
-  --bg: #f4f6f8;
+  --ocean: #0EA5E9;
+  --cyan: #67E8F9;
+  --ice: #F0F9FF;
+  --coral: #FB7185;
+  --navy: #0F172A;
+  --bg: #F0F9FF;
   --bg-elevated: #ffffff;
   --bg-card: #ffffff;
-  --bg-card-hover: #f7f9fc;
-  --bg-surface: #f3f5f8;
-  --bg-muted: #eef1f5;
-  --border: #e6eaf0;
-  --border-strong: #d5dbe4;
-  --text: #1b2430;
-  --text-muted: #6b7380;
-  --primary: #3478f6;
-  --primary-hover: #2467e8;
-  --primary-light: #eaf2ff;
-  --primary-glow: rgba(52, 120, 246, 0.18);
-  --accent: #3478f6;
+  --bg-card-hover: #f7fcff;
+  --bg-surface: #e8f6fe;
+  --bg-muted: #e0f2fe;
+  --border: #d7eefb;
+  --border-strong: #bae6fd;
+  --text: #0F172A;
+  --text-muted: #64748b;
+  --primary: #0EA5E9;
+  --primary-hover: #0284c7;
+  --primary-light: #e0f2fe;
+  --primary-glow: rgba(14, 165, 233, 0.2);
+  --accent: #FB7185;
   --gold: #c9a227;
   --gold-light: #fff6d8;
-  --success: #2f9e6b;
-  --success-light: #d9f3e7;
-  --danger: #c53030;
-  --danger-light: #fed7d7;
-  --warning: #b7791f;
+  --success: #0d9488;
+  --success-light: #ccfbf1;
+  --danger: #FB7185;
+  --danger-light: #ffe4e8;
+  --warning: #d97706;
   --warning-light: #fef3c7;
-  --radius: 14px;
-  --radius-sm: 10px;
-  --radius-btn: 12px;
-  --shadow: 0 10px 28px rgba(31, 41, 55, 0.1);
-  --shadow-soft: 0 2px 8px rgba(31, 41, 55, 0.07);
-  --shadow-card: 0 1px 2px rgba(31, 41, 55, 0.05), 0 6px 18px rgba(31, 41, 55, 0.06);
+  --radius: 18px;
+  --radius-sm: 12px;
+  --radius-btn: 14px;
+  --shadow: 0 12px 32px rgba(14, 165, 233, 0.12);
+  --shadow-soft: 0 2px 10px rgba(15, 23, 42, 0.05);
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 22px rgba(14, 165, 233, 0.08);
   --font-body: "Source Sans 3", system-ui, -apple-system, sans-serif;
   --font-display: "Outfit", system-ui, -apple-system, sans-serif;
+  --font-brand: "Fraunces", "Georgia", serif;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --header-h: 4rem;
   --app-max: min(1100px, 100%);
@@ -68,7 +74,10 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  background: linear-gradient(180deg, #f7f8fa 0%, #f0f2f5 100%);
+  background:
+    radial-gradient(ellipse 80% 50% at 100% -10%, rgba(103, 232, 249, 0.35), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 0% 100%, rgba(14, 165, 233, 0.12), transparent 50%),
+    linear-gradient(180deg, #F0F9FF 0%, #e4f4fe 100%);
   pointer-events: none;
   z-index: 0;
 }
@@ -78,7 +87,7 @@ body::after {
 }
 
 ::selection {
-  background: rgba(59, 91, 219, 0.22);
+  background: rgba(14, 165, 233, 0.22);
   color: var(--text);
 }
 
@@ -100,9 +109,9 @@ body::after {
 
 .topbar-card {
   background: #ffffff;
-  border: 1px solid rgba(27, 36, 48, 0.05);
+  border: 1px solid rgba(14, 165, 233, 0.12);
   border-radius: 28px;
-  box-shadow: 0 12px 40px rgba(27, 36, 48, 0.08);
+  box-shadow: 0 14px 40px rgba(14, 165, 233, 0.1);
   padding: 1.05rem 1.25rem 0.7rem;
 }
 
@@ -128,40 +137,52 @@ body::after {
   flex-shrink: 0;
 }
 
+.brand-wave {
+  width: 3.35rem;
+  height: 2.55rem;
+  flex-shrink: 0;
+}
+
+.brand-wave-modal {
+  width: 4.2rem;
+  height: 3.2rem;
+  display: block;
+  margin: 0 auto 0.75rem;
+}
+
 .brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3rem;
-  height: 3rem;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #4b8bff 0%, #2f74f6 100%);
-  color: #ffffff;
-  font-family: var(--font-display);
-  font-size: 0.92rem;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  box-shadow: 0 8px 18px rgba(47, 116, 246, 0.28);
+  display: none;
 }
 
 .brand-name {
   display: block;
-  font-family: var(--font-display);
-  font-size: 1.28rem;
+  font-family: var(--font-brand);
+  font-size: 1.42rem;
   font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.03em;
-  line-height: 1.15;
+  color: var(--navy);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
 }
 
 .brand-tagline {
-  display: block;
-  margin-top: 0.12rem;
-  font-family: var(--font-body);
-  font-size: 0.82rem;
-  font-weight: 500;
-  color: var(--text-muted);
-  letter-spacing: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.22rem;
+  font-family: var(--font-display);
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--primary);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.brand-tagline::before,
+.brand-tagline::after {
+  content: "";
+  width: 1.15rem;
+  height: 1px;
+  background: var(--cyan);
 }
 
 .bbc-logo {
@@ -169,19 +190,7 @@ body::after {
 }
 
 .modal-brand-mark {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 3.25rem;
-  height: 3.25rem;
-  border-radius: 16px;
-  background: var(--primary);
-  color: #ffffff;
-  font-family: var(--font-display);
-  font-size: 1rem;
-  font-weight: 800;
-  margin: 0 auto 0.85rem;
-  box-shadow: 0 4px 14px rgba(59, 91, 219, 0.25);
+  display: none;
 }
 
 .brand-text {
@@ -228,9 +237,9 @@ body::after {
 }
 
 .admin-badge.admin-active {
-  color: #9a7b12;
-  background: #fff7dc;
-  border-color: #f3e3a8;
+  color: #0F172A;
+  background: #fff1f3;
+  border-color: #fecdd3;
 }
 
 .admin-badge.admin-active .badge-crown {
@@ -251,7 +260,7 @@ body::after {
 }
 
 .member-item.member-current {
-  border-color: rgba(59, 91, 219, 0.4);
+  border-color: rgba(14, 165, 233, 0.4);
   background: var(--success-light);
 }
 
@@ -260,7 +269,7 @@ body::after {
   font-size: 0.6rem;
   font-weight: 600;
   padding: 0.1rem 0.35rem;
-  background: rgba(59, 91, 219, 0.15);
+  background: rgba(14, 165, 233, 0.15);
   color: var(--success);
   border-radius: 100px;
   margin-left: 0.35rem;
@@ -290,15 +299,15 @@ body::after {
 }
 
 .btn-header-out {
-  color: #e24b4b;
-  border-color: #f0b4b4;
+  color: var(--coral);
+  border-color: #fecdd3;
   background: #fff;
 }
 
 .btn-header-out:hover {
-  color: #d12f2f;
-  border-color: #e24b4b;
-  background: #fff5f5;
+  color: #f43f5e;
+  border-color: var(--coral);
+  background: var(--danger-light);
 }
 
 .btn-header-icon {
@@ -333,7 +342,7 @@ body::after {
 .save-msg-success {
   color: var(--success);
   background: var(--success-light);
-  border: 1px solid rgba(59, 91, 219, 0.2);
+  border: 1px solid rgba(14, 165, 233, 0.2);
 }
 
 .save-msg-error {
@@ -758,8 +767,8 @@ body::after {
 }
 
 .tab.active {
-  color: var(--primary);
-  background: var(--primary-light);
+  color: var(--primary-hover);
+  background: rgba(103, 232, 249, 0.28);
   border-bottom-color: transparent;
   font-weight: 700;
   box-shadow: none;
@@ -818,11 +827,11 @@ body::after {
 }
 
 .panel h2 {
-  font-family: var(--font-display);
-  font-size: 1.15rem;
+  font-family: var(--font-brand);
+  font-size: 1.22rem;
   font-weight: 700;
   letter-spacing: -0.02em;
-  color: var(--text);
+  color: var(--navy);
   text-shadow: none;
   margin-bottom: 0.15rem;
 }
@@ -883,13 +892,13 @@ body::after {
   cursor: pointer;
   transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(59, 91, 219, 0.22);
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.28);
   letter-spacing: 0.01em;
 }
 
 .btn-primary:hover:not(:disabled) {
   background: var(--primary-hover);
-  box-shadow: 0 4px 12px rgba(59, 91, 219, 0.28);
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.32);
 }
 
 .btn-primary:active:not(:disabled) {
@@ -1167,7 +1176,7 @@ body::after {
 .btn-clear {
   background: var(--primary-light);
   color: var(--primary);
-  border: 1px solid rgba(59, 91, 219, 0.2);
+  border: 1px solid rgba(14, 165, 233, 0.2);
   padding: 0.35rem 0.75rem;
   border-radius: var(--radius-btn);
   font-family: inherit;
@@ -1179,7 +1188,7 @@ body::after {
 }
 
 .btn-clear:hover {
-  background: rgba(59, 91, 219, 0.15);
+  background: rgba(14, 165, 233, 0.15);
 }
 
 .role-badge {
@@ -1187,7 +1196,7 @@ body::after {
   font-size: 0.62rem;
   font-weight: 600;
   padding: 0.1rem 0.35rem;
-  background: rgba(59, 91, 219, 0.15);
+  background: rgba(14, 165, 233, 0.15);
   color: var(--primary);
   border-radius: 100px;
   margin-right: 0.25rem;
@@ -1198,7 +1207,7 @@ body::after {
   font-size: 0.6rem;
   font-weight: 600;
   padding: 0.1rem 0.35rem;
-  background: rgba(59, 91, 219, 0.15);
+  background: rgba(14, 165, 233, 0.15);
   color: var(--success);
   border-radius: 100px;
   margin-left: 0.35rem;
@@ -1517,11 +1526,11 @@ body::after {
 
 .modal {
   background: var(--bg-elevated);
-  border: 1px solid var(--border);
+  border: 1px solid rgba(14, 165, 233, 0.14);
   border-radius: 24px;
   width: 100%;
   max-width: 420px;
-  box-shadow: 0 24px 60px rgba(28, 25, 23, 0.14);
+  box-shadow: 0 24px 60px rgba(14, 165, 233, 0.16);
   animation: modalIn 0.32s var(--ease);
   overflow: hidden;
 }
@@ -1614,8 +1623,8 @@ body::after {
 }
 
 .modal form input:focus {
-  border-color: rgba(59, 91, 219, 0.6);
-  box-shadow: 0 0 0 3px rgba(59, 91, 219, 0.18);
+  border-color: rgba(14, 165, 233, 0.6);
+  box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.18);
   outline: none;
 }
 
@@ -1814,8 +1823,8 @@ body::after {
 }
 
 .pret-summary-main {
-  border-color: rgba(59, 91, 219, 0.35);
-  background: rgba(59, 91, 219, 0.08);
+  border-color: rgba(14, 165, 233, 0.35);
+  background: rgba(14, 165, 233, 0.08);
 }
 
 .pret-summary-locked {
@@ -1908,9 +1917,9 @@ body::after {
 }
 
 .pret-notif-unread {
-  border-color: rgba(59, 91, 219, 0.35);
+  border-color: rgba(14, 165, 233, 0.35);
   border-left-color: var(--primary);
-  background: rgba(59, 91, 219, 0.08);
+  background: rgba(14, 165, 233, 0.08);
 }
 
 .pret-notif-item p {
@@ -2029,7 +2038,7 @@ body::after {
   border: 1px solid var(--border);
 }
 
-.pret-stat-yes { color: var(--success); border-color: rgba(59, 91, 219, 0.3); }
+.pret-stat-yes { color: var(--success); border-color: rgba(14, 165, 233, 0.3); }
 .pret-stat-no { color: var(--danger); border-color: rgba(217, 48, 37, 0.3); }
 .pret-stat-pending { color: #fdcb6e; border-color: rgba(253, 203, 110, 0.3); }
 
@@ -2054,9 +2063,9 @@ body::after {
 }
 
 .btn-pret-yes {
-  background: rgba(59, 91, 219, 0.12);
+  background: rgba(14, 165, 233, 0.12);
   color: var(--success);
-  border-color: rgba(59, 91, 219, 0.25);
+  border-color: rgba(14, 165, 233, 0.25);
 }
 
 .btn-pret-no {
@@ -2279,7 +2288,7 @@ body::after {
   letter-spacing: 0.04em;
   padding: 0.2rem 0.5rem;
   border-radius: 999px;
-  background: rgba(59, 91, 219, 0.12);
+  background: rgba(14, 165, 233, 0.12);
   color: var(--primary);
 }
 
@@ -2368,8 +2377,8 @@ body::after {
 }
 
 .evenement-poto-receivable-done {
-  background: rgba(59, 91, 219, 0.1);
-  border-color: rgba(59, 91, 219, 0.25);
+  background: rgba(14, 165, 233, 0.1);
+  border-color: rgba(14, 165, 233, 0.25);
 }
 
 .evenement-poto-receivable-amount {
@@ -2421,8 +2430,8 @@ body::after {
 }
 
 .evenement-my-paid {
-  background: rgba(59, 91, 219, 0.1);
-  border: 1px solid rgba(59, 91, 219, 0.25);
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.25);
   color: var(--success);
 }
 
@@ -2440,7 +2449,7 @@ body::after {
 }
 
 .evenement-paid {
-  background: rgba(59, 91, 219, 0.12);
+  background: rgba(14, 165, 233, 0.12);
   color: var(--success);
 }
 
@@ -2885,7 +2894,7 @@ body::after {
 .dette-type-badge.type-bavardage {
   background: var(--primary-light);
   color: var(--primary);
-  border-color: rgba(59, 91, 219, 0.15);
+  border-color: rgba(14, 165, 233, 0.15);
 }
 
 .dette-type-badge.type-sanctions {
@@ -2994,8 +3003,8 @@ body::after {
   flex-wrap: wrap;
   margin-bottom: 0.45rem;
   padding: 0.45rem 0.6rem;
-  background: rgba(59, 91, 219, 0.08);
-  border: 1px solid rgba(59, 91, 219, 0.2);
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px solid rgba(14, 165, 233, 0.2);
   border-radius: 10px;
 }
 
@@ -3010,8 +3019,8 @@ body::after {
   color: var(--success);
   margin: 0;
   padding: 0.4rem 0.55rem;
-  background: rgba(59, 91, 219, 0.1);
-  border: 1px solid rgba(59, 91, 219, 0.25);
+  background: rgba(14, 165, 233, 0.1);
+  border: 1px solid rgba(14, 165, 233, 0.25);
   border-radius: 10px;
 }
 
@@ -3565,7 +3574,7 @@ body::after {
 .btn-pret-yes {
   background: var(--success-light);
   color: var(--success);
-  border-color: rgba(59, 91, 219, 0.3);
+  border-color: rgba(14, 165, 233, 0.3);
   border-radius: var(--radius-btn);
 }
 
@@ -3797,7 +3806,7 @@ body::after {
   background: var(--primary);
   border-color: transparent;
   color: #ffffff;
-  box-shadow: 0 2px 8px rgba(59, 91, 219, 0.22);
+  box-shadow: 0 2px 8px rgba(14, 165, 233, 0.28);
 }
 
 .finance-subcontent {
