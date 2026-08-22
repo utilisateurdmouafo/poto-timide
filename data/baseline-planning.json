@@ -1,0 +1,375 @@
+{
+  "version": 2,
+  "source": "local-sqlite-push",
+  "description": "Planning et données figés depuis la base locale actuelle",
+  "exportedAt": "2026-08-22T17:35:39.477Z",
+  "poto-timide-members": [
+    {
+      "id": "default-1",
+      "name": "Boris",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    },
+    {
+      "id": "import-1782749338174-i5es01n",
+      "name": "Cedrick",
+      "createdAt": "2026-06-29T16:08:58.175Z"
+    },
+    {
+      "id": "default-2",
+      "name": "Dario",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    },
+    {
+      "id": "default-3",
+      "name": "David",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    },
+    {
+      "id": "default-4",
+      "name": "Donald",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    },
+    {
+      "id": "default-6",
+      "name": "Fabrice",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    },
+    {
+      "id": "default-7",
+      "name": "Ferlin",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    },
+    {
+      "id": "default-8",
+      "name": "Hugo",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    },
+    {
+      "id": "import-jordan-1786387876644",
+      "name": "Jordan",
+      "createdAt": "2026-08-10T18:51:16.644Z"
+    },
+    {
+      "id": "default-9",
+      "name": "Jp",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    },
+    {
+      "id": "default-11",
+      "name": "Prince",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    },
+    {
+      "id": "default-12",
+      "name": "Quentin",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    },
+    {
+      "id": "default-13",
+      "name": "Vitran",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    },
+    {
+      "id": "default-14",
+      "name": "William",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    },
+    {
+      "id": "default-15",
+      "name": "Yves",
+      "createdAt": "2025-01-18T00:00:00.000Z"
+    }
+  ],
+  "poto-timide-cotisations": {
+    "default-1": 100,
+    "import-1782749338174-i5es01n": 200,
+    "default-2": 100,
+    "default-3": 0,
+    "default-4": 250,
+    "default-6": 100,
+    "default-7": 200,
+    "default-8": 50,
+    "import-jordan-1786387876644": 200,
+    "default-9": 200,
+    "default-11": 0,
+    "default-12": 200,
+    "default-13": 100,
+    "default-14": 200,
+    "default-15": 200
+  },
+  "poto-timide-tournee": {
+    "years": {
+      "2026": {
+        "0": [
+          "default-2",
+          "default-6"
+        ],
+        "1": [
+          "import-1782749338174-i5es01n"
+        ],
+        "2": [
+          "default-9"
+        ],
+        "3": [
+          "default-4",
+          "import-jordan-1786387876644"
+        ],
+        "4": [
+          "default-3",
+          "default-11"
+        ],
+        "5": [
+          "default-1",
+          "default-13"
+        ],
+        "8": [
+          "default-7"
+        ],
+        "9": [
+          "default-15",
+          "default-8"
+        ],
+        "10": [
+          "default-14"
+        ],
+        "11": [
+          "default-12"
+        ],
+        "partners": {
+          "default-2": {
+            "0": "default-6"
+          },
+          "default-6": {
+            "0": "default-2"
+          },
+          "default-3": {
+            "4": "default-11"
+          },
+          "default-11": {
+            "4": "default-3"
+          },
+          "default-1": {
+            "5": "default-13"
+          },
+          "default-13": {
+            "5": "default-1"
+          }
+        },
+        "reception": {
+          "0": [
+            "default-2",
+            "default-6"
+          ],
+          "1": [
+            "import-1782749338174-i5es01n"
+          ],
+          "2": [
+            "default-9"
+          ],
+          "3": [
+            "default-4",
+            "import-jordan-1786387876644"
+          ],
+          "4": [
+            "default-3",
+            "default-11"
+          ],
+          "5": [
+            "default-1",
+            "default-13"
+          ],
+          "8": [
+            "default-7"
+          ],
+          "9": [
+            "default-15",
+            "default-8"
+          ],
+          "10": [
+            "default-14"
+          ],
+          "11": [
+            "default-12"
+          ]
+        },
+        "ristourne": {
+          "0": [
+            "default-2",
+            "default-6"
+          ],
+          "1": [
+            "import-1782749338174-i5es01n"
+          ],
+          "2": [
+            "default-9"
+          ],
+          "3": [
+            "import-jordan-1786387876644"
+          ],
+          "4": [
+            "default-4",
+            "default-8"
+          ],
+          "5": [
+            "default-1",
+            "default-13"
+          ],
+          "8": [
+            "default-7"
+          ],
+          "9": [
+            "default-15"
+          ],
+          "10": [
+            "default-14"
+          ],
+          "11": [
+            "default-12"
+          ]
+        }
+      },
+      "2027": {
+        "0": [
+          "default-2",
+          "default-6"
+        ],
+        "1": [
+          "import-1782749338174-i5es01n"
+        ],
+        "2": [
+          "default-9"
+        ],
+        "3": [
+          "default-4",
+          "import-jordan-1786387876644"
+        ],
+        "4": [
+          "default-3",
+          "default-11"
+        ],
+        "5": [
+          "default-1",
+          "default-13"
+        ],
+        "partners": {
+          "default-2": {
+            "0": "default-6"
+          },
+          "default-6": {
+            "0": "default-2"
+          },
+          "default-3": {
+            "4": "default-11"
+          },
+          "default-11": {
+            "4": "default-3"
+          },
+          "default-1": {
+            "5": "default-13"
+          },
+          "default-13": {
+            "5": "default-1"
+          }
+        },
+        "reception": {
+          "0": [
+            "default-2",
+            "default-6"
+          ],
+          "1": [
+            "import-1782749338174-i5es01n"
+          ],
+          "2": [
+            "default-9"
+          ],
+          "3": [
+            "default-4",
+            "import-jordan-1786387876644"
+          ],
+          "4": [
+            "default-3",
+            "default-11"
+          ],
+          "5": [
+            "default-1",
+            "default-13"
+          ]
+        },
+        "ristourne": {
+          "0": [
+            "default-2",
+            "default-6"
+          ],
+          "1": [
+            "import-1782749338174-i5es01n"
+          ],
+          "2": [
+            "default-9"
+          ],
+          "3": [
+            "import-jordan-1786387876644"
+          ],
+          "4": [
+            "default-4",
+            "default-8"
+          ],
+          "5": [
+            "default-1",
+            "default-13"
+          ]
+        }
+      }
+    }
+  },
+  "poto-timide-finance": {
+    "cleared": false,
+    "source": "planning-baseline-frozen",
+    "importedAt": null,
+    "cotisationTotal": 0,
+    "cotisations": [],
+    "cotisationMemberTotals": [],
+    "ancienneTournee": [],
+    "finances": {
+      "entries": [],
+      "exits": [],
+      "totalIn": 0,
+      "totalOut": 0,
+      "balance": 0
+    },
+    "amendesHistorique": {
+      "columns": [],
+      "rows": [],
+      "headers": []
+    },
+    "pretsHistorique": [],
+    "equipeExcel": [],
+    "planningFrozen": true,
+    "archivesResetAt": "2026-08-10T22:03:11.870Z"
+  },
+  "poto-timide-data-revision": 1787418296479,
+  "poto-timide-roles": {
+    "president": "default-14",
+    "vice-president": "default-2",
+    "tresorier": "default-12",
+    "charge-affaires": "default-9",
+    "censeur": "default-6",
+    "vice-tresorier": "import-1782749338174-i5es01n"
+  },
+  "poto-timide-admin-ids": [
+    "default-2"
+  ],
+  "poto-timide-tab-permissions": {
+    "amendes": [
+      "censeur",
+      "tresorier"
+    ],
+    "tournee": [],
+    "prets": [
+      "tresorier"
+    ],
+    "evenements": [
+      "tresorier"
+    ]
+  },
+  "poto-timide-fond-caisse": 1729
+}
