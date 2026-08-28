@@ -32,7 +32,6 @@ const STORAGE_KEYS = [
   "poto-timide-tab-permissions",
   "poto-timide-prets",
   "poto-timide-notifications",
-  "poto-timide-payment-signals",
   "poto-timide-evenements",
   "poto-timide-admin-ids",
   "poto-timide-autre-argent",

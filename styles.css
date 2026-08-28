@@ -5797,39 +5797,6 @@ textarea {
   }
 }
 
-.payment-signal-status {
-  width: 100%;
-  margin: 0.15rem 0 0.2rem;
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: var(--primary);
-}
-
-.payment-signal-paid {
-  color: var(--success);
-}
-
-.btn-payment-signal {
-  width: 100%;
-  margin-top: 0.35rem;
-}
-
-.payment-signal-actions {
-  flex-wrap: wrap;
-}
-
-.payment-signal-actions .btn-secondary,
-.payment-signal-actions .btn-primary {
-  flex: 1 1 100%;
-}
-
-@media (min-width: 640px) {
-  .payment-signal-actions .btn-secondary,
-  .payment-signal-actions .btn-primary {
-    flex: 1 1 auto;
-  }
-}
-
 @media (display-mode: standalone) {
   .install-banner#installBanner,
   .install-login-hint {
