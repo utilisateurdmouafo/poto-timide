@@ -5340,3 +5340,94 @@ textarea {
 .dette-pill.type-absence {
   color: var(--danger);
 }
+
+.install-login-hint {
+  margin: 0.15rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.install-banner {
+  position: fixed;
+  left: max(0.75rem, env(safe-area-inset-left));
+  right: max(0.75rem, env(safe-area-inset-right));
+  bottom: max(0.75rem, env(safe-area-inset-bottom));
+  z-index: 160;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.85rem 0.95rem;
+  background: #072033;
+  color: #f8fcff;
+  border: 1px solid rgba(103, 232, 249, 0.22);
+  border-radius: 18px;
+  box-shadow: 0 12px 32px rgba(7, 32, 51, 0.28);
+}
+
+.install-banner[hidden] {
+  display: none !important;
+}
+
+.install-banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.install-banner-text strong {
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.install-banner-text span {
+  font-size: 0.78rem;
+  color: rgba(226, 242, 254, 0.82);
+  line-height: 1.35;
+}
+
+.install-banner-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.install-banner-actions .btn-secondary {
+  background: transparent;
+  color: rgba(226, 242, 254, 0.9);
+  border-color: rgba(255, 255, 255, 0.18);
+  padding: 0.45rem 0.7rem;
+  min-height: 40px;
+}
+
+.install-banner-actions .btn-primary {
+  padding: 0.45rem 0.85rem;
+  min-height: 40px;
+}
+
+@media (max-width: 640px) {
+  .install-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .install-banner-actions {
+    width: 100%;
+  }
+
+  .install-banner-actions .btn-secondary,
+  .install-banner-actions .btn-primary {
+    flex: 1;
+  }
+}
+
+@media (display-mode: standalone) {
+  .install-banner,
+  .install-login-hint {
+    display: none !important;
+  }
+}

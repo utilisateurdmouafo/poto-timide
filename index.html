@@ -4,13 +4,18 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#072033" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Poto Timide" />
   <title>Poto Timide</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/assets/icons/icon-192.png" type="image/png" sizes="192x192" />
+  <link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=head-5" />
+  <link rel="stylesheet" href="styles.css?v=pwa-1" />
 </head>
 <body>
   <div class="app" id="app">
@@ -741,6 +746,7 @@
         <div class="modal-actions">
           <button type="submit" class="btn-primary">Se connecter</button>
         </div>
+        <p class="install-login-hint" id="installLoginHint" hidden></p>
       </form>
     </div>
   </div>
@@ -788,7 +794,18 @@
     </div>
   </div>
 
+  <div class="install-banner" id="installBanner" hidden>
+    <div class="install-banner-text">
+      <strong>Installer l'application</strong>
+      <span id="installBannerDesc">Ajoute Poto Timide à l'écran d'accueil.</span>
+    </div>
+    <div class="install-banner-actions">
+      <button type="button" class="btn-secondary" id="installDismissBtn">Plus tard</button>
+      <button type="button" class="btn-primary" id="installAppBtn">Installer</button>
+    </div>
+  </div>
+
   <script src="api-client.js?v=online-1"></script>
-  <script src="app.js?v=online-1"></script>
+  <script src="app.js?v=pwa-1"></script>
 </body>
 </html>

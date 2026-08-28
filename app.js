@@ -2549,6 +2549,7 @@ async function loginMember(name, password) {
 
     updateSessionUI();
     render();
+    maybeShowInstallBanner();
     return true;
   } catch (err) {
     loginError.textContent = err.message || "Identifiant ou mot de passe incorrect.";
@@ -7480,6 +7481,7 @@ async function restoreLoggedInApp() {
     appEl.classList.remove("app-blurred");
   }
   updateSessionUI();
+  maybeShowInstallBanner();
 }
 
 async function initApp() {
@@ -7534,6 +7536,83 @@ async function initApp() {
   render();
   updatePretTabBadge();
   showTab(getSavedTab());
+  setupPwaInstall();
+}
+
+const INSTALL_DISMISS_KEY = "poto-install-dismissed";
+let deferredPwaPrompt = null;
+
+function isPwaStandalone() {
+  return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
+function isIosDevice() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function maybeShowInstallBanner() {
+  const banner = document.getElementById("installBanner");
+  if (!banner || isPwaStandalone()) return;
+  if (localStorage.getItem(INSTALL_DISMISS_KEY) === "1") return;
+  if (loginModal?.classList.contains("open")) return;
+  if (!deferredPwaPrompt && !isIosDevice()) return;
+  banner.hidden = false;
+}
+
+function hideInstallBanner(persist) {
+  const banner = document.getElementById("installBanner");
+  if (banner) banner.hidden = true;
+  if (persist) localStorage.setItem(INSTALL_DISMISS_KEY, "1");
+}
+
+function setupPwaInstall() {
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(() => {});
+  }
+
+  const desc = document.getElementById("installBannerDesc");
+  const installBtn = document.getElementById("installAppBtn");
+  const dismissBtn = document.getElementById("installDismissBtn");
+  const loginHint = document.getElementById("installLoginHint");
+
+  if (isPwaStandalone()) return;
+
+  if (isIosDevice() && loginHint) {
+    loginHint.hidden = false;
+    loginHint.textContent = "Astuce iPhone : bouton Partager, puis « Sur l’écran d’accueil ».";
+  }
+
+  if (isIosDevice()) {
+    if (desc) desc.textContent = "iPhone : Partager → Sur l’écran d’accueil.";
+    if (installBtn) installBtn.textContent = "OK";
+    if (dismissBtn) dismissBtn.hidden = true;
+  }
+
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    deferredPwaPrompt = event;
+    maybeShowInstallBanner();
+  });
+
+  window.addEventListener("appinstalled", () => {
+    hideInstallBanner(true);
+  });
+
+  installBtn?.addEventListener("click", async () => {
+    if (deferredPwaPrompt) {
+      deferredPwaPrompt.prompt();
+      const choice = await deferredPwaPrompt.userChoice.catch(() => null);
+      deferredPwaPrompt = null;
+      if (choice?.outcome === "accepted") hideInstallBanner(true);
+      return;
+    }
+    if (isIosDevice()) {
+      hideInstallBanner(true);
+    }
+  });
+
+  dismissBtn?.addEventListener("click", () => hideInstallBanner(true));
+  maybeShowInstallBanner();
 }
 
 initApp();

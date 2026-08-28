@@ -897,6 +897,10 @@ function createApp() {
         if (/\.(html|js|css)$/i.test(filePath)) {
           res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
         }
+        if (/\.webmanifest$/i.test(filePath)) {
+          res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        }
       },
     })
   );
