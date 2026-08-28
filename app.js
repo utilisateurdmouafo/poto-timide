@@ -7476,6 +7476,13 @@ function canPublishCommunication() {
   return hasRoleTabAccess("communication");
 }
 
+function canManageCommunicationPost(post) {
+  if (!post || !canPublishCommunication()) return false;
+  if (isGroupAdmin()) return true;
+  const current = getCurrentMember();
+  return Boolean(current && post.createdBy === current.id);
+}
+
 function getCommunicationPostsForKind(kindId) {
   return communicationPosts
     .filter((post) => post.kind === kindId)
@@ -7501,9 +7508,7 @@ function renderCommunicationComposer() {
   const kind = getCommunicationKind(activeCommunicationSub);
   const canPublish = canPublishCommunication();
   if (communicationComposer) communicationComposer.hidden = !canPublish;
-  if (communicationLockMsg) {
-    communicationLockMsg.hidden = canPublish || !isLoggedIn();
-  }
+  if (communicationLockMsg) communicationLockMsg.hidden = true;
   if (communicationComposerTitle) {
     communicationComposerTitle.textContent = editingCommunicationId
       ? `Modifier ce ${kind.singular}`
@@ -7520,7 +7525,6 @@ function renderCommunicationList() {
   if (!communicationList) return;
   const kind = getCommunicationKind(activeCommunicationSub);
   const posts = getCommunicationPostsForKind(kind.id);
-  const canPublish = canPublishCommunication();
   if (!posts.length) {
     communicationList.innerHTML = `<p class="communication-empty">Aucun ${escapeHtml(kind.singular)} publié pour le moment.</p>`;
     return;
@@ -7537,7 +7541,7 @@ function renderCommunicationList() {
           </div>
           <div class="communication-card-body">${escapeHtml(post.body)}</div>
           ${
-            canPublish
+            canManageCommunicationPost(post)
               ? `<div class="communication-card-actions">
                   <button type="button" class="btn-secondary btn-comm-edit" data-id="${escapeHtml(post.id)}">Modifier</button>
                   <button type="button" class="btn-secondary btn-comm-delete" data-id="${escapeHtml(post.id)}">Supprimer</button>
@@ -7573,7 +7577,7 @@ function publishCommunication() {
   const wasEdit = Boolean(editingCommunicationId);
   if (editingCommunicationId) {
     const post = communicationPosts.find((item) => item.id === editingCommunicationId);
-    if (!post) return;
+    if (!canManageCommunicationPost(post)) return;
     post.title = title;
     post.body = body;
     post.updatedAt = now;
@@ -7601,9 +7605,8 @@ function publishCommunication() {
 }
 
 function startEditCommunication(id) {
-  if (!canPublishCommunication()) return;
   const post = communicationPosts.find((item) => item.id === id);
-  if (!post) return;
+  if (!canManageCommunicationPost(post)) return;
   activeCommunicationSub = post.kind;
   editingCommunicationId = id;
   if (communicationTitleInput) communicationTitleInput.value = post.title || "";
@@ -7615,9 +7618,11 @@ function startEditCommunication(id) {
 }
 
 async function deleteCommunication(id) {
-  if (!canPublishCommunication()) return;
   const post = communicationPosts.find((item) => item.id === id);
-  if (!post) return;
+  if (!canManageCommunicationPost(post)) {
+    alert("Tu peux supprimer uniquement tes propres publications.");
+    return;
+  }
   if (!(await appConfirm(`Supprimer « ${post.title} » ?`))) return;
   communicationPosts = communicationPosts.filter((item) => item.id !== id);
   if (editingCommunicationId === id) cancelEditCommunication();
