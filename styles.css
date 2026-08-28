@@ -5487,84 +5487,207 @@ textarea {
   color: var(--text-muted);
 }
 
-.amende-excel-total {
+.amende-excel-workbook {
+  --excel-green: #217346;
+  --excel-header: #548235;
+  --excel-header-border: #375623;
+  --excel-stripe: #e2efda;
+  --excel-total: #c6efce;
+  --excel-grid: #d0d0d0;
+  --excel-head-grid: #b1b1b1;
+  --excel-red: #9c0006;
+  --excel-paid: #006100;
+  --excel-open: #9c5700;
+  margin: 0;
+  border: 1px solid var(--excel-green);
+  background: #f3f3f3;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
+  font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif;
+  overflow: hidden;
+}
+
+.amende-excel-tabbar {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
-  margin: 0 0 1rem;
-  padding: 0.95rem 1.1rem;
-  background: linear-gradient(135deg, #e0f2fe 0%, #ffffff 62%);
-  border: 1px solid var(--border-strong);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-soft);
+  align-items: flex-end;
+  min-height: 2.1rem;
+  padding: 0.35rem 0.45rem 0;
+  background: var(--excel-green);
 }
 
-.amende-excel-total span {
-  font-size: 0.92rem;
+.amende-excel-sheet-tab {
+  display: inline-block;
+  padding: 0.35rem 1rem 0.3rem;
+  border-radius: 4px 4px 0 0;
+  background: #fff;
+  color: var(--excel-green);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.amende-excel-formula {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.4rem 0.55rem;
+  background: #fff;
+  border-bottom: 1px solid #c6c6c6;
+  color: #000;
+}
+
+.amende-excel-fx {
+  flex: 0 0 auto;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid #c6c6c6;
+  color: var(--excel-green);
+  font-style: italic;
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
+.amende-excel-formula-text {
+  color: #595959;
+  font-size: 0.84rem;
   font-weight: 600;
-  color: var(--text-muted);
 }
 
-.amende-excel-total strong {
-  font-family: var(--font-display);
-  font-size: clamp(1.4rem, 4vw, 1.85rem);
-  font-weight: 800;
-  letter-spacing: -0.03em;
-  color: var(--danger);
+.amende-excel-formula strong {
+  margin-left: auto;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--excel-red);
+  font-variant-numeric: tabular-nums;
+}
+
+.amende-excel-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  background: #fff;
 }
 
 .amende-excel-table {
   width: 100%;
+  min-width: 38rem;
   border-collapse: collapse;
-  font-size: 0.9rem;
-  background: #ffffff;
-  overflow: hidden;
-  border-radius: 10px;
+  table-layout: auto;
+  font-size: 13px;
+  color: #000;
+  background: #fff;
 }
 
 .amende-excel-table th,
 .amende-excel-table td {
-  border: 1px solid var(--border);
-  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--excel-grid);
+  padding: 0.38rem 0.55rem;
   text-align: left;
   vertical-align: middle;
-}
-
-.amende-excel-table th {
-  background: var(--bg-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--text-muted);
+  color: #000;
+  background: #fff;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
-.amende-excel-table tbody tr:nth-child(even) {
-  background: var(--ice);
+.amende-excel-table .excel-letters th {
+  background: #e6e6e6;
+  color: #666;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+  padding: 0.12rem 0.4rem;
+  border-color: var(--excel-head-grid);
 }
 
-.amende-excel-table tbody tr:hover {
-  background: var(--primary-light);
+.amende-excel-table .excel-header th {
+  background: var(--excel-header);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  border-color: var(--excel-header-border);
+}
+
+.amende-excel-table .excel-header th.num {
+  text-align: right;
+  color: #fff;
+}
+
+.amende-excel-table .excel-corner,
+.amende-excel-table .excel-row-num {
+  width: 2.1rem;
+  min-width: 2.1rem;
+  background: #e6e6e6;
+  color: #666;
+  text-align: center;
+  font-weight: 600;
+  border-color: var(--excel-head-grid);
+}
+
+.amende-excel-table tbody tr:nth-child(even) td:not(.excel-row-num) {
+  background: var(--excel-stripe);
+}
+
+.amende-excel-table tbody tr:hover td:not(.excel-row-num) {
+  background: #fff2cc;
+}
+
+.amende-excel-table tbody tr.is-settled td:not(.excel-row-num) {
+  background: var(--excel-total);
 }
 
 .amende-excel-table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  font-weight: 400;
+  color: #000;
+}
+
+.amende-excel-table .num-paid {
+  color: var(--excel-paid);
   font-weight: 700;
-  color: var(--danger);
 }
 
-.amende-excel-table tfoot td {
-  background: var(--bg-muted);
-  font-weight: 800;
-  color: var(--text);
+.amende-excel-table .num-remain {
+  color: var(--excel-red);
+  font-weight: 700;
 }
 
-.amende-excel-table tfoot .num {
-  color: var(--danger);
+.amende-excel-table .num-remain.is-zero {
+  color: var(--excel-paid);
+}
+
+.amende-excel-table .excel-status-open {
+  color: var(--excel-open);
+  font-weight: 700;
+}
+
+.amende-excel-table .excel-status-paid {
+  color: var(--excel-paid);
+  font-weight: 700;
+}
+
+.amende-excel-table tfoot td,
+.amende-excel-table tfoot th {
+  background: var(--excel-total);
+  color: #000;
+  font-weight: 700;
+  border-color: var(--excel-header);
+}
+
+.amende-excel-table tfoot .num-remain {
+  color: var(--excel-red);
+}
+
+.amende-excel-table .empty-cell {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  white-space: normal;
+}
+
+.amende-excel-table td:nth-child(4) {
+  white-space: normal;
+  min-width: 7.5rem;
 }
 
 .payment-signal-status {

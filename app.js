@@ -3315,6 +3315,15 @@ function formatEuro(amount) {
   }).format(amount);
 }
 
+function formatExcelEuro(amount) {
+  return new Intl.NumberFormat("fr-FR", {
+    style: "currency",
+    currency: "EUR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(amount) || 0);
+}
+
 function getCotisationSource() {
   if (canEditTourneePlanning()) return cotisationsDraft;
   cotisations = loadCotisations();
@@ -4225,30 +4234,104 @@ function renderDebtDashboard(target, items, emptyMeta, chipBuilder) {
   `;
 }
 
-function renderAmendeTable(amendesList) {
+function getAmendeDetailText(amende) {
+  const copy = getDetteCardCopy(amende);
+  const typeLabel = getAmendeTypeLabel(amende.type);
+  if (copy.title && copy.title !== typeLabel) return copy.title;
+  return String(amende.note || "").trim() || "—";
+}
+
+function buildMesAmendesRows(memberId) {
+  const open = getRegularAmendes(getAmendesForMember(memberId));
+  const openIds = new Set(open.map((amende) => amende.id));
+  const rows = open.map((amende) => {
+    const remaining = Math.round((Number(amende.amount) || 0) * 100) / 100;
+    const repaid = Math.round((Number(amende.repaidAmount) || 0) * 100) / 100;
+    const original = Math.round(
+      (Number(amende.originalAmount) || remaining + repaid) * 100
+    ) / 100;
+    return {
+      id: amende.id,
+      date: amende.date,
+      type: amende.type,
+      detail: getAmendeDetailText(amende),
+      original,
+      repaid,
+      remaining,
+      settled: remaining <= 0,
+      sortAt: amende.settledAt || amende.date,
+    };
+  });
+
+  const paidGroups = new Map();
+  amendesCaisse
+    .filter((entry) => entry.memberId === memberId && entry.type !== "dette")
+    .forEach((entry) => {
+      const key = entry.sourceAmendeId || `caisse-${entry.id}`;
+      if (entry.sourceAmendeId && openIds.has(entry.sourceAmendeId)) return;
+      if (!paidGroups.has(key)) paidGroups.set(key, []);
+      paidGroups.get(key).push(entry);
+    });
+
+  paidGroups.forEach((entries, key) => {
+    const repaid = Math.round(
+      entries.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0) * 100
+    ) / 100;
+    const chronological = [...entries].sort(
+      (a, b) => new Date(a.paidAt || 0) - new Date(b.paidAt || 0)
+    );
+    const first = chronological[0];
+    const last = chronological[chronological.length - 1];
+    rows.push({
+      id: key,
+      date: first?.paidAt || last?.paidAt,
+      type: last?.type || "sanctions",
+      detail: last?.note || getAmendeTypeLabel(last?.type),
+      original: repaid,
+      repaid,
+      remaining: 0,
+      settled: true,
+      sortAt: last?.paidAt,
+    });
+  });
+
+  rows.sort((a, b) => {
+    if (a.settled !== b.settled) return a.settled ? 1 : -1;
+    return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+  });
+  return rows;
+}
+
+function renderAmendeTable(rows) {
   if (!amendeBody) return;
   const foot = document.getElementById("amendeTableFoot");
-  const total = amendesList.reduce((sum, amende) => sum + (Number(amende.amount) || 0), 0);
+  const remainingTotal = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
+  const repaidTotal = rows.reduce((sum, row) => sum + (Number(row.repaid) || 0), 0);
+  const originalTotal = rows.reduce((sum, row) => sum + (Number(row.original) || 0), 0);
 
   if (amendeRegularWrap) amendeRegularWrap.hidden = false;
 
-  if (!amendesList.length) {
-    amendeBody.innerHTML = `<tr><td colspan="5" class="empty-cell">Aucune amende en cours.</td></tr>`;
+  if (!rows.length) {
+    amendeBody.innerHTML = `<tr><td class="excel-row-num"></td><td colspan="7" class="empty-cell">Aucune amende pour le moment.</td></tr>`;
     if (foot) foot.innerHTML = "";
     return;
   }
 
-  amendeBody.innerHTML = amendesList
-    .map((amende) => {
-      const repaid = Number(amende.repaidAmount) || 0;
-      const copy = getDetteCardCopy(amende);
+  amendeBody.innerHTML = rows
+    .map((row, index) => {
+      const repaid = Number(row.repaid) || 0;
+      const remaining = Number(row.remaining) || 0;
+      const original = Number(row.original) || remaining + repaid;
       return `
-        <tr id="amende-${escapeHtml(amende.id)}">
-          <td>${escapeHtml(formatFriendlyDate(amende.date))}</td>
-          <td>${escapeHtml(getAmendeTypeLabel(amende.type))}</td>
-          <td>${escapeHtml(copy.title && copy.title !== getAmendeTypeLabel(amende.type) ? copy.title : amende.note || "—")}</td>
-          <td class="num">${repaid > 0 ? formatEuro(repaid) : "—"}</td>
-          <td class="num">${formatEuro(amende.amount)}</td>
+        <tr id="amende-${escapeHtml(row.id)}" class="${row.settled ? "is-settled" : ""}">
+          <th class="excel-row-num" scope="row">${index + 1}</th>
+          <td>${escapeHtml(formatFriendlyDate(row.date))}</td>
+          <td>${escapeHtml(getAmendeTypeLabel(row.type))}</td>
+          <td>${escapeHtml(row.detail || "—")}</td>
+          <td class="num">${formatExcelEuro(original)}</td>
+          <td class="num ${repaid > 0 ? "num-paid" : ""}">${repaid > 0 ? formatExcelEuro(repaid) : "—"}</td>
+          <td class="num num-remain ${remaining <= 0 ? "is-zero" : ""}">${formatExcelEuro(remaining)}</td>
+          <td class="${row.settled ? "excel-status-paid" : "excel-status-open"}">${row.settled ? "Soldée" : "En cours"}</td>
         </tr>`;
     })
     .join("");
@@ -4256,8 +4339,12 @@ function renderAmendeTable(amendesList) {
   if (foot) {
     foot.innerHTML = `
       <tr>
-        <td colspan="4">Total</td>
-        <td class="num">${formatEuro(total)}</td>
+        <th class="excel-row-num" scope="row"></th>
+        <td colspan="3">Total</td>
+        <td class="num">${formatExcelEuro(originalTotal)}</td>
+        <td class="num num-paid">${formatExcelEuro(repaidTotal)}</td>
+        <td class="num num-remain">${formatExcelEuro(remainingTotal)}</td>
+        <td></td>
       </tr>`;
   }
 }
@@ -4294,19 +4381,20 @@ function renderMesDettes() {
 function renderMesAmendes() {
   const current = getCurrentMember();
   if (!current) return;
-  const regularAmendes = getRegularAmendes(getAmendesForMember(current.id));
-  const total = regularAmendes.reduce((sum, amende) => sum + (Number(amende.amount) || 0), 0);
+  const rows = buildMesAmendesRows(current.id);
+  const total = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
   if (amendeTitle) amendeTitle.textContent = "Mes amendes";
   if (amendeSubtitle) {
     amendeSubtitle.hidden = false;
     amendeSubtitle.textContent = `Pour ${current.name} — consultation uniquement.`;
   }
   if (amendeSummary) {
-    amendeSummary.innerHTML = total > 0
-      ? `<span>Total à régler</span><strong>${formatEuro(total)}</strong>`
-      : `<span>Total à régler</span><strong>0 €</strong>`;
+    amendeSummary.innerHTML = `
+      <span class="amende-excel-fx">fx</span>
+      <span class="amende-excel-formula-text">=SOMME(Reste à régler)</span>
+      <strong>${formatExcelEuro(total)}</strong>`;
   }
-  renderAmendeTable(regularAmendes);
+  renderAmendeTable(rows);
 }
 
 function renderAmendes() {
@@ -4337,6 +4425,8 @@ function addAmende(memberId, type, amount, note) {
     memberId,
     type,
     amount: parsedAmount,
+    originalAmount: parsedAmount,
+    repaidAmount: 0,
     note: note.trim(),
     date: new Date().toISOString(),
   });
@@ -4469,12 +4559,18 @@ async function repayAmende(id, amountValue) {
     creditAmendeToCaisse({ ...amende, amount: payAmount });
   }
 
-  if (isFull) {
+  if (!amende.originalAmount) {
+    amende.originalAmount = Math.round((remaining + (Number(amende.repaidAmount) || 0)) * 100) / 100;
+  }
+  amende.repaidAmount = Math.round(((Number(amende.repaidAmount) || 0) + payAmount) * 100) / 100;
+  if (isFull && isDetteAmende(amende)) {
     amendes = amendes.filter((item) => item.id !== id);
+  } else if (isFull) {
+    amende.amount = 0;
+    amende.settledAt = new Date().toISOString();
   } else {
-    amende.originalAmount = Number(amende.originalAmount) || remaining;
-    amende.repaidAmount = Math.round(((Number(amende.repaidAmount) || 0) + payAmount) * 100) / 100;
     amende.amount = nextRemaining;
+    delete amende.settledAt;
   }
 
   saveAmendes();
@@ -4549,14 +4645,27 @@ async function undoAmendePayment(caisseId) {
     return;
   }
 
-  amendes.unshift({
-    id: entry.sourceAmendeId || generateId(),
-    memberId: entry.memberId,
-    type: entry.type || "sanctions",
-    amount: Number(entry.amount) || 0,
-    note: entry.note || "",
-    date: entry.paidAt || new Date().toISOString(),
-  });
+  const existing = entry.sourceAmendeId ? getAmendeById(entry.sourceAmendeId) : null;
+  const restoredAmount = Number(entry.amount) || 0;
+  if (existing) {
+    existing.amount = Math.round(((Number(existing.amount) || 0) + restoredAmount) * 100) / 100;
+    existing.repaidAmount = Math.max(
+      0,
+      Math.round(((Number(existing.repaidAmount) || 0) - restoredAmount) * 100) / 100
+    );
+    delete existing.settledAt;
+  } else {
+    amendes.unshift({
+      id: entry.sourceAmendeId || generateId(),
+      memberId: entry.memberId,
+      type: entry.type || "sanctions",
+      amount: restoredAmount,
+      originalAmount: restoredAmount,
+      repaidAmount: 0,
+      note: entry.note || "",
+      date: entry.paidAt || new Date().toISOString(),
+    });
+  }
 
   amendesCaisse = amendesCaisse.filter((item) => item.id !== caisseId);
   saveAmendesCaisse();
@@ -4582,7 +4691,9 @@ function renderAmendesAdminHistory() {
     return;
   }
 
-  const openList = [...amendes].sort((a, b) => new Date(b.date) - new Date(a.date));
+  const openList = amendes
+    .filter((amende) => (Number(amende.amount) || 0) > 0)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
   const paidList = [...amendesCaisse].sort(
     (a, b) => new Date(b.paidAt || 0) - new Date(a.paidAt || 0)
   );
