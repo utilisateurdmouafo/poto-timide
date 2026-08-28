@@ -46,4 +46,18 @@ PORT=8080
 NODE_ENV=development
 SESSION_SECRET=poto-local-dev-secret
 POTO_OWNER_NAME=Dario
+TURSO_DATABASE_URL=libsql://...
+TURSO_AUTH_TOKEN=...
 ```
+
+## Base de données et changement d'hébergeur
+
+Les données du groupe (membres, cotisations, tournée, amendes, prêts, communication, comptes, notifications) sont dans **Turso** en production, pas sur le disque de Render.
+
+Pour publier le site sur un domaine / un autre hébergeur :
+
+1. Déployer le même code.
+2. Reprendre les variables `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN`, `SESSION_SECRET` (et les clés VAPID si elles sont dans l'environnement).
+3. Tout le contenu est déjà dans la base.
+
+Admin > **Sauvegarde** permet aussi de télécharger un fichier JSON complet (données + comptes) et de le restaurer sur un nouveau serveur.

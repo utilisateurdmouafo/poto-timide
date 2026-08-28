@@ -90,7 +90,7 @@ const FINANCE_SUBTABS = ["caisse", "archives"];
 const FINANCE_LIVE_DETTE_SUB = "dettes-amendes";
 const FINANCE_CAISSE_SUB = "caisse";
 const FINANCE_ARCHIVES_SUB = "archives";
-const ADMIN_SUBTABS = ["membres", "bureau", "admins", "acces", "tournee", "ancienne-tournee", "caisse", "prets", "amendes", "evenements", "communication"];
+const ADMIN_SUBTABS = ["membres", "bureau", "admins", "acces", "tournee", "ancienne-tournee", "caisse", "prets", "amendes", "evenements", "communication", "sauvegarde"];
 const ADMIN_SUBTAB_KEY = "poto-timide-admin-subtab";
 // Compat anciens noms de stockage
 const GESTION_SUBTAB_KEY = ADMIN_SUBTAB_KEY;
@@ -2292,7 +2292,7 @@ function hasRoleTabAccess(tabId) {
 
 function canAccessAdminSub(subId) {
   if (isGroupAdmin()) return true;
-  if (subId === "admins" || subId === "acces") return false;
+  if (subId === "admins" || subId === "acces" || subId === "sauvegarde") return false;
   if (subId === "caisse") return isFinancierPoste() || hasRoleTabAccess("caisse");
   if (subId === "ancienne-tournee") return isFinancierPoste() || hasRoleTabAccess("ancienne-tournee");
   if (subId === "prets") return isFinancierPoste() || hasRoleTabAccess("prets");
@@ -2419,6 +2419,9 @@ function showAdminSub(subId) {
     activeCommunicationSub = "communique";
     renderCommunication();
     focusCommunicationCursor();
+  }
+  if (subId === "sauvegarde") {
+    loadBackupPanel();
   }
   highlightNotificationItem();
 }
@@ -8479,6 +8482,169 @@ document.getElementById("adminSub-ancienne-tournee")?.addEventListener("click", 
 document.getElementById("tab-dettes")?.addEventListener("click", handleAncienneTourneeActionClick);
 document.getElementById("adminSub-ancienne-tournee")?.addEventListener("keydown", handleAncienneTourneeKeydown);
 document.getElementById("tab-dettes")?.addEventListener("keydown", handleAncienneTourneeKeydown);
+
+const BACKUP_KEY_LABELS = {
+  members: "Membres",
+  roles: "Bureau",
+  cotisations: "Cotisations",
+  tournee: "Tournée",
+  amendes: "Amendes",
+  "amendes-caisse": "Caisse amendes",
+  "tab-permissions": "Accès",
+  prets: "Prêts",
+  notifications: "Notifications",
+  evenements: "Événements",
+  communication: "Communication",
+  "admin-ids": "Administrateurs",
+  "autre-argent": "Autre argent",
+  "ancienne-tournee-dettes": "Dettes ancienne tournée",
+  finance: "Finance",
+  "fond-caisse": "Fond de caisse",
+  "fond-caisse-annuel": "Fond annuel",
+  "financier-account": "Compte financier",
+  "data-revision": "Révision",
+};
+
+function showBackupMessage(text, isError = false) {
+  const el = document.getElementById("backupSaveMsg");
+  if (!el) return;
+  el.hidden = !text;
+  el.textContent = text || "";
+  el.classList.toggle("save-msg-success", Boolean(text) && !isError);
+  el.classList.toggle("save-msg-error", Boolean(isError));
+}
+
+async function fetchBackupJson(url, options = {}) {
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    ...options,
+  });
+  let body = null;
+  try {
+    body = await res.json();
+  } catch {
+    body = null;
+  }
+  if (!res.ok) {
+    throw new Error(body?.error || `Erreur ${res.status}`);
+  }
+  return body;
+}
+
+async function loadBackupPanel() {
+  const card = document.getElementById("backupStatusCard");
+  const list = document.getElementById("backupKeysList");
+  showBackupMessage("");
+  if (card) card.innerHTML = `<p class="backup-status-loading">Lecture de la base…</p>`;
+  if (list) list.innerHTML = "";
+
+  try {
+    const status = await fetchBackupJson("/api/admin/db-status");
+    const hostNote = status.independentOfHost
+      ? "Les données sont dans Turso (cloud), indépendantes de Render. Pour publier sur un domaine, reconnectez TURSO_DATABASE_URL et TURSO_AUTH_TOKEN sur le nouveau serveur."
+      : "Les données sont dans le fichier SQLite local. Téléchargez une sauvegarde complète avant de changer d'hébergeur, puis restaurez-la sur le nouveau serveur.";
+
+    if (card) {
+      card.innerHTML = `
+        <p class="backup-status-kicker">${status.independentOfHost ? "Base cloud prête" : "Base locale"}</p>
+        <h3>${status.label || "Base de données"}</h3>
+        <p class="backup-status-copy">${hostNote}</p>
+        <ul class="backup-status-stats">
+          <li><strong>${status.memberCount}</strong> membres</li>
+          <li><strong>${status.userCount}</strong> comptes</li>
+          <li><strong>${status.keyCount}/${status.keyTotal}</strong> jeux de données</li>
+          <li><strong>${status.pushCount}</strong> notifications push</li>
+        </ul>
+      `;
+    }
+
+    if (list) {
+      list.innerHTML = (status.keys || [])
+        .map((item) => {
+          const label = BACKUP_KEY_LABELS[item.key] || item.key;
+          const state = item.present ? `${item.items} enreg.` : "manquant";
+          return `<div class="backup-key-row ${item.present ? "is-present" : "is-missing"}">
+            <span>${label}</span>
+            <strong>${state}</strong>
+          </div>`;
+        })
+        .join("");
+    }
+  } catch (err) {
+    if (card) {
+      card.innerHTML = `<p class="backup-status-copy">Impossible de lire la base : ${err.message}</p>`;
+    }
+  }
+}
+
+async function downloadFullBackup() {
+  showBackupMessage("");
+  try {
+    const dump = await fetchBackupJson("/api/admin/export");
+    const stamp = String(dump.exportedAt || "").slice(0, 10) || "export";
+    const blob = new Blob([JSON.stringify(dump, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `poto-timide-sauvegarde-${stamp}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    showBackupMessage("Sauvegarde téléchargée. Gardez ce fichier hors ligne avant de changer d'hébergeur.");
+  } catch (err) {
+    showBackupMessage(err.message || "Téléchargement impossible.", true);
+  }
+}
+
+async function restoreFullBackupFromFile(file) {
+  if (!file) return;
+  showBackupMessage("");
+
+  let dump;
+  try {
+    dump = JSON.parse(await file.text());
+  } catch {
+    showBackupMessage("Fichier illisible. Choisissez une sauvegarde Poto Timide (.json).", true);
+    return;
+  }
+
+  if (dump?.kind !== "poto-timide-full-dump") {
+    showBackupMessage("Ce fichier n'est pas une sauvegarde Poto Timide.", true);
+    return;
+  }
+
+  const confirmed = await appConfirm(
+    "Cette restauration remplace les données actuelles par le fichier choisi (membres, tournée, amendes, prêts, communication, comptes). Continuer ?",
+    "Restaurer la sauvegarde"
+  );
+  if (!confirmed) return;
+
+  try {
+    const result = await fetchBackupJson("/api/admin/import", {
+      method: "POST",
+      body: JSON.stringify({ confirm: "RESTAURER", dump }),
+    });
+    await appAlert(
+      `Restauration enregistrée : ${result.keys} jeux de données, ${result.users} comptes. La page se recharge depuis la base.`,
+      "Sauvegarde restaurée"
+    );
+    window.location.reload();
+  } catch (err) {
+    showBackupMessage(err.message || "Restauration impossible.", true);
+  }
+}
+
+document.getElementById("backupDownloadBtn")?.addEventListener("click", () => {
+  downloadFullBackup();
+});
+
+document.getElementById("backupImportInput")?.addEventListener("change", (e) => {
+  const file = e.target.files?.[0];
+  e.target.value = "";
+  restoreFullBackupFromFile(file);
+});
 
 autreArgentForm?.addEventListener("submit", (e) => {
   e.preventDefault();

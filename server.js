@@ -4,6 +4,7 @@ const express = require("express");
 const session = require("express-session");
 const SessionStore = session.Store;
 const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
 const db = require("./lib/db");
@@ -43,6 +44,47 @@ const STORAGE_KEYS = [
   "poto-timide-financier-account",
   "poto-timide-data-revision",
 ];
+
+const DUMP_KIND = "poto-timide-full-dump";
+const DUMP_VERSION = 1;
+const VAPID_STORE_KEY = push.VAPID_STORE_KEY || "poto-timide-vapid";
+const IMPORT_CONFIRM_WORD = "RESTAURER";
+
+const DEFAULT_TAB_PERMISSIONS = {
+  membres: [],
+  bureau: [],
+  tournee: [],
+  "ancienne-tournee": ["tresorier"],
+  caisse: ["tresorier"],
+  prets: ["tresorier"],
+  amendes: ["censeur", "tresorier"],
+  evenements: ["tresorier"],
+  communication: ["president", "vice-president"],
+};
+
+const DEFAULT_FINANCIER_ACCOUNT = {
+  iban: "BE76063676212495",
+  holder: "Quenton Fozing",
+  bank: "ING",
+};
+
+const EMPTY_APP_DEFAULTS = {
+  "poto-timide-roles": {},
+  "poto-timide-cotisations": {},
+  "poto-timide-tournee": { years: {} },
+  "poto-timide-amendes": [],
+  "poto-timide-amendes-caisse": [],
+  "poto-timide-tab-permissions": DEFAULT_TAB_PERMISSIONS,
+  "poto-timide-prets": [],
+  "poto-timide-notifications": [],
+  "poto-timide-evenements": [],
+  "poto-timide-communication": [],
+  "poto-timide-autre-argent": [],
+  "poto-timide-ancienne-tournee-dettes": [],
+  "poto-timide-fond-caisse": 0,
+  "poto-timide-fond-caisse-annuel": {},
+  "poto-timide-financier-account": DEFAULT_FINANCIER_ACCOUNT,
+};
 
 const MEMBERS_KEY = "poto-timide-members";
 const ADMIN_IDS_KEY = "poto-timide-admin-ids";
@@ -193,6 +235,201 @@ async function setData(key, value) {
     [key, JSON.stringify(value)]
   );
   backupDatabase().catch(() => {});
+}
+
+function countStoredItems(value) {
+  if (value === null || value === undefined) return 0;
+  if (Array.isArray(value)) return value.length;
+  if (typeof value === "object") return Object.keys(value).length;
+  return 1;
+}
+
+async function seedMissingAppData() {
+  let seeded = 0;
+
+  for (const [key, fallback] of Object.entries(EMPTY_APP_DEFAULTS)) {
+    const existing = await getData(key);
+    if (existing === null || existing === undefined) {
+      await setData(key, fallback);
+      seeded += 1;
+    }
+  }
+
+  const perms = { ...((await getData("poto-timide-tab-permissions")) || {}) };
+  let permsChanged = false;
+  for (const [tabId, roles] of Object.entries(DEFAULT_TAB_PERMISSIONS)) {
+    if (!Array.isArray(perms[tabId])) {
+      perms[tabId] = roles;
+      permsChanged = true;
+    }
+  }
+  if (
+    Array.isArray(perms.communication) &&
+    perms.communication.length === 1 &&
+    perms.communication[0] === "president"
+  ) {
+    perms.communication = ["president", "vice-president"];
+    permsChanged = true;
+  }
+  if (permsChanged) await setData("poto-timide-tab-permissions", perms);
+
+  const account = await getData("poto-timide-financier-account");
+  const hasIban = account && typeof account === "object" && String(account.iban || "").trim();
+  if (!hasIban) {
+    await setData("poto-timide-financier-account", DEFAULT_FINANCIER_ACCOUNT);
+  }
+
+  if ((await getData("poto-timide-data-revision")) === null) {
+    await setData("poto-timide-data-revision", Date.now());
+  }
+
+  if (seeded) {
+    console.log(`${seeded} clé(s) manquante(s) initialisée(s) dans la base`);
+  }
+}
+
+async function readStoredVapid() {
+  const row = await db.get("SELECT value FROM app_data WHERE key = ?", [VAPID_STORE_KEY]);
+  if (row?.value) {
+    try {
+      return JSON.parse(row.value);
+    } catch {
+      /* ignore */
+    }
+  }
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    return {
+      publicKey: process.env.VAPID_PUBLIC_KEY,
+      privateKey: process.env.VAPID_PRIVATE_KEY,
+    };
+  }
+  return null;
+}
+
+async function buildFullDump() {
+  const data = {};
+  for (const key of STORAGE_KEYS) {
+    const value = await getData(key);
+    if (value !== null) data[key] = value;
+  }
+
+  return {
+    kind: DUMP_KIND,
+    version: DUMP_VERSION,
+    exportedAt: new Date().toISOString(),
+    db: {
+      mode: db.getDbMode(),
+      label: db.getConnectionLabel(),
+    },
+    data,
+    users: await getUsersSnapshot(),
+    vapid: await readStoredVapid(),
+    pushSubscriptions: await db.all(
+      "SELECT id, user_id, endpoint, p256dh, auth, created_at FROM push_subscriptions"
+    ),
+  };
+}
+
+function isValidDump(dump) {
+  return Boolean(dump && dump.kind === DUMP_KIND && dump.data && typeof dump.data === "object");
+}
+
+async function restorePushSubscriptions(subscriptions) {
+  if (!Array.isArray(subscriptions) || !subscriptions.length) return 0;
+
+  let restored = 0;
+  for (const sub of subscriptions) {
+    const endpoint = String(sub?.endpoint || "").trim();
+    const userId = String(sub?.user_id || "").trim();
+    const p256dh = String(sub?.p256dh || "").trim();
+    const auth = String(sub?.auth || "").trim();
+    if (!endpoint || !userId || !p256dh || !auth) continue;
+
+    const existing = await db.get("SELECT id FROM push_subscriptions WHERE endpoint = ?", [endpoint]);
+    if (existing?.id) {
+      await db.run(
+        "UPDATE push_subscriptions SET user_id = ?, p256dh = ?, auth = ? WHERE id = ?",
+        [userId, p256dh, auth, existing.id]
+      );
+    } else {
+      const id = String(sub.id || "").trim() || crypto.randomUUID();
+      try {
+        await db.run(
+          "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [id, userId, endpoint, p256dh, auth, sub.created_at || new Date().toISOString()]
+        );
+      } catch {
+        await db.run(
+          "INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+          [crypto.randomUUID(), userId, endpoint, p256dh, auth, sub.created_at || new Date().toISOString()]
+        );
+      }
+    }
+    restored += 1;
+  }
+  return restored;
+}
+
+async function restoreFullDump(dump) {
+  if (!isValidDump(dump)) {
+    throw new Error("Fichier de sauvegarde invalide");
+  }
+
+  await applySyncPayload(dump.data || {}, dump.users);
+
+  if (dump.vapid?.publicKey && dump.vapid?.privateKey) {
+    await push.replaceVapidKeys(dump.vapid);
+  }
+
+  const pushCount = await restorePushSubscriptions(dump.pushSubscriptions);
+  await seedMissingAppData();
+  await backupDatabase();
+
+  return {
+    keys: Object.keys(dump.data || {}).filter((key) => STORAGE_KEYS.includes(key)).length,
+    users: Array.isArray(dump.users) ? dump.users.length : 0,
+    push: pushCount,
+  };
+}
+
+async function getDatabaseStatus() {
+  const keys = [];
+  for (const key of STORAGE_KEYS) {
+    const row = await db.get("SELECT value, updated_at FROM app_data WHERE key = ?", [key]);
+    let items = 0;
+    let present = false;
+    if (row?.value != null) {
+      present = true;
+      try {
+        items = countStoredItems(JSON.parse(row.value));
+      } catch {
+        items = 0;
+      }
+    }
+    keys.push({
+      key: key.replace(/^poto-timide-/, ""),
+      present,
+      items,
+      updatedAt: row?.updated_at || null,
+    });
+  }
+
+  const userCountRow = await db.get("SELECT COUNT(*) AS c FROM users");
+  const pushCountRow = await db.get("SELECT COUNT(*) AS c FROM push_subscriptions");
+  const members = (await getData(MEMBERS_KEY)) || [];
+
+  return {
+    mode: db.getDbMode(),
+    label: db.getConnectionLabel(),
+    independentOfHost: db.getDbMode() === "turso",
+    memberCount: Array.isArray(members) ? members.length : 0,
+    userCount: Number(userCountRow?.c || 0),
+    pushCount: Number(pushCountRow?.c || 0),
+    keyCount: keys.filter((item) => item.present).length,
+    keyTotal: STORAGE_KEYS.length,
+    keys,
+    generatedAt: new Date().toISOString(),
+  };
 }
 
 function normalizeUsername(name) {
@@ -361,21 +598,16 @@ async function seedDatabase() {
     await setData("poto-timide-tournee", { years: {} });
     await setData("poto-timide-amendes", []);
     await setData("poto-timide-amendes-caisse", []);
-    await setData("poto-timide-tab-permissions", {
-      membres: [],
-      bureau: [],
-      tournee: [],
-      "ancienne-tournee": ["tresorier"],
-      caisse: ["tresorier"],
-      prets: ["tresorier"],
-      amendes: ["censeur", "tresorier"],
-      evenements: ["tresorier"],
-    });
+    await setData("poto-timide-tab-permissions", { ...DEFAULT_TAB_PERMISSIONS });
     await setData("poto-timide-prets", []);
     await setData("poto-timide-notifications", []);
     await setData("poto-timide-evenements", []);
+    await setData("poto-timide-communication", []);
     await setData("poto-timide-autre-argent", []);
+    await setData("poto-timide-ancienne-tournee-dettes", []);
     await setData("poto-timide-fond-caisse", 0);
+    await setData("poto-timide-fond-caisse-annuel", {});
+    await setData("poto-timide-financier-account", DEFAULT_FINANCIER_ACCOUNT);
     console.log("Base initialisée avec 15 membres (mot de passe : 1234)");
   } else {
     let userCountRow = await db.get("SELECT COUNT(*) AS c FROM users");
@@ -404,6 +636,7 @@ async function seedDatabase() {
     { force: false }
   );
 
+  await seedMissingAppData();
   await backupDatabase();
 }
 
@@ -497,7 +730,7 @@ function createApp() {
     app.set("trust proxy", 1);
   }
 
-  app.use(express.json({ limit: "5mb" }));
+  app.use(express.json({ limit: "15mb" }));
 
   const sessionStore = new SqliteSessionStore();
 
@@ -901,7 +1134,59 @@ function createApp() {
     }
   });
 
+  app.get("/api/admin/db-status", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      res.json(await getDatabaseStatus());
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Impossible de lire l'état de la base" });
+    }
+  });
+
+  app.get("/api/admin/export", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const dump = await buildFullDump();
+      const stamp = dump.exportedAt.slice(0, 10);
+      res.setHeader("Content-Disposition", `attachment; filename="poto-timide-sauvegarde-${stamp}.json"`);
+      res.json(dump);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Export impossible" });
+    }
+  });
+
+  app.post("/api/admin/import", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const { confirm, dump } = req.body || {};
+      if (String(confirm || "").trim() !== IMPORT_CONFIRM_WORD) {
+        return res.status(400).json({ error: `Tapez ${IMPORT_CONFIRM_WORD} pour confirmer la restauration` });
+      }
+
+      const summary = await restoreFullDump(dump);
+      res.json({ ok: true, ...summary });
+    } catch (err) {
+      console.error(err);
+      res.status(400).json({ error: err.message || "Import impossible" });
+    }
+  });
+
   const SYNC_SECRET = process.env.POTO_SYNC_SECRET;
+
+  app.get("/api/sync/export", async (req, res) => {
+    try {
+      if (!SYNC_SECRET) {
+        return res.status(503).json({ error: "Synchronisation non configurée sur le serveur" });
+      }
+      const secret = req.get("x-poto-sync-secret") || req.query.secret;
+      if (secret !== SYNC_SECRET) {
+        return res.status(403).json({ error: "Clé de synchronisation invalide" });
+      }
+      res.json(await buildFullDump());
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Export impossible" });
+    }
+  });
 
   app.post("/api/sync", async (req, res) => {
     try {
@@ -909,12 +1194,17 @@ function createApp() {
         return res.status(503).json({ error: "Synchronisation non configurée sur le serveur" });
       }
 
-      const { secret, data, users } = req.body || {};
-      if (secret !== SYNC_SECRET) {
+      const payload = req.body || {};
+      if (payload.secret !== SYNC_SECRET) {
         return res.status(403).json({ error: "Clé de synchronisation invalide" });
       }
 
-      await applySyncPayload(data || {}, users);
+      if (payload.kind === DUMP_KIND) {
+        const summary = await restoreFullDump(payload);
+        return res.json({ ok: true, ...summary });
+      }
+
+      await applySyncPayload(payload.data || {}, payload.users);
       res.json({ ok: true });
     } catch (err) {
       console.error(err);
