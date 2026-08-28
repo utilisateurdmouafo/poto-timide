@@ -2731,6 +2731,10 @@ function requireTabAccess(tabId, actionLabel) {
     openLoginModal();
     return false;
   }
+  if (isSimpleAccountView()) {
+    alert(`Cette action se fait dans l'onglet Admin.`);
+    return false;
+  }
   if (hasRoleTabAccess(tabId)) return true;
   alert(`Vous n'avez pas l'autorisation de ${actionLabel} pour l'onglet « ${getTabLabel(tabId)} ».`);
   return false;
@@ -3731,6 +3735,7 @@ function getDetteCardCopy(amende) {
 
 function canManageAmendesActions() {
   if (!isLoggedIn()) return false;
+  if (!isAdminWorkspace()) return false;
   if (isGroupAdmin()) return true;
   return hasRoleTabAccess("amendes");
 }
@@ -4175,7 +4180,7 @@ function renderAmendes() {
     amendeTitle.textContent = "Mes dettes et amendes";
     if (amendeSubtitle) {
       amendeSubtitle.hidden = false;
-      amendeSubtitle.textContent = `Pour ${current.name} — ce qui reste ouvert, sans le bruit.`;
+      amendeSubtitle.textContent = `Pour ${current.name} — consultation uniquement. Les remboursements se font dans Admin.`;
     }
     const memberAmendes = getAmendesForMember(current.id);
     const regularAmendes = getRegularAmendes(memberAmendes);
@@ -4291,7 +4296,7 @@ async function repayAmende(id, amountValue) {
   if (!amende) return;
 
   if (!canRepayAmende(amende)) {
-    alert("Seuls les postes autorisés à Dettes et amendes peuvent rembourser.");
+    alert("Les remboursements se font dans l'onglet Admin, pour les postes qui ont l'accès Dettes et amendes.");
     return;
   }
 
