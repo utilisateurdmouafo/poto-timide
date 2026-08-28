@@ -2800,7 +2800,19 @@ async function loginMember(name, password) {
   loginError.hidden = true;
   try {
     await apiLogin(name.trim(), password);
+  } catch (err) {
+    loginError.textContent = err.message || "Identifiant ou mot de passe incorrect.";
+    loginError.hidden = false;
+    return false;
+  }
+
+  try {
     await loadDataFromServer();
+  } catch (err) {
+    console.warn("Chargement des données après connexion :", err);
+  }
+
+  try {
     if (typeof potoPullSharedUpdates === "function") await potoPullSharedUpdates();
     reloadFromStorage();
     if (typeof potoStartPeriodicSync === "function") potoStartPeriodicSync();
@@ -2824,12 +2836,18 @@ async function loginMember(name, password) {
     pushSetupStarted = false;
     setupPushNotifications();
     applyNotificationDeepLink();
-    return true;
   } catch (err) {
-    loginError.textContent = err.message || "Identifiant ou mot de passe incorrect.";
-    loginError.hidden = false;
-    return false;
+    console.warn("Affichage après connexion :", err);
+    loginModal.classList.remove("open");
+    appEl.classList.remove("app-blurred");
+    updateSessionUI();
+    try {
+      render();
+    } catch (renderErr) {
+      console.warn("Rendu après connexion :", renderErr);
+    }
   }
+  return true;
 }
 
 async function changeMemberPassword(currentPassword, newPassword, confirmPassword) {
@@ -7619,13 +7637,17 @@ function focusCommunicationCursor() {
 }
 
 function renderCommunication() {
-  document.querySelectorAll("[data-comm-sub]").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.commSub === activeCommunicationSub);
-  });
-  renderCommunicationSubtabCounts();
-  renderCommunicationComposer();
-  renderCommunicationList(communicationList, { manage: false });
-  renderCommunicationList(communicationAdminList, { manage: true });
+  try {
+    document.querySelectorAll("[data-comm-sub]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.commSub === activeCommunicationSub);
+    });
+    renderCommunicationSubtabCounts();
+    renderCommunicationComposer();
+    renderCommunicationList(communicationList, { manage: false });
+    renderCommunicationList(communicationAdminList, { manage: true });
+  } catch (err) {
+    console.warn("Affichage Communication impossible :", err);
+  }
 }
 
 async function publishCommunication() {

@@ -181,23 +181,16 @@ function mergeById(existing, incoming) {
 function writeServerDataToLocal(serverData) {
   Object.entries(serverData || {}).forEach(([key, value]) => {
     if (!API_SYNC_KEYS.has(key)) return;
-    if (key === "poto-timide-communication") {
-      try {
+    try {
+      if (key === "poto-timide-communication") {
         const raw = localStorage.getItem(key);
         const local = raw ? JSON.parse(raw) : [];
         value = mergeById(Array.isArray(local) ? local : [], Array.isArray(value) ? value : []);
-      } catch {
-        /* keep server value */
       }
+      rawSetItem(key, JSON.stringify(value));
+    } catch (err) {
+      console.warn("Impossible d'écrire la clé locale", key, err);
     }
-    rawSetItem(key, JSON.stringify(value));
-  });
-}
-
-function applySavedServerData(saved) {
-  Object.entries(saved || {}).forEach(([key, value]) => {
-    if (!API_SYNC_KEYS.has(key)) return;
-    rawSetItem(key, JSON.stringify(value));
   });
 }
 
@@ -213,27 +206,24 @@ async function loadDataFromServer() {
       : [];
     writeServerDataToLocal(serverData);
 
-    let mergedComm = [];
     try {
       const raw = localStorage.getItem("poto-timide-communication");
-      mergedComm = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(mergedComm)) mergedComm = [];
+      const mergedComm = raw ? JSON.parse(raw) : [];
+      if (
+        Array.isArray(mergedComm) &&
+        mergedComm.length &&
+        JSON.stringify(mergedComm) !== JSON.stringify(serverComm)
+      ) {
+        queueServerSync("poto-timide-communication", mergedComm);
+      }
     } catch {
-      mergedComm = [];
-    }
-
-    if (mergedComm.length && JSON.stringify(mergedComm) !== JSON.stringify(serverComm)) {
-      queueServerSync("poto-timide-communication", mergedComm);
-      await flushServerSync();
+      /* ignore */
     }
 
     return { source: "server", pushed: false };
   } catch (err) {
-    if (Object.keys(getLocalDataPayload()).length > 0) {
-      console.warn("Serveur indisponible, cache local conservé.", err);
-      return { source: "local", pushed: false };
-    }
-    throw err;
+    console.warn("Serveur indisponible, cache local conservé.", err);
+    return { source: "local", pushed: false };
   }
 }
 
@@ -273,11 +263,10 @@ async function flushServerSync() {
   const payload = { ...pendingSyncPayload };
   pendingSyncPayload = {};
   try {
-    const result = await apiFetch("/api/data", {
+    await apiFetch("/api/data", {
       method: "PUT",
       body: JSON.stringify(payload),
     });
-    if (result?.data) applySavedServerData(result.data);
     return true;
   } catch (err) {
     Object.assign(pendingSyncPayload, payload);

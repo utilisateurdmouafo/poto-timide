@@ -260,11 +260,17 @@ function mergeById(existing, incoming) {
 }
 
 async function persistStorageValue(key, value) {
-  if (MERGE_BY_ID_KEYS.has(key)) {
-    value = mergeById(await getData(key), value);
+  try {
+    if (MERGE_BY_ID_KEYS.has(key)) {
+      value = mergeById(await getData(key), value);
+    }
+    await setData(key, value);
+    return value;
+  } catch (err) {
+    console.warn("Fusion/écriture impossible :", key, err.message);
+    await setData(key, value);
+    return value;
   }
-  await setData(key, value);
-  return value;
 }
 
 function countStoredItems(value) {
@@ -1132,9 +1138,12 @@ function createApp() {
     try {
       const data = {};
       for (const key of STORAGE_KEYS) {
-        const value = await getData(key);
-        if (value !== null) data[key] = value;
-        else if (key in EMPTY_APP_DEFAULTS) data[key] = EMPTY_APP_DEFAULTS[key];
+        try {
+          const value = await getData(key);
+          if (value !== null) data[key] = value;
+        } catch (err) {
+          console.warn("Lecture clé impossible :", key, err.message);
+        }
       }
       res.json(data);
     } catch (err) {
@@ -1146,11 +1155,13 @@ function createApp() {
   app.put("/api/data", requireAuth, async (req, res) => {
     try {
       const payload = await sanitizePayloadForOwner(req.body || {});
-      const saved = {};
 
       for (const [key, value] of Object.entries(payload)) {
-        if (STORAGE_KEYS.includes(key)) {
-          saved[key] = await persistStorageValue(key, value);
+        if (!STORAGE_KEYS.includes(key)) continue;
+        try {
+          await persistStorageValue(key, value);
+        } catch (err) {
+          console.warn("Écriture clé impossible :", key, err.message);
         }
       }
 
@@ -1159,7 +1170,7 @@ function createApp() {
       }
 
       await enforceOwnerSafeguards();
-      res.json({ ok: true, data: saved });
+      res.json({ ok: true });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Erreur serveur" });
