@@ -335,25 +335,7 @@
             <button type="button" class="finance-subtab" data-comm-sub="rapport">Rapports de réunions</button>
             <button type="button" class="finance-subtab" data-comm-sub="communique">Communiqué</button>
           </nav>
-          <p class="panel-desc" id="communicationLockMsg" hidden>Seul un poste autorisé dans Admin → Accès (Communication) peut publier ici.</p>
-          <section class="communication-composer" id="communicationComposer" hidden>
-            <h3 id="communicationComposerTitle">Publier l'ordre du jour</h3>
-            <form id="communicationForm" class="pret-form communication-form">
-              <label>
-                Titre
-                <input type="text" id="communicationTitle" maxlength="120" required placeholder="Ex : Réunion du 12 avril" />
-              </label>
-              <label class="communication-body-field">
-                Texte
-                <textarea id="communicationBody" rows="10" required placeholder="Écris le texte à publier…"></textarea>
-              </label>
-              <div class="amende-form-actions">
-                <button type="submit" class="btn-primary" id="communicationSubmitBtn">Publier</button>
-                <button type="button" class="btn-secondary" id="communicationCancelBtn" hidden>Annuler</button>
-              </div>
-            </form>
-            <p class="save-msg" id="communicationSaveMsg" hidden></p>
-          </section>
+          <p class="panel-desc" id="communicationLockMsg" hidden></p>
           <div id="communicationList" class="communication-list"></div>
         </section>
       </div>
@@ -381,6 +363,7 @@
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="prets">Prêts</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="amendes">Amendes</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="evenements">Événements</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="communication">Communication</button>
           </nav>
           <div class="gestion-subcontent" id="adminSubcontent">
             <div class="gestion-subpanel is-active" id="adminSub-membres" data-admin-panel="membres">
@@ -794,6 +777,39 @@
                 <div id="evenementAdminList" class="evenement-list"></div>
               </section>
             </div>
+
+            <div class="gestion-subpanel" id="adminSub-communication" data-admin-panel="communication" hidden>
+              <section class="panel communication-panel">
+                <div class="amende-head">
+                  <h2>Publier dans Communication</h2>
+                  <p class="panel-desc">Les textes publiés ici sont visibles par tous les membres, en lecture seule.</p>
+                </div>
+                <nav class="finance-subtabs" id="adminCommunicationSubtabs" aria-label="Sous-onglets communication admin">
+                  <button type="button" class="finance-subtab active" data-comm-sub="ordre-du-jour">Ordre du jour</button>
+                  <button type="button" class="finance-subtab" data-comm-sub="rapport">Rapports de réunions</button>
+                  <button type="button" class="finance-subtab" data-comm-sub="communique">Communiqué</button>
+                </nav>
+                <section class="communication-composer" id="communicationComposer">
+                  <h3 id="communicationComposerTitle">Publier l'ordre du jour</h3>
+                  <form id="communicationForm" class="pret-form communication-form">
+                    <label>
+                      Titre
+                      <input type="text" id="communicationTitle" maxlength="120" required placeholder="Ex : Réunion du 12 avril" />
+                    </label>
+                    <label class="communication-body-field">
+                      Texte
+                      <textarea id="communicationBody" rows="10" required placeholder="Écris le texte à publier…"></textarea>
+                    </label>
+                    <div class="amende-form-actions">
+                      <button type="submit" class="btn-primary" id="communicationSubmitBtn">Publier</button>
+                      <button type="button" class="btn-secondary" id="communicationCancelBtn" hidden>Annuler</button>
+                    </div>
+                  </form>
+                  <p class="save-msg" id="communicationSaveMsg" hidden></p>
+                </section>
+                <div id="communicationAdminList" class="communication-list"></div>
+              </section>
+            </div>
           </div>
         </section>
       </div>
@@ -891,6 +907,6 @@
   </div>
 
   <script src="api-client.js?v=online-3"></script>
-  <script src="app.js?v=pwa-25"></script>
+  <script src="app.js?v=pwa-26"></script>
 </body>
 </html>

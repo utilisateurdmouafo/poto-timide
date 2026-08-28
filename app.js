@@ -90,7 +90,7 @@ const FINANCE_SUBTABS = ["caisse", "archives"];
 const FINANCE_LIVE_DETTE_SUB = "dettes-amendes";
 const FINANCE_CAISSE_SUB = "caisse";
 const FINANCE_ARCHIVES_SUB = "archives";
-const ADMIN_SUBTABS = ["membres", "bureau", "admins", "acces", "tournee", "ancienne-tournee", "caisse", "prets", "amendes", "evenements"];
+const ADMIN_SUBTABS = ["membres", "bureau", "admins", "acces", "tournee", "ancienne-tournee", "caisse", "prets", "amendes", "evenements", "communication"];
 const ADMIN_SUBTAB_KEY = "poto-timide-admin-subtab";
 // Compat anciens noms de stockage
 const GESTION_SUBTAB_KEY = ADMIN_SUBTAB_KEY;
@@ -278,6 +278,8 @@ const communicationCancelBtn = document.getElementById("communicationCancelBtn")
 const communicationComposer = document.getElementById("communicationComposer");
 const communicationComposerTitle = document.getElementById("communicationComposerTitle");
 const communicationList = document.getElementById("communicationList");
+const communicationAdminList = document.getElementById("communicationAdminList");
+const adminCommunicationSubtabs = document.getElementById("adminCommunicationSubtabs");
 const communicationLockMsg = document.getElementById("communicationLockMsg");
 const communicationSaveMsg = document.getElementById("communicationSaveMsg");
 const adminRolesPanel = document.getElementById("adminRolesPanel");
@@ -2412,6 +2414,9 @@ function showAdminSub(subId) {
   }
   if (subId === "evenements") {
     renderEvenements();
+  }
+  if (subId === "communication") {
+    renderCommunication();
   }
   highlightNotificationItem();
 }
@@ -7479,16 +7484,11 @@ function getCommunicationKind(kindId) {
 }
 
 function canPublishCommunication() {
-  if (!isLoggedIn()) return false;
-  if (isGroupAdmin()) return true;
-  return hasRoleTabAccess("communication");
+  return canManageTab("communication");
 }
 
 function canManageCommunicationPost(post) {
-  if (!post || !canPublishCommunication()) return false;
-  if (isGroupAdmin()) return true;
-  const current = getCurrentMember();
-  return Boolean(current && post.createdBy === current.id);
+  return Boolean(post) && canPublishCommunication();
 }
 
 function getCommunicationPostsForKind(kindId) {
@@ -7529,27 +7529,27 @@ function renderCommunicationComposer() {
   }
 }
 
-function renderCommunicationList() {
-  if (!communicationList) return;
+function renderCommunicationList(target, { manage = false } = {}) {
+  if (!target) return;
   const kind = getCommunicationKind(activeCommunicationSub);
   const posts = getCommunicationPostsForKind(kind.id);
   if (!posts.length) {
-    communicationList.innerHTML = `<p class="communication-empty">Aucun ${escapeHtml(kind.singular)} publié pour le moment.</p>`;
+    target.innerHTML = `<p class="communication-empty">Aucun ${escapeHtml(kind.singular)} publié pour le moment.</p>`;
     return;
   }
-  communicationList.innerHTML = posts
+  target.innerHTML = posts
     .map((post) => {
       const author = getMemberById(post.createdBy);
       const dateLabel = formatFriendlyDate(post.updatedAt || post.createdAt);
       return `
-        <article class="communication-card" id="comm-${escapeHtml(post.id)}">
+        <article class="communication-card" id="${manage ? "admin-" : ""}comm-${escapeHtml(post.id)}">
           <div class="communication-card-head">
             <h3>${escapeHtml(post.title)}</h3>
             <p class="communication-card-meta">${escapeHtml(dateLabel)}${author ? ` · ${escapeHtml(author.name)}` : ""}</p>
           </div>
           <div class="communication-card-body">${escapeHtml(post.body)}</div>
           ${
-            canManageCommunicationPost(post)
+            manage && canManageCommunicationPost(post)
               ? `<div class="communication-card-actions">
                   <button type="button" class="btn-secondary btn-comm-edit" data-id="${escapeHtml(post.id)}">Modifier</button>
                   <button type="button" class="btn-secondary btn-comm-delete" data-id="${escapeHtml(post.id)}">Supprimer</button>
@@ -7562,18 +7562,16 @@ function renderCommunicationList() {
 }
 
 function renderCommunication() {
-  communicationSubtabs?.querySelectorAll("[data-comm-sub]").forEach((btn) => {
+  document.querySelectorAll("[data-comm-sub]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.commSub === activeCommunicationSub);
   });
   renderCommunicationComposer();
-  renderCommunicationList();
+  renderCommunicationList(communicationList, { manage: false });
+  renderCommunicationList(communicationAdminList, { manage: true });
 }
 
 function publishCommunication() {
-  if (!canPublishCommunication()) {
-    alert("Tu n'as pas l'autorisation de publier dans Communication. Un admin peut te l'accorder dans Accès.");
-    return;
-  }
+  if (!requireTabAccess("communication", "publier dans Communication")) return;
   const title = String(communicationTitleInput?.value || "").trim();
   const body = String(communicationBodyInput?.value || "").trim();
   if (!title || !body) {
@@ -7613,6 +7611,7 @@ function publishCommunication() {
 }
 
 function startEditCommunication(id) {
+  if (!requireTabAccess("communication", "modifier une publication")) return;
   const post = communicationPosts.find((item) => item.id === id);
   if (!canManageCommunicationPost(post)) return;
   activeCommunicationSub = post.kind;
@@ -7626,11 +7625,9 @@ function startEditCommunication(id) {
 }
 
 async function deleteCommunication(id) {
+  if (!requireTabAccess("communication", "supprimer une publication")) return;
   const post = communicationPosts.find((item) => item.id === id);
-  if (!canManageCommunicationPost(post)) {
-    alert("Tu peux supprimer uniquement tes propres publications.");
-    return;
-  }
+  if (!canManageCommunicationPost(post)) return;
   if (!(await appConfirm(`Supprimer « ${post.title} » ?`))) return;
   communicationPosts = communicationPosts.filter((item) => item.id !== id);
   if (editingCommunicationId === id) cancelEditCommunication();
@@ -8125,11 +8122,14 @@ financeSubtabs?.addEventListener("click", (e) => {
   showFinanceSub(btn.dataset.financeSub);
 });
 
-communicationSubtabs?.addEventListener("click", (e) => {
+function handleCommunicationSubClick(e) {
   const btn = e.target.closest("[data-comm-sub]");
   if (!btn?.dataset.commSub) return;
   showCommunicationSub(btn.dataset.commSub);
-});
+}
+
+communicationSubtabs?.addEventListener("click", handleCommunicationSubClick);
+adminCommunicationSubtabs?.addEventListener("click", handleCommunicationSubClick);
 
 communicationForm?.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -8141,7 +8141,7 @@ communicationCancelBtn?.addEventListener("click", () => {
   renderCommunication();
 });
 
-communicationList?.addEventListener("click", (e) => {
+function handleCommunicationListClick(e) {
   const editBtn = e.target.closest(".btn-comm-edit");
   if (editBtn) {
     startEditCommunication(editBtn.dataset.id);
@@ -8149,7 +8149,10 @@ communicationList?.addEventListener("click", (e) => {
   }
   const deleteBtn = e.target.closest(".btn-comm-delete");
   if (deleteBtn) deleteCommunication(deleteBtn.dataset.id);
-});
+}
+
+communicationList?.addEventListener("click", handleCommunicationListClick);
+communicationAdminList?.addEventListener("click", handleCommunicationListClick);
 
 adminSubtabs?.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-admin-sub]");
