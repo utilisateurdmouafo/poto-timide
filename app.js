@@ -59,8 +59,16 @@ const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["membres", "tournee", "prets", "evenements", "dettes", "amendes", "finance", "communication", "admin"];
+const TAB_IDS = ["communication", "membres", "tournee", "prets", "evenements", "dettes", "amendes", "finance", "admin"];
 const COMMUNICATION_KINDS = [
+  {
+    id: "communique",
+    label: "Communiqué",
+    singular: "communiqué",
+    composerTitle: "Publier un communiqué",
+    titlePlaceholder: "Ex : Information aux potos",
+    bodyPlaceholder: "Texte du communiqué…",
+  },
   {
     id: "ordre-du-jour",
     label: "Ordre du jour",
@@ -76,14 +84,6 @@ const COMMUNICATION_KINDS = [
     composerTitle: "Publier un rapport de réunion",
     titlePlaceholder: "Ex : Réunion du 15 mars",
     bodyPlaceholder: "Compte rendu : présents, décisions, suites à donner…",
-  },
-  {
-    id: "communique",
-    label: "Communiqué",
-    singular: "communiqué",
-    composerTitle: "Publier un communiqué",
-    titlePlaceholder: "Ex : Information aux potos",
-    bodyPlaceholder: "Texte du communiqué…",
   },
 ];
 const FINANCE_SUBTABS = ["caisse", "archives"];
@@ -356,7 +356,7 @@ let prets = [];
 let notifications = [];
 let evenements = [];
 let communicationPosts = [];
-let activeCommunicationSub = "ordre-du-jour";
+let activeCommunicationSub = "communique";
 let editingCommunicationId = null;
 let autreArgent = [];
 let ancienneTourneeDettes = [];
@@ -2416,7 +2416,9 @@ function showAdminSub(subId) {
     renderEvenements();
   }
   if (subId === "communication") {
+    activeCommunicationSub = "communique";
     renderCommunication();
+    focusCommunicationCursor();
   }
   highlightNotificationItem();
 }
@@ -3903,7 +3905,9 @@ function showTab(tabId) {
 
   if (tabId === "communication") {
     reloadFromStorage();
+    activeCommunicationSub = "communique";
     renderCommunication();
+    focusCommunicationCursor();
   }
 
   if (tabId === "dettes") {
@@ -7476,7 +7480,7 @@ function saveCommunicationPosts() {
 function loadCommunicationSubtab() {
   const stored = localStorage.getItem(COMMUNICATION_SUBTAB_KEY);
   if (COMMUNICATION_KINDS.some((kind) => kind.id === stored)) return stored;
-  return "ordre-du-jour";
+  return "communique";
 }
 
 function getCommunicationKind(kindId) {
@@ -7505,7 +7509,7 @@ function cancelEditCommunication() {
 }
 
 function showCommunicationSub(kindId) {
-  if (!COMMUNICATION_KINDS.some((kind) => kind.id === kindId)) kindId = "ordre-du-jour";
+  if (!COMMUNICATION_KINDS.some((kind) => kind.id === kindId)) kindId = "communique";
   activeCommunicationSub = kindId;
   localStorage.setItem(COMMUNICATION_SUBTAB_KEY, kindId);
   cancelEditCommunication();
@@ -7559,6 +7563,26 @@ function renderCommunicationList(target, { manage = false } = {}) {
         </article>`;
     })
     .join("");
+}
+
+function focusCommunicationCursor() {
+  requestAnimationFrame(() => {
+    const root =
+      isAdminWorkspace() && activeAdminSub === "communication"
+        ? document.getElementById("adminSub-communication")
+        : document.getElementById("tab-communication");
+    const btn = root?.querySelector(`[data-comm-sub="${activeCommunicationSub}"]`);
+    btn?.focus();
+    if (
+      isAdminWorkspace() &&
+      activeAdminSub === "communication" &&
+      canPublishCommunication() &&
+      communicationTitleInput &&
+      !communicationComposer?.hidden
+    ) {
+      communicationTitleInput.focus();
+    }
+  });
 }
 
 function renderCommunication() {

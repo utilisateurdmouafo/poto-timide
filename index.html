@@ -50,6 +50,10 @@
         </div>
         <div class="header-inner">
           <nav class="tabs" aria-label="Navigation principale">
+          <button class="tab" data-tab="communication">
+            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 8.5h9.5a3 3 0 0 1 3 3V16a3 3 0 0 1-3 3H11l-3.2 2.2A.8.8 0 0 1 6.5 20.6V19H5a3 3 0 0 1-3-3v-4.5A3 3 0 0 1 5 8.5Z" stroke="currentColor" stroke-width="1.7"/><path d="M16.2 7.2c.7-1.6 2.2-2.7 4-2.7.3 0 .6 0 .8.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M16.6 11.2c1.1-.4 2.3-.4 3.4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            Communication
+          </button>
           <button class="tab active" data-tab="membres">
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M3.6 19c.4-3 2.7-5 5.4-5s5 2 5.4 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="16.5" cy="8.6" r="2.3" stroke="currentColor" stroke-width="1.7"/><path d="M20.8 19c-.3-2.3-1.8-3.9-4-4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
             Membres
@@ -77,10 +81,6 @@
           <button class="tab" data-tab="finance">
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19h16M7 16v-4m5 4V8m5 8v-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
             Finance
-          </button>
-          <button class="tab" data-tab="communication">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 8.5h9.5a3 3 0 0 1 3 3V16a3 3 0 0 1-3 3H11l-3.2 2.2A.8.8 0 0 1 6.5 20.6V19H5a3 3 0 0 1-3-3v-4.5A3 3 0 0 1 5 8.5Z" stroke="currentColor" stroke-width="1.7"/><path d="M16.2 7.2c.7-1.6 2.2-2.7 4-2.7.3 0 .6 0 .8.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="M16.6 11.2c1.1-.4 2.3-.4 3.4 0" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-            Communication
           </button>
           <button class="tab tab-admin-entry" data-tab="admin" id="tabBtnAdmin" hidden>
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5 19 6.5v5.2c0 4.2-2.9 7.4-7 8.8-4.1-1.4-7-4.6-7-8.8V6.5L12 3.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m9 12 2 2 4-4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -331,9 +331,9 @@
             <p class="panel-desc">Ordre du jour, rapports de réunions et communiqués du groupe.</p>
           </div>
           <nav class="finance-subtabs" id="communicationSubtabs" aria-label="Sous-onglets communication">
-            <button type="button" class="finance-subtab active" data-comm-sub="ordre-du-jour">Ordre du jour</button>
+            <button type="button" class="finance-subtab active" data-comm-sub="communique">Communiqué</button>
+            <button type="button" class="finance-subtab" data-comm-sub="ordre-du-jour">Ordre du jour</button>
             <button type="button" class="finance-subtab" data-comm-sub="rapport">Rapports de réunions</button>
-            <button type="button" class="finance-subtab" data-comm-sub="communique">Communiqué</button>
           </nav>
           <p class="panel-desc" id="communicationLockMsg" hidden></p>
           <div id="communicationList" class="communication-list"></div>
@@ -785,12 +785,12 @@
                   <p class="panel-desc">Les textes publiés ici sont visibles par tous les membres, en lecture seule.</p>
                 </div>
                 <nav class="finance-subtabs" id="adminCommunicationSubtabs" aria-label="Sous-onglets communication admin">
-                  <button type="button" class="finance-subtab active" data-comm-sub="ordre-du-jour">Ordre du jour</button>
+                  <button type="button" class="finance-subtab active" data-comm-sub="communique">Communiqué</button>
+                  <button type="button" class="finance-subtab" data-comm-sub="ordre-du-jour">Ordre du jour</button>
                   <button type="button" class="finance-subtab" data-comm-sub="rapport">Rapports de réunions</button>
-                  <button type="button" class="finance-subtab" data-comm-sub="communique">Communiqué</button>
                 </nav>
                 <section class="communication-composer" id="communicationComposer">
-                  <h3 id="communicationComposerTitle">Publier l'ordre du jour</h3>
+                  <h3 id="communicationComposerTitle">Publier un communiqué</h3>
                   <form id="communicationForm" class="pret-form communication-form">
                     <label>
                       Titre
@@ -907,6 +907,6 @@
   </div>
 
   <script src="api-client.js?v=online-3"></script>
-  <script src="app.js?v=pwa-26"></script>
+  <script src="app.js?v=pwa-27"></script>
 </body>
 </html>
