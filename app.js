@@ -1481,6 +1481,19 @@ function saveAmendesCaisse() {
   localStorage.setItem(AMENDES_CAISSE_KEY, JSON.stringify(amendesCaisse));
 }
 
+function getAmendeCaissePaid(amendeId) {
+  if (!amendeId) return 0;
+  return amendesCaisse
+    .filter((entry) => entry.sourceAmendeId === amendeId)
+    .reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+}
+
+function getAmendeRepaidAmount(amende) {
+  const stored = Number(amende?.repaidAmount) || 0;
+  const fromCaisse = getAmendeCaissePaid(amende?.id);
+  return Math.round(Math.max(stored, fromCaisse) * 100) / 100;
+}
+
 function loadFondCaisse() {
   try {
     const data = localStorage.getItem(FOND_CAISSE_KEY);
@@ -3835,6 +3848,8 @@ function canRepayAmende(amende) {
 function buildAmendeActionControls(amende, { showEdit = false } = {}) {
   if (!canManageAmendesActions()) return "";
   const remaining = Number(amende.amount) || 0;
+  const repaid = getAmendeRepaidAmount(amende);
+  if (remaining <= 0) return "";
   return `
     <div class="pret-repay-form amende-action-controls" data-amende-id="${amende.id}">
       ${
@@ -3842,12 +3857,13 @@ function buildAmendeActionControls(amende, { showEdit = false } = {}) {
           ? `<button type="button" class="btn-amende-edit" data-id="${amende.id}">Modifier</button>`
           : ""
       }
+      ${repaid > 0 ? `<p class="amende-repaid-hint">Déjà versé ${formatEuro(repaid)}</p>` : ""}
       <label class="amende-repay-field">
-        <span>Ce versement</span>
-        <input type="number" min="0.5" step="0.5" max="${remaining}" class="amende-repay-input pret-repay-input" data-id="${amende.id}" inputmode="decimal" placeholder="ex. 10" aria-label="Montant de ce versement, reste ${remaining} euros" />
+        <span>Montant reçu</span>
+        <input type="number" min="0.5" step="0.5" max="${remaining}" value="${remaining}" class="amende-repay-input pret-repay-input" data-id="${amende.id}" inputmode="decimal" placeholder="ex. 10" aria-label="Montant à valider, reste ${remaining} euros" />
         <span>€</span>
       </label>
-      <button type="button" class="btn-primary btn-amende-repay" data-id="${amende.id}">Rembourser</button>
+      <button type="button" class="btn-primary btn-amende-repay" data-id="${amende.id}">Valider</button>
       <button type="button" class="btn-secondary btn-amende-delete" data-id="${amende.id}">Supprimer</button>
     </div>
   `;
@@ -3856,7 +3872,7 @@ function buildAmendeActionControls(amende, { showEdit = false } = {}) {
 function buildDetteCard(amende, { showMember = false, showEdit = false, index = 0 } = {}) {
   const copy = getDetteCardCopy(amende);
   const memberName = getMemberById(amende.memberId)?.name || "—";
-  const repaid = Number(amende.repaidAmount) || 0;
+  const repaid = getAmendeRepaidAmount(amende);
   const metaParts = [
     showMember ? memberName : "",
     formatFriendlyDate(amende.date),
@@ -4237,7 +4253,7 @@ function buildMesAmendesRows(memberId) {
   const openIds = new Set(open.map((amende) => amende.id));
   const rows = open.map((amende) => {
     const remaining = Math.round((Number(amende.amount) || 0) * 100) / 100;
-    const repaid = Math.round((Number(amende.repaidAmount) || 0) * 100) / 100;
+    const repaid = getAmendeRepaidAmount(amende);
     const original = Math.round(
       (Number(amende.originalAmount) || remaining + repaid) * 100
     ) / 100;
@@ -4542,14 +4558,18 @@ async function repayAmende(id, amountValue) {
   if (
     !(await appConfirm(
       isFull
-        ? `Rembourser ${formatEuro(payAmount)} (${typeLabel.toLowerCase()} de ${member?.name || "ce poto"}) ?\nL'amende sera soldée et ${formatEuro(payAmount)} ira dans la caisse.`
-        : `Rembourser ${formatEuro(payAmount)} sur ${formatEuro(remaining)} (${member?.name || "ce poto"}) ?\nIl restera ${formatEuro(nextRemaining)}.\n${formatEuro(payAmount)} ira dans la caisse.`
+        ? `Valider ${formatEuro(payAmount)} (${typeLabel.toLowerCase()} de ${member?.name || "ce poto"}) ?\nL'amende sera soldée, le montant ira dans Déjà versé et dans la caisse.`
+        : `Valider ${formatEuro(payAmount)} sur ${formatEuro(remaining)} (${member?.name || "ce poto"}) ?\nDéjà versé sera mis à jour.\nIl restera ${formatEuro(nextRemaining)}.\n${formatEuro(payAmount)} ira dans la caisse.`
     ))
   ) {
     return;
   }
 
   if (editingAmendeId === id) cancelEditAmende();
+
+  if (!amende.originalAmount) {
+    amende.originalAmount = Math.round((remaining + getAmendeRepaidAmount(amende)) * 100) / 100;
+  }
 
   if (isDetteAmende(amende)) {
     applyDetteRemoval(amende, {
@@ -4562,9 +4582,6 @@ async function repayAmende(id, amountValue) {
     creditAmendeToCaisse({ ...amende, amount: payAmount });
   }
 
-  if (!amende.originalAmount) {
-    amende.originalAmount = Math.round((remaining + (Number(amende.repaidAmount) || 0)) * 100) / 100;
-  }
   amende.repaidAmount = Math.round(((Number(amende.repaidAmount) || 0) + payAmount) * 100) / 100;
   if (isFull && isDetteAmende(amende)) {
     amendes = amendes.filter((item) => item.id !== id);
@@ -4583,11 +4600,13 @@ async function repayAmende(id, amountValue) {
   }
   renderEvenements();
   renderFinanceDashboard();
+  renderMesAmendes();
 
+  const shownRepaid = getAmendeById(id) ? getAmendeRepaidAmount(getAmendeById(id)) : payAmount;
   alert(
     isFull
-      ? `Amende soldée — ${formatEuro(payAmount)} ajouté à la caisse.\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
-      : `Remboursement enregistré — ${formatEuro(payAmount)} en caisse.\nReste dû : ${formatEuro(nextRemaining)}\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
+      ? `Versement validé — ${formatEuro(payAmount)} dans Déjà versé, amende soldée.\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
+      : `Versement validé — ${formatEuro(payAmount)} ajouté à Déjà versé (total ${formatEuro(shownRepaid)}).\nReste dû : ${formatEuro(nextRemaining)}\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
   );
 }
 
@@ -4705,6 +4724,7 @@ function renderAmendesAdminHistory() {
     ? openList
         .map((amende) => {
           const member = getMemberById(amende.memberId);
+          const repaid = getAmendeRepaidAmount(amende);
           return `
             <article class="ancienne-tournee-row amende-history-row" id="admin-amende-${escapeHtml(amende.id)}">
               <span class="ancienne-tournee-row-date">${formatFriendlyDate(amende.date)}</span>
@@ -4712,6 +4732,7 @@ function renderAmendesAdminHistory() {
               ${getAmendeTypeBadge(amende.type)}
               <span class="amende-history-note">${escapeHtml(amende.note || "—")}</span>
               <strong class="ancienne-tournee-row-amount">${formatEuro(amende.amount)}</strong>
+              ${repaid > 0 ? `<span class="amende-repaid-hint">Déjà versé ${formatEuro(repaid)}</span>` : ""}
               ${buildPaymentSignalStatusHtml(getLatestPaymentSignal(isDetteAmende(amende) ? "dette" : "amende", amende.id, amende.memberId))}
               ${buildAmendeActionControls(amende, { showEdit: true })}
             </article>

@@ -3693,6 +3693,14 @@ body::after {
   margin-left: 0;
 }
 
+.amende-repaid-hint {
+  width: 100%;
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--success);
+}
+
 .amende-repay-field {
   display: inline-flex;
   align-items: center;
