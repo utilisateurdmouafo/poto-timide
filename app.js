@@ -190,6 +190,7 @@ const amendeForm = document.getElementById("amendeForm");
 const amendeMemberSelect = document.getElementById("amendeMember");
 const amendeBody = document.getElementById("amendeBody");
 const amendeSummary = document.getElementById("amendeSummary");
+const detteBody = document.getElementById("detteBody");
 const amendeDetteWrap = document.getElementById("amendeDetteWrap");
 const amendeDetteSubtitle = document.getElementById("amendeDetteSubtitle");
 const amendeDetteSummary = document.getElementById("amendeDetteSummary");
@@ -474,7 +475,7 @@ function saveAncienneTourneeDettes(shouldRender = true) {
   }
   if (shouldRender) {
     renderAncienneTourneeDettesAdmin();
-    renderAncienneTourneeMemberView();
+    renderMesDettes();
   }
 }
 
@@ -2288,6 +2289,8 @@ function saveAmendes(shouldRender = true) {
 
 function getAmendeTypeLabel(typeId) {
   if (typeId === "dette") return "Dette événement";
+  if (typeId === "evenement") return "Événement";
+  if (typeId === "ancienne-tournee") return "Ancienne tournée";
   return AMENDE_TYPES.find((t) => t.id === typeId)?.label || typeId;
 }
 
@@ -3934,15 +3937,16 @@ function renderAncienneTourneeDettesAdmin() {
   }
   if (!body) return;
 
-  const total = ancienneTourneeDettes.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
+  const openEntries = ancienneTourneeDettes.filter((entry) => (Number(entry.amount) || 0) > 0);
+  const total = openEntries.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
   if (totalEl) totalEl.textContent = formatEuro(total);
 
-  if (!ancienneTourneeDettes.length) {
+  if (!openEntries.length) {
     body.innerHTML = `<tr><td colspan="4" class="empty-cell">Aucune dette enregistrée.</td></tr>`;
     return;
   }
 
-  body.innerHTML = [...ancienneTourneeDettes]
+  body.innerHTML = [...openEntries]
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .map((entry) => {
       const member = getMemberById(entry.memberId);
@@ -4014,43 +4018,9 @@ function renderOpenEvenementDebts(memberId) {
 }
 
 function renderAncienneTourneeMemberView() {
-  const body = document.getElementById("ancienneTourneeMemberBody");
-  const totalEl = document.getElementById("ancienneTourneeMemberTotal");
-  const wrap = document.getElementById("detteAncienneWrap");
   const current = getCurrentMember();
-  if (!body) return [];
-
-  if (!current) {
-    if (wrap) wrap.hidden = true;
-    body.innerHTML = "";
-    if (totalEl) totalEl.textContent = formatEuro(0);
-    return [];
-  }
-
-  const entries = getAncienneTourneeEntriesFor(current.id).sort(
-    (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
-  );
-  const total = getAncienneTourneeDette(current.id);
-  if (totalEl) totalEl.textContent = formatEuro(total);
-
-  if (!entries.length) {
-    if (wrap) wrap.hidden = true;
-    body.innerHTML = "";
-    return [];
-  }
-
-  if (wrap) wrap.hidden = false;
-
-  body.innerHTML = entries
-    .map((entry) => {
-      return `
-      <article class="ancienne-tournee-row" id="ancienne-${escapeHtml(entry.id)}">
-        <span class="ancienne-tournee-row-date">${formatDate(String(entry.createdAt).split("T")[0])}</span>
-        <span class="ancienne-tournee-row-amount">${formatAncienneTourneeAmountHtml(entry)}</span>
-      </article>`;
-    })
-    .join("");
-  return entries;
+  if (!current) return [];
+  return getAncienneTourneeEntriesFor(current.id);
 }
 
 function isFinancierPoste() {
@@ -4174,7 +4144,7 @@ async function repayAncienneTourneeDette(entryId, amountValue) {
   });
 
   if (isFull) {
-    ancienneTourneeDettes = ancienneTourneeDettes.filter((item) => item.id !== entryId);
+    entry.amount = 0;
   } else {
     entry.amount = nextRemaining;
   }
@@ -4300,28 +4270,47 @@ function buildMesAmendesRows(memberId) {
   return rows;
 }
 
-function renderAmendeTable(rows) {
-  if (!amendeBody) return;
-  const foot = document.getElementById("amendeTableFoot");
+function renderLedgerHero(el, { total, openCount, noun, emptyMeta }) {
+  if (!el) return;
+  const plural = openCount > 1 ? "s" : "";
+  el.className = `amende-hero ${total > 0 ? "is-due" : "is-clear"}`;
+  el.innerHTML = total > 0
+    ? `
+      <div class="amende-hero-copy">
+        <p class="amende-hero-kicker">Total à régler</p>
+        <strong class="amende-hero-amount">${formatEuro(total)}</strong>
+        <p class="amende-hero-meta">${openCount} ${noun}${plural} en cours</p>
+      </div>`
+    : `
+      <span class="amende-hero-mark" aria-hidden="true">✓</span>
+      <div class="amende-hero-copy">
+        <p class="amende-hero-kicker">Tout est à jour</p>
+        <strong class="amende-hero-amount">0 €</strong>
+        <p class="amende-hero-meta">${escapeHtml(emptyMeta)}</p>
+      </div>`;
+}
+
+function renderLedgerTable(rows, { body, foot, wrap, emptyText, rowIdPrefix }) {
+  if (!body) return;
   const remainingTotal = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
   const repaidTotal = rows.reduce((sum, row) => sum + (Number(row.repaid) || 0), 0);
   const originalTotal = rows.reduce((sum, row) => sum + (Number(row.original) || 0), 0);
 
-  if (amendeRegularWrap) amendeRegularWrap.hidden = false;
+  if (wrap) wrap.hidden = false;
 
   if (!rows.length) {
-    amendeBody.innerHTML = `<tr class="amende-empty-row"><td colspan="7">Aucune amende pour le moment.</td></tr>`;
+    body.innerHTML = `<tr class="amende-empty-row"><td colspan="7">${escapeHtml(emptyText)}</td></tr>`;
     if (foot) foot.innerHTML = "";
     return;
   }
 
-  amendeBody.innerHTML = rows
+  body.innerHTML = rows
     .map((row) => {
       const repaid = Number(row.repaid) || 0;
       const remaining = Number(row.remaining) || 0;
       const original = Number(row.original) || remaining + repaid;
       return `
-        <tr id="amende-${escapeHtml(row.id)}" class="${row.settled ? "is-settled" : ""}">
+        <tr id="${escapeHtml(rowIdPrefix)}-${escapeHtml(row.id)}" class="${row.settled ? "is-settled" : ""}">
           <td class="amende-col-date" data-label="Date">${escapeHtml(formatFriendlyDate(row.date))}</td>
           <td class="amende-col-type" data-label="Type">${escapeHtml(getAmendeTypeLabel(row.type))}</td>
           <td class="amende-col-detail" data-label="Détail">${escapeHtml(row.detail || "—")}</td>
@@ -4347,33 +4336,109 @@ function renderAmendeTable(rows) {
   }
 }
 
+function buildMesDettesRows(memberId) {
+  const rows = [];
+
+  getAmendesForMember(memberId)
+    .filter((amende) => isDetteAmende(amende))
+    .forEach((amende) => {
+      const remaining = Math.round((Number(amende.amount) || 0) * 100) / 100;
+      const repaid = getAmendeRepaidAmount(amende);
+      const original = Math.round(
+        (Number(amende.originalAmount) || remaining + repaid) * 100
+      ) / 100;
+      rows.push({
+        id: amende.id,
+        date: amende.date,
+        type: "dette",
+        detail: getAmendeDetailText(amende),
+        original,
+        repaid,
+        remaining,
+        settled: remaining <= 0,
+        sortAt: amende.settledAt || amende.date,
+      });
+    });
+
+  getOpenEvenementDebtsForMember(memberId).forEach((item) => {
+    const remaining = Math.round((Number(item.amount) || 0) * 100) / 100;
+    rows.push({
+      id: `event-${item.id}`,
+      date: item.createdAt,
+      type: "evenement",
+      detail: item.title || "Événement",
+      original: remaining,
+      repaid: 0,
+      remaining,
+      settled: false,
+      sortAt: item.createdAt,
+    });
+  });
+
+  getAncienneTourneeEntriesFor(memberId).forEach((entry) => {
+    const remaining = Math.round((Number(entry.amount) || 0) * 100) / 100;
+    const repaid = Math.round((Number(entry.repaidAmount) || 0) * 100) / 100;
+    const original = Math.round(
+      (Number(entry.originalAmount) || remaining + repaid) * 100
+    ) / 100;
+    rows.push({
+      id: entry.id,
+      date: entry.createdAt,
+      type: "ancienne-tournee",
+      detail: String(entry.note || "").trim() || "Ancienne tournée",
+      original,
+      repaid,
+      remaining,
+      settled: remaining <= 0,
+      sortAt: entry.createdAt,
+    });
+  });
+
+  rows.sort((a, b) => {
+    if (a.settled !== b.settled) return a.settled ? 1 : -1;
+    return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+  });
+  return rows;
+}
+
+function renderAmendeTable(rows) {
+  renderLedgerTable(rows, {
+    body: amendeBody,
+    foot: document.getElementById("amendeTableFoot"),
+    wrap: amendeRegularWrap,
+    emptyText: "Aucune amende pour le moment.",
+    rowIdPrefix: "amende",
+  });
+}
+
+function renderDetteTable(rows) {
+  renderLedgerTable(rows, {
+    body: detteBody,
+    foot: document.getElementById("detteTableFoot"),
+    wrap: document.getElementById("detteRegularWrap"),
+    emptyText: "Aucune dette pour le moment.",
+    rowIdPrefix: "dette",
+  });
+}
+
 function renderMesDettes() {
   const current = getCurrentMember();
   if (!current) return;
-  const detteAmendes = getAmendesForMember(current.id).filter((amende) => isDetteAmende(amende));
-  const ancienneEntries = renderAncienneTourneeMemberView();
-  const openEvents = renderOpenEvenementDebts(current.id);
-  const ancienneTotal = getAncienneTourneeDette(current.id);
-  const openTotal = openEvents.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-  const eventDebtTotal = detteAmendes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-  const allItems = [
-    ...detteAmendes,
-    ...openEvents,
-    ...ancienneEntries.map((entry) => ({ amount: entry.amount })),
-  ];
+  const rows = buildMesDettesRows(current.id);
+  const total = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
+  const openCount = rows.filter((row) => !row.settled).length;
   if (detteTitle) detteTitle.textContent = "Mes dettes";
   if (detteSubtitle) {
     detteSubtitle.hidden = false;
     detteSubtitle.innerHTML = buildDetteRepayHint();
   }
-  renderDebtDashboard(detteSummary, allItems, "Tu n'as aucune dette pour le moment.", () => {
-    const chips = [];
-    if (detteAmendes.length) chips.push(`<span class="dette-pill type-dette">Dettes événements · ${formatEuro(eventDebtTotal)}</span>`);
-    if (openEvents.length) chips.push(`<span class="dette-pill type-dette">À payer · ${formatEuro(openTotal)}</span>`);
-    if (ancienneTotal > 0) chips.push(`<span class="dette-pill type-absence">Ancienne tournée · ${formatEuro(ancienneTotal)}</span>`);
-    return chips;
+  renderLedgerHero(detteSummary, {
+    total,
+    openCount,
+    noun: "dette",
+    emptyMeta: "Aucune dette à régler",
   });
-  renderDetteBanner(detteAmendes, false);
+  renderDetteTable(rows);
 }
 
 function renderMesAmendes() {
@@ -4387,23 +4452,12 @@ function renderMesAmendes() {
     amendeSubtitle.hidden = false;
     amendeSubtitle.textContent = `Pour ${current.name} — consultation uniquement.`;
   }
-  if (amendeSummary) {
-    amendeSummary.className = `amende-hero ${total > 0 ? "is-due" : "is-clear"}`;
-    amendeSummary.innerHTML = total > 0
-      ? `
-        <div class="amende-hero-copy">
-          <p class="amende-hero-kicker">Total à régler</p>
-          <strong class="amende-hero-amount">${formatEuro(total)}</strong>
-          <p class="amende-hero-meta">${openCount} amende${openCount > 1 ? "s" : ""} en cours</p>
-        </div>`
-      : `
-        <span class="amende-hero-mark" aria-hidden="true">✓</span>
-        <div class="amende-hero-copy">
-          <p class="amende-hero-kicker">Tout est à jour</p>
-          <strong class="amende-hero-amount">0 €</strong>
-          <p class="amende-hero-meta">Aucune amende à régler</p>
-        </div>`;
-  }
+  renderLedgerHero(amendeSummary, {
+    total,
+    openCount,
+    noun: "amende",
+    emptyMeta: "Aucune amende à régler",
+  });
   renderAmendeTable(rows);
 }
 
@@ -4574,9 +4628,7 @@ async function repayAmende(id, amountValue) {
   }
 
   amende.repaidAmount = Math.round(((Number(amende.repaidAmount) || 0) + payAmount) * 100) / 100;
-  if (isFull && isDetteAmende(amende)) {
-    amendes = amendes.filter((item) => item.id !== id);
-  } else if (isFull) {
+  if (isFull) {
     amende.amount = 0;
     amende.settledAt = new Date().toISOString();
   } else {
@@ -4592,6 +4644,7 @@ async function repayAmende(id, amountValue) {
   renderEvenements();
   renderFinanceDashboard();
   renderMesAmendes();
+  renderMesDettes();
 
   const shownRepaid = getAmendeById(id) ? getAmendeRepaidAmount(getAmendeById(id)) : payAmount;
   alert(
