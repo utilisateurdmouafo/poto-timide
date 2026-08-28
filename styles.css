@@ -2427,6 +2427,10 @@ body::after {
   gap: 0.4rem;
 }
 
+.evenement-member-summary .financier-pay-inline {
+  grid-column: 1 / -1;
+}
+
 .evenement-summary-stat {
   background: var(--bg);
   border: 1px solid var(--border);
@@ -5512,6 +5516,37 @@ textarea {
 
 .financier-iban-meta {
   color: var(--text-muted);
+}
+
+.financier-pay-box {
+  margin: 0.7rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(2, 132, 199, 0.28);
+  background: linear-gradient(180deg, #f0f9ff 0%, #ffffff 100%);
+}
+
+.financier-pay-intro {
+  margin: 0 0 0.35rem;
+  font-size: 0.88rem;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.financier-pay-account {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+}
+
+.financier-pay-inline {
+  width: 100%;
+  margin: 0.45rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text);
+  line-height: 1.4;
 }
 
 .amende-ledger {

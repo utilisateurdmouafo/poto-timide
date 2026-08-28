@@ -969,6 +969,7 @@ function renderFinance() {
     btn.classList.toggle("active", btn.dataset.financeSub === activeFinanceSub);
   });
   renderFinanceSubcontent();
+  refreshFinancierPayBoxes();
 }
 
 function saveAutreArgent(shouldRender = true) {
@@ -1744,6 +1745,43 @@ function saveFinancierAccountFromForm() {
     msg.hidden = false;
   }
   renderMesDettes();
+  renderMesAmendes();
+  renderEvenements();
+  renderPrets();
+  renderFinance();
+  refreshFinancierPayBoxes();
+}
+
+function getFinancierAccountMeta() {
+  return [financierAccount.holder, financierAccount.bank].filter(Boolean).join(" · ");
+}
+
+function buildFinancierPayBox(intro) {
+  const iban = formatIbanDisplay(financierAccount.iban);
+  const text =
+    intro || "Les paiements et remboursements se font chez le Financier au numéro de compte suivant :";
+  if (!iban) {
+    return `<aside class="financier-pay-box">
+      <p class="financier-pay-intro">${escapeHtml(text)} Le numéro n’est pas encore renseigné.</p>
+    </aside>`;
+  }
+  const extra = getFinancierAccountMeta();
+  return `<aside class="financier-pay-box">
+    <p class="financier-pay-intro">${escapeHtml(text)}</p>
+    <p class="financier-pay-account">
+      <strong class="financier-iban">${escapeHtml(iban)}</strong>
+      ${extra ? `<span class="financier-iban-meta">${escapeHtml(extra)}</span>` : ""}
+    </p>
+  </aside>`;
+}
+
+function buildFinancierPayInline() {
+  const iban = formatIbanDisplay(financierAccount.iban);
+  if (!iban) return "";
+  const extra = getFinancierAccountMeta();
+  return `<p class="financier-pay-inline">Virement chez le Financier : <strong class="financier-iban">${escapeHtml(iban)}</strong>${
+    extra ? ` <span class="financier-iban-meta">(${escapeHtml(extra)})</span>` : ""
+  }</p>`;
 }
 
 function buildDetteRepayHint() {
@@ -1751,15 +1789,18 @@ function buildDetteRepayHint() {
   if (!iban) {
     return "Les remboursements se font chez le Financier. Le numéro de compte n’est pas encore renseigné.";
   }
-  const extra = [
-    financierAccount.holder ? escapeHtml(financierAccount.holder) : "",
-    financierAccount.bank ? escapeHtml(financierAccount.bank) : "",
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const extra = getFinancierAccountMeta();
   return `Les remboursements se font chez le Financier au numéro de compte suivant : <strong class="financier-iban">${escapeHtml(iban)}</strong>${
-    extra ? ` <span class="financier-iban-meta">(${extra})</span>` : ""
+    extra ? ` <span class="financier-iban-meta">(${escapeHtml(extra)})</span>` : ""
   }.`;
+}
+
+function refreshFinancierPayBoxes() {
+  document.querySelectorAll("[data-financier-pay]").forEach((el) => {
+    const intro = el.getAttribute("data-financier-pay") || "";
+    el.innerHTML = buildFinancierPayBox(intro);
+    el.hidden = false;
+  });
 }
 
 function renderFondCaissePanel() {
@@ -3730,6 +3771,7 @@ function renderTourneeTable() {
   const cotisationsBlock = document.getElementById("tourneeCotisationsBlock");
   if (cotisationsBlock) cotisationsBlock.hidden = !canEdit;
   if (canEdit) fillTourneeCotisationsTable();
+  refreshFinancierPayBoxes();
 }
 
 function resolveLegacyTab(tabId) {
@@ -4490,7 +4532,7 @@ function renderMesDettes() {
   if (detteTitle) detteTitle.textContent = "Mes dettes";
   if (detteSubtitle) {
     detteSubtitle.hidden = false;
-    detteSubtitle.innerHTML = buildDetteRepayHint();
+    detteSubtitle.textContent = "Tout ce que tu dois encore : événements, ancienne tournée, cotisations ouvertes.";
   }
   renderLedgerHero(detteSummary, {
     total,
@@ -4510,7 +4552,7 @@ function renderMesAmendes() {
   if (amendeTitle) amendeTitle.textContent = "Mes amendes";
   if (amendeSubtitle) {
     amendeSubtitle.hidden = false;
-    amendeSubtitle.textContent = `Pour ${current.name} — consultation uniquement.`;
+    amendeSubtitle.textContent = `Pour ${current.name} — absences, retards, bavardages et sanctions.`;
   }
   renderLedgerHero(amendeSummary, {
     total,
@@ -4524,6 +4566,7 @@ function renderMesAmendes() {
 function renderAmendes() {
   renderMesDettes();
   renderMesAmendes();
+  refreshFinancierPayBoxes();
 }
 
 function parseAmendeAmount(amount) {
@@ -6027,7 +6070,7 @@ function buildLoanCard(loan, mode) {
       ${activeSection}
       ${
         mode === "active" && balance > 0
-          ? `<p class="pret-balance">Reste à payer : <strong>${formatEuro(balance)}</strong></p>`
+          ? `<p class="pret-balance">Reste à payer : <strong>${formatEuro(balance)}</strong></p>${buildFinancierPayInline()}`
           : ""
       }
       ${mode === "history" ? buildLoanRepaymentsBlock(loan) : ""}
@@ -6051,6 +6094,7 @@ function getPretStatusLabel(status) {
 function renderPrets() {
   const current = getCurrentMember();
   if (!current) return;
+  refreshFinancierPayBoxes();
 
   processLoanStatusUpdates();
   renderPretSummary();
@@ -6681,6 +6725,7 @@ function buildEvenementMemberSummary(member) {
         <span>Reste à payer</span>
         <strong>${formatEuro(totalRemaining)}</strong>
       </div>
+      ${totalRemaining > 0 ? buildFinancierPayInline() : ""}
     </div>
   `;
 }
@@ -6729,7 +6774,8 @@ function buildEvenementMemberCard(evt, current) {
                    <strong>${formatEuro(share)}</strong>
                    <span class="evenement-status evenement-debt">Dette</span>
                  </div>
-                 <p class="evenement-debt-note">Voir le détail dans l'onglet Mes dettes.</p>`
+                 <p class="evenement-debt-note">Voir le détail dans l'onglet Mes dettes.</p>
+                 ${buildFinancierPayInline()}`
               : `<p class="evenement-contribution-label">Votre cotisation</p>
                  <div class="evenement-contribution-amount">
                    <strong>${formatEuro(share)}</strong>
@@ -6745,7 +6791,8 @@ function buildEvenementMemberCard(evt, current) {
                    myPaid && myPaidAmount > share
                      ? `<p class="evenement-extra-note">+${formatEuro(myPaidAmount - share)} de plus que la cotisation.</p>`
                      : ""
-                 }`
+                 }
+                 ${!myPaid ? buildFinancierPayInline() : ""}`
         }
       </div>
     </article>
@@ -7037,6 +7084,7 @@ function renderEvenements() {
 
   renderEvenementListInto(evenementList, { manage: false });
   renderEvenementListInto(document.getElementById("evenementAdminList"), { manage: canManage });
+  refreshFinancierPayBoxes();
 }
 
 function render() {
@@ -7053,6 +7101,7 @@ function render() {
   renderEvenements();
   renderAdminList();
   if (canAccessCaisse()) renderAutreArgent();
+  refreshFinancierPayBoxes();
 }
 
 function showAutreArgentSaveMessage(text, type = "success") {
