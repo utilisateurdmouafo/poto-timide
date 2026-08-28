@@ -6585,7 +6585,7 @@ function buildEvenementMemberCard(evt, current) {
                    <strong>${formatEuro(share)}</strong>
                    <span class="evenement-status evenement-debt">Dette</span>
                  </div>
-                 <p class="evenement-debt-note">Voir le détail dans l'onglet Mes dettes.</p>`
+                 <p class="evenement-debt-note">Voir le détail dans l'onglet Mes dettes & amendes.</p>`
               : `<p class="evenement-contribution-label">Votre cotisation</p>
                  <div class="evenement-contribution-amount">
                    <strong>${formatEuro(share)}</strong>
