@@ -7472,12 +7472,17 @@ function loadCommunicationPosts() {
   }
 }
 
-function saveCommunicationPosts() {
+async function saveCommunicationPosts() {
   localStorage.setItem(COMMUNICATION_KEY, JSON.stringify(communicationPosts));
   bumpLiveDataRevision();
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
+  if (typeof potoFlushSync !== "function") return false;
+  let ok = await potoFlushSync();
+  if (!ok) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    ok = await potoFlushSync();
   }
+  if (ok) communicationPosts = loadCommunicationPosts();
+  return ok;
 }
 
 function loadCommunicationSubtab() {
@@ -7495,13 +7500,29 @@ function canPublishCommunication() {
 }
 
 function canManageCommunicationPost(post) {
-  return Boolean(post) && canPublishCommunication();
+  return Boolean(post) && !post.deletedAt && canPublishCommunication();
 }
 
 function getCommunicationPostsForKind(kindId) {
   return communicationPosts
-    .filter((post) => post.kind === kindId)
+    .filter((post) => post.kind === kindId && !post.deletedAt)
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+function renderCommunicationSubtabCounts() {
+  COMMUNICATION_KINDS.forEach((kind) => {
+    const count = getCommunicationPostsForKind(kind.id).length;
+    document.querySelectorAll(`[data-comm-sub="${kind.id}"]`).forEach((btn) => {
+      let countEl = btn.querySelector(".comm-count");
+      if (!countEl) {
+        countEl = document.createElement("span");
+        countEl.className = "comm-count";
+        btn.appendChild(countEl);
+      }
+      countEl.textContent = count > 0 ? String(count) : "";
+      countEl.hidden = count <= 0;
+    });
+  });
 }
 
 function cancelEditCommunication() {
@@ -7541,7 +7562,16 @@ function renderCommunicationList(target, { manage = false } = {}) {
   const kind = getCommunicationKind(activeCommunicationSub);
   const posts = getCommunicationPostsForKind(kind.id);
   if (!posts.length) {
-    target.innerHTML = `<p class="communication-empty">Aucun ${escapeHtml(kind.singular)} publié pour le moment.</p>`;
+    const others = COMMUNICATION_KINDS.filter((item) => item.id !== kind.id)
+      .map((item) => {
+        const count = getCommunicationPostsForKind(item.id).length;
+        return count > 0 ? `${item.label} (${count})` : "";
+      })
+      .filter(Boolean);
+    const hint = others.length
+      ? ` Regarde ${others.join(" ou ")}.`
+      : "";
+    target.innerHTML = `<p class="communication-empty">Aucun ${escapeHtml(kind.singular)} publié pour le moment.${escapeHtml(hint)}</p>`;
     return;
   }
   target.innerHTML = posts
@@ -7592,12 +7622,13 @@ function renderCommunication() {
   document.querySelectorAll("[data-comm-sub]").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.commSub === activeCommunicationSub);
   });
+  renderCommunicationSubtabCounts();
   renderCommunicationComposer();
   renderCommunicationList(communicationList, { manage: false });
   renderCommunicationList(communicationAdminList, { manage: true });
 }
 
-function publishCommunication() {
+async function publishCommunication() {
   if (!requireTabAccess("communication", "publier dans Communication")) return;
   const title = String(communicationTitleInput?.value || "").trim();
   const body = String(communicationBodyInput?.value || "").trim();
@@ -7610,7 +7641,7 @@ function publishCommunication() {
   const wasEdit = Boolean(editingCommunicationId);
   if (editingCommunicationId) {
     const post = communicationPosts.find((item) => item.id === editingCommunicationId);
-    if (!canManageCommunicationPost(post)) return;
+    if (!canManageCommunicationPost(post) || post.deletedAt) return;
     post.title = title;
     post.body = body;
     post.updatedAt = now;
@@ -7626,13 +7657,17 @@ function publishCommunication() {
       createdBy: getCurrentMember()?.id || null,
     });
   }
-  saveCommunicationPosts();
+  const synced = await saveCommunicationPosts();
   cancelEditCommunication();
   renderCommunication();
   if (communicationSaveMsg) {
     const label = `${kind.singular[0].toUpperCase()}${kind.singular.slice(1)}`;
-    communicationSaveMsg.textContent = wasEdit ? `${label} mis à jour.` : `${label} publié.`;
-    communicationSaveMsg.className = "save-msg save-msg-success";
+    communicationSaveMsg.textContent = synced
+      ? wasEdit
+        ? `${label} enregistré en ligne.`
+        : `${label} publié en ligne. Visible sur tous les appareils.`
+      : `${label} enregistré ici. Connexion trop lente : réessaie dans un instant pour le voir ailleurs.`;
+    communicationSaveMsg.className = synced ? "save-msg save-msg-success" : "save-msg save-msg-error";
     communicationSaveMsg.hidden = false;
   }
 }
@@ -7654,11 +7689,13 @@ function startEditCommunication(id) {
 async function deleteCommunication(id) {
   if (!requireTabAccess("communication", "supprimer une publication")) return;
   const post = communicationPosts.find((item) => item.id === id);
-  if (!canManageCommunicationPost(post)) return;
+  if (!canManageCommunicationPost(post) || post.deletedAt) return;
   if (!(await appConfirm(`Supprimer « ${post.title} » ?`))) return;
-  communicationPosts = communicationPosts.filter((item) => item.id !== id);
+  const now = new Date().toISOString();
+  post.deletedAt = now;
+  post.updatedAt = now;
   if (editingCommunicationId === id) cancelEditCommunication();
-  saveCommunicationPosts();
+  await saveCommunicationPosts();
   renderCommunication();
 }
 
@@ -8796,6 +8833,7 @@ async function initApp() {
   window.potoOnServerDataPulled = () => {
     reloadFromStorage();
     updatePretTabBadge();
+    renderCommunication();
     renderAncienneTourneeMemberView();
     renderAncienneTourneeDettesAdmin();
     renderEvenements();
@@ -8813,6 +8851,7 @@ async function initApp() {
     }
     if (document.getElementById("tab-admin")?.classList.contains("active")) {
       if (activeAdminSub === "ancienne-tournee") renderAncienneTourneeDettesAdmin();
+      if (activeAdminSub === "communication") renderCommunication();
       if (activeAdminSub === "caisse") {
         renderFondCaissePanel();
         renderAutreArgent();

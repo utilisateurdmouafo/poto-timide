@@ -158,8 +158,44 @@ function getLocalDataPayload() {
   return payload;
 }
 
+function itemTimestamp(item) {
+  const raw = item?.updatedAt || item?.deletedAt || item?.createdAt || 0;
+  const time = new Date(raw).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function mergeById(existing, incoming) {
+  const map = new Map();
+  const add = (item) => {
+    if (!item || typeof item !== "object" || !item.id) return;
+    const prev = map.get(item.id);
+    if (!prev || itemTimestamp(item) >= itemTimestamp(prev)) {
+      map.set(item.id, item);
+    }
+  };
+  (Array.isArray(existing) ? existing : []).forEach(add);
+  (Array.isArray(incoming) ? incoming : []).forEach(add);
+  return [...map.values()].sort((a, b) => itemTimestamp(b) - itemTimestamp(a));
+}
+
 function writeServerDataToLocal(serverData) {
   Object.entries(serverData || {}).forEach(([key, value]) => {
+    if (!API_SYNC_KEYS.has(key)) return;
+    if (key === "poto-timide-communication") {
+      try {
+        const raw = localStorage.getItem(key);
+        const local = raw ? JSON.parse(raw) : [];
+        value = mergeById(Array.isArray(local) ? local : [], Array.isArray(value) ? value : []);
+      } catch {
+        /* keep server value */
+      }
+    }
+    rawSetItem(key, JSON.stringify(value));
+  });
+}
+
+function applySavedServerData(saved) {
+  Object.entries(saved || {}).forEach(([key, value]) => {
     if (!API_SYNC_KEYS.has(key)) return;
     rawSetItem(key, JSON.stringify(value));
   });
@@ -172,7 +208,25 @@ function hasPendingEdits() {
 async function loadDataFromServer() {
   try {
     const serverData = await apiFetch("/api/data");
+    const serverComm = Array.isArray(serverData["poto-timide-communication"])
+      ? serverData["poto-timide-communication"]
+      : [];
     writeServerDataToLocal(serverData);
+
+    let mergedComm = [];
+    try {
+      const raw = localStorage.getItem("poto-timide-communication");
+      mergedComm = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(mergedComm)) mergedComm = [];
+    } catch {
+      mergedComm = [];
+    }
+
+    if (mergedComm.length && JSON.stringify(mergedComm) !== JSON.stringify(serverComm)) {
+      queueServerSync("poto-timide-communication", mergedComm);
+      await flushServerSync();
+    }
+
     return { source: "server", pushed: false };
   } catch (err) {
     if (Object.keys(getLocalDataPayload()).length > 0) {
@@ -212,18 +266,23 @@ function queueServerSync(key, rawValue) {
 }
 
 async function flushServerSync() {
-  if (!authState.loggedIn || !hasPendingEdits() || syncing) return;
+  if (!authState.loggedIn) return false;
+  if (!hasPendingEdits()) return true;
+  if (syncing) return false;
   syncing = true;
   const payload = { ...pendingSyncPayload };
   pendingSyncPayload = {};
   try {
-    await apiFetch("/api/data", {
+    const result = await apiFetch("/api/data", {
       method: "PUT",
       body: JSON.stringify(payload),
     });
+    if (result?.data) applySavedServerData(result.data);
+    return true;
   } catch (err) {
     Object.assign(pendingSyncPayload, payload);
     console.warn("Synchronisation serveur échouée, nouvel essai plus tard.", err);
+    return false;
   } finally {
     syncing = false;
   }

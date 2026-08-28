@@ -237,6 +237,36 @@ async function setData(key, value) {
   backupDatabase().catch(() => {});
 }
 
+const MERGE_BY_ID_KEYS = new Set(["poto-timide-communication"]);
+
+function itemTimestamp(item) {
+  const raw = item?.updatedAt || item?.deletedAt || item?.createdAt || 0;
+  const time = new Date(raw).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+function mergeById(existing, incoming) {
+  const map = new Map();
+  const add = (item) => {
+    if (!item || typeof item !== "object" || !item.id) return;
+    const prev = map.get(item.id);
+    if (!prev || itemTimestamp(item) >= itemTimestamp(prev)) {
+      map.set(item.id, item);
+    }
+  };
+  (Array.isArray(existing) ? existing : []).forEach(add);
+  (Array.isArray(incoming) ? incoming : []).forEach(add);
+  return [...map.values()].sort((a, b) => itemTimestamp(b) - itemTimestamp(a));
+}
+
+async function persistStorageValue(key, value) {
+  if (MERGE_BY_ID_KEYS.has(key)) {
+    value = mergeById(await getData(key), value);
+  }
+  await setData(key, value);
+  return value;
+}
+
 function countStoredItems(value) {
   if (value === null || value === undefined) return 0;
   if (Array.isArray(value)) return value.length;
@@ -679,7 +709,7 @@ async function applySyncPayload(payload, users) {
 
   for (const [key, value] of Object.entries(safePayload)) {
     if (STORAGE_KEYS.includes(key)) {
-      await setData(key, value);
+      await persistStorageValue(key, value);
     }
   }
 
@@ -1104,6 +1134,7 @@ function createApp() {
       for (const key of STORAGE_KEYS) {
         const value = await getData(key);
         if (value !== null) data[key] = value;
+        else if (key in EMPTY_APP_DEFAULTS) data[key] = EMPTY_APP_DEFAULTS[key];
       }
       res.json(data);
     } catch (err) {
@@ -1115,10 +1146,11 @@ function createApp() {
   app.put("/api/data", requireAuth, async (req, res) => {
     try {
       const payload = await sanitizePayloadForOwner(req.body || {});
+      const saved = {};
 
       for (const [key, value] of Object.entries(payload)) {
         if (STORAGE_KEYS.includes(key)) {
-          await setData(key, value);
+          saved[key] = await persistStorageValue(key, value);
         }
       }
 
@@ -1127,7 +1159,7 @@ function createApp() {
       }
 
       await enforceOwnerSafeguards();
-      res.json({ ok: true });
+      res.json({ ok: true, data: saved });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Erreur serveur" });
