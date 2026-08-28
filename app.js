@@ -316,7 +316,12 @@ let autreArgent = [];
 let ancienneTourneeDettes = [];
 let fondCaisse = DEFAULT_FOND_CAISSE;
 let fondCaisseAnnuel = { years: {} };
-let financierAccount = { iban: "", holder: "", bank: "" };
+const DEFAULT_FINANCIER_ACCOUNT = {
+  iban: "BE76063676212495",
+  holder: "Quenton Fozing",
+  bank: "ING",
+};
+let financierAccount = { ...DEFAULT_FINANCIER_ACCOUNT };
 let financeData = null;
 let activeFinanceSub = FINANCE_ARCHIVES_SUB;
 let activeAdminSub = "membres";
@@ -1675,18 +1680,27 @@ async function resetFondCaisse() {
   return true;
 }
 
+function normalizeFinancierAccount(raw) {
+  const iban = String(raw?.iban || "").replace(/\s+/g, "").toUpperCase();
+  if (!iban) return { ...DEFAULT_FINANCIER_ACCOUNT };
+  return {
+    iban,
+    holder: String(raw?.holder || "").trim(),
+    bank: String(raw?.bank || "").trim(),
+  };
+}
+
 function loadFinancierAccount() {
   try {
     const data = localStorage.getItem(FINANCIER_ACCOUNT_KEY);
     const raw = data ? JSON.parse(data) : null;
-    if (!raw || typeof raw !== "object") return { iban: "", holder: "", bank: "" };
-    return {
-      iban: String(raw.iban || "").trim(),
-      holder: String(raw.holder || "").trim(),
-      bank: String(raw.bank || "").trim(),
-    };
+    const account = normalizeFinancierAccount(raw && typeof raw === "object" ? raw : null);
+    if (!String(raw?.iban || "").trim()) {
+      localStorage.setItem(FINANCIER_ACCOUNT_KEY, JSON.stringify(account));
+    }
+    return account;
   } catch {
-    return { iban: "", holder: "", bank: "" };
+    return { ...DEFAULT_FINANCIER_ACCOUNT };
   }
 }
 
