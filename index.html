@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=pwa-5" />
+  <link rel="stylesheet" href="styles.css?v=pwa-6" />
 </head>
 <body>
   <div class="app" id="app">
@@ -547,6 +547,29 @@
                 <p class="save-msg" id="fondCaisseSaveMsgAdmin" hidden></p>
               </section>
 
+              <section class="panel" id="financierAccountPanel">
+                <h2>Compte bancaire du Financier</h2>
+                <p class="panel-desc">Ce numéro s’affiche dans Mes dettes, pour que les potos sachent où virer.</p>
+                <form id="financierAccountForm" class="pret-form fond-caisse-form">
+                  <label>
+                    Titulaire
+                    <input type="text" id="financierAccountHolder" maxlength="80" placeholder="Ex : Quentin Dupont" />
+                  </label>
+                  <label>
+                    Banque (optionnel)
+                    <input type="text" id="financierAccountBank" maxlength="60" placeholder="Ex : BNP Paribas" />
+                  </label>
+                  <label>
+                    Numéro de compte / IBAN
+                    <input type="text" id="financierAccountIban" maxlength="42" placeholder="Ex : BE71 0961 2345 6769" required />
+                  </label>
+                  <div class="fond-caisse-actions">
+                    <button type="submit" class="btn-primary">Enregistrer le compte</button>
+                  </div>
+                </form>
+                <p class="save-msg" id="financierAccountSaveMsg" hidden></p>
+              </section>
+
               <section class="panel" id="fondCaisseAnnuelPanel">
                 <h2>Fond de caisse</h2>
                 <p class="panel-desc">Somme que chaque poto verse au départ, chaque année. Il peut payer en plusieurs fois : chaque versement entre dans la caisse, le reste reste dû.</p>
@@ -865,6 +888,6 @@
   </div>
 
   <script src="api-client.js?v=online-1"></script>
-  <script src="app.js?v=pwa-9"></script>
+  <script src="app.js?v=pwa-10"></script>
 </body>
 </html>

@@ -53,6 +53,7 @@ const AUTRE_ARGENT_KEY = "poto-timide-autre-argent";
 const ANCIENNE_TOURNEE_DETTES_KEY = "poto-timide-ancienne-tournee-dettes";
 const FOND_CAISSE_KEY = "poto-timide-fond-caisse";
 const FOND_CAISSE_ANNUEL_KEY = "poto-timide-fond-caisse-annuel";
+const FINANCIER_ACCOUNT_KEY = "poto-timide-financier-account";
 const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
@@ -316,6 +317,7 @@ let autreArgent = [];
 let ancienneTourneeDettes = [];
 let fondCaisse = DEFAULT_FOND_CAISSE;
 let fondCaisseAnnuel = { years: {} };
+let financierAccount = { iban: "", holder: "", bank: "" };
 let financeData = null;
 let activeFinanceSub = FINANCE_ARCHIVES_SUB;
 let activeAdminSub = "membres";
@@ -1589,10 +1591,84 @@ async function resetFondCaisse() {
   return true;
 }
 
+function loadFinancierAccount() {
+  try {
+    const data = localStorage.getItem(FINANCIER_ACCOUNT_KEY);
+    const raw = data ? JSON.parse(data) : null;
+    if (!raw || typeof raw !== "object") return { iban: "", holder: "", bank: "" };
+    return {
+      iban: String(raw.iban || "").trim(),
+      holder: String(raw.holder || "").trim(),
+      bank: String(raw.bank || "").trim(),
+    };
+  } catch {
+    return { iban: "", holder: "", bank: "" };
+  }
+}
+
+function saveFinancierAccount() {
+  localStorage.setItem(FINANCIER_ACCOUNT_KEY, JSON.stringify(financierAccount));
+}
+
+function formatIbanDisplay(iban) {
+  const compact = String(iban || "").replace(/\s+/g, "").toUpperCase();
+  return compact.replace(/(.{4})/g, "$1 ").trim();
+}
+
+function fillFinancierAccountForm() {
+  const iban = document.getElementById("financierAccountIban");
+  const holder = document.getElementById("financierAccountHolder");
+  const bank = document.getElementById("financierAccountBank");
+  if (iban) iban.value = formatIbanDisplay(financierAccount.iban);
+  if (holder) holder.value = financierAccount.holder || "";
+  if (bank) bank.value = financierAccount.bank || "";
+}
+
+function saveFinancierAccountFromForm() {
+  if (!requireTabAccess("caisse", "enregistrer le compte bancaire")) return;
+  const iban = String(document.getElementById("financierAccountIban")?.value || "")
+    .replace(/\s+/g, "")
+    .toUpperCase();
+  if (iban.length < 8) {
+    alert("Indique un numéro de compte valide.");
+    return;
+  }
+  financierAccount = {
+    iban,
+    holder: String(document.getElementById("financierAccountHolder")?.value || "").trim(),
+    bank: String(document.getElementById("financierAccountBank")?.value || "").trim(),
+  };
+  saveFinancierAccount();
+  const msg = document.getElementById("financierAccountSaveMsg");
+  if (msg) {
+    msg.textContent = "Compte bancaire enregistré.";
+    msg.className = "save-msg save-msg-success";
+    msg.hidden = false;
+  }
+  renderMesDettes();
+}
+
+function buildDetteRepayHint() {
+  const iban = formatIbanDisplay(financierAccount.iban);
+  if (!iban) {
+    return "Les remboursements se font chez le Financier. Le numéro de compte n’est pas encore renseigné.";
+  }
+  const extra = [
+    financierAccount.holder ? escapeHtml(financierAccount.holder) : "",
+    financierAccount.bank ? escapeHtml(financierAccount.bank) : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
+  return `Les remboursements se font chez le Financier au numéro de compte suivant : <strong class="financier-iban">${escapeHtml(iban)}</strong>${
+    extra ? ` <span class="financier-iban-meta">(${extra})</span>` : ""
+  }.`;
+}
+
 function renderFondCaissePanel() {
   // Panel Finance (ancien accès Financier) : plus affiché — fond réservé à Admin
   if (fondCaissePanel) fondCaissePanel.hidden = true;
   if (canEditFondCaisse()) syncFondCaisseInputs();
+  fillFinancierAccountForm();
   renderFondCaisseAnnuel();
 }
 
@@ -2264,6 +2340,7 @@ function reloadFromStorage() {
   ancienneTourneeDettes = loadAncienneTourneeDettes();
   fondCaisse = loadFondCaisse();
   fondCaisseAnnuel = loadFondCaisseAnnuel();
+  financierAccount = loadFinancierAccount();
   financeData = loadFinance();
   adminIds = loadAdminIds();
   ensureDefaultAdmin();
@@ -4202,7 +4279,7 @@ function renderMesDettes() {
   if (detteTitle) detteTitle.textContent = "Mes dettes";
   if (detteSubtitle) {
     detteSubtitle.hidden = false;
-    detteSubtitle.textContent = `Pour ${current.name} — consultation uniquement. Les remboursements se font dans Admin.`;
+    detteSubtitle.innerHTML = buildDetteRepayHint();
   }
   renderDebtDashboard(detteSummary, allItems, "Tu n'as aucune dette pour le moment.", () => {
     const chips = [];
@@ -7592,6 +7669,11 @@ fondCaisseForm?.addEventListener("submit", (e) => {
 
 resetFondCaisseBtn?.addEventListener("click", () => {
   resetFondCaisse();
+});
+
+document.getElementById("financierAccountForm")?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  saveFinancierAccountFromForm();
 });
 
 fondCaisseFormAdmin?.addEventListener("submit", (e) => {

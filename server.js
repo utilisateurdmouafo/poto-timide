@@ -40,6 +40,7 @@ const STORAGE_KEYS = [
   "poto-timide-finance",
   "poto-timide-fond-caisse",
   "poto-timide-fond-caisse-annuel",
+  "poto-timide-financier-account",
   "poto-timide-data-revision",
 ];
 

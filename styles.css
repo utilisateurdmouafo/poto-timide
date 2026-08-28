@@ -5440,6 +5440,23 @@ textarea {
   cursor: pointer;
 }
 
+.financier-iban {
+  display: inline-block;
+  margin-left: 0.15rem;
+  padding: 0.08rem 0.4rem;
+  border-radius: 6px;
+  background: #e8f4fc;
+  color: var(--navy);
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", monospace;
+  font-size: 0.95em;
+  letter-spacing: 0.04em;
+  user-select: all;
+}
+
+.financier-iban-meta {
+  color: var(--text-muted);
+}
+
 .amende-excel-total {
   display: flex;
   align-items: baseline;
