@@ -45,6 +45,8 @@ const AMENDES_CAISSE_KEY = "poto-timide-amendes-caisse";
 const TAB_PERMISSIONS_KEY = "poto-timide-tab-permissions";
 const PRETS_KEY = "poto-timide-prets";
 const NOTIFICATIONS_KEY = "poto-timide-notifications";
+const PAYMENT_SIGNALS_KEY = "poto-timide-payment-signals";
+const PAYMENT_SIGNAL_COOLDOWN_MS = 12 * 60 * 60 * 1000;
 const EVENEMENTS_KEY = "poto-timide-evenements";
 const ADMIN_IDS_KEY = "poto-timide-admin-ids";
 const AUTRE_ARGENT_KEY = "poto-timide-autre-argent";
@@ -305,6 +307,7 @@ let amendesCaisse = [];
 let tabPermissions = {};
 let prets = [];
 let notifications = [];
+let paymentSignals = [];
 let evenements = [];
 let autreArgent = [];
 let ancienneTourneeDettes = [];
@@ -2160,6 +2163,7 @@ function showAdminSub(subId) {
   if (subId === "evenements") {
     renderEvenements();
   }
+  highlightNotificationItem();
 }
 
 function showGestionSub(subId) {
@@ -2251,6 +2255,7 @@ function reloadFromStorage() {
   tabPermissions = loadTabPermissions();
   prets = loadPrets();
   notifications = loadNotifications();
+  paymentSignals = loadPaymentSignals();
   evenements = loadEvenements();
   autreArgent = loadAutreArgent();
   ancienneTourneeDettes = loadAncienneTourneeDettes();
@@ -3658,6 +3663,7 @@ function showTab(tabId) {
 
   persistActiveTab(tabId);
   updateSessionUI();
+  highlightNotificationItem();
 }
 
 function getAmendesForMember(memberId) {
@@ -3777,14 +3783,17 @@ function buildDetteCard(amende, { showMember = false, showEdit = false, index = 
     repaid > 0 ? `déjà ${formatEuro(repaid)}` : "",
   ].filter(Boolean);
 
+  const kind = isDetteAmende(amende) ? "dette" : "amende";
+  const signalLabel = copy.title || getAmendeTypeLabel(amende.type);
   return `
-    <article class="dette-card type-${escapeHtml(amende.type)}" style="--i: ${index}">
+    <article class="dette-card type-${escapeHtml(amende.type)}" id="amende-${escapeHtml(amende.id)}" style="--i: ${index}">
       ${getAmendeTypeBadge(amende.type)}
       <div class="dette-card-main">
         <p class="dette-card-title">${escapeHtml(copy.title)}</p>
         <p class="dette-card-meta">${escapeHtml(metaParts.join(" · "))}</p>
       </div>
       <strong class="dette-card-amount">${formatEuro(amende.amount)}</strong>
+      ${buildPaymentSignalControls(kind, amende.id, amende.amount, signalLabel, amende.memberId)}
       ${buildAmendeActionControls(amende, { showEdit })}
     </article>
   `;
@@ -3847,12 +3856,13 @@ function renderAncienneTourneeDettesAdmin() {
     .map((entry) => {
       const member = getMemberById(entry.memberId);
       return `
-        <tr>
+        <tr id="admin-ancienne-${escapeHtml(entry.id)}">
           <td>${formatDate(String(entry.createdAt).split("T")[0])}</td>
           <td>${escapeHtml(member?.name || "—")}</td>
           <td class="ancienne-tournee-amount-cell">${formatAncienneTourneeAmountHtml(entry)}</td>
           <td>
             <div class="ancienne-tournee-actions">
+              ${buildPaymentSignalStatusHtml(getLatestPaymentSignal("ancienne-tournee", entry.id, entry.memberId))}
               <button type="button" class="btn-secondary btn-ancienne-tournee-add" data-member-id="${escapeHtml(entry.memberId)}">Ajouter</button>
               <button type="button" class="btn-secondary btn-ancienne-tournee-delete" data-id="${escapeHtml(entry.id)}">Supprimer dette</button>
               ${buildAncienneTourneeRepayControls(entry)}
@@ -3902,11 +3912,15 @@ function renderAncienneTourneeMemberView() {
     .map((entry) => {
       const member = getMemberById(entry.memberId);
       return `
-      <article class="ancienne-tournee-row">
+      <article class="ancienne-tournee-row" id="ancienne-${escapeHtml(entry.id)}">
         <span class="ancienne-tournee-row-date">${formatDate(String(entry.createdAt).split("T")[0])}</span>
         ${financierView ? `<span class="ancienne-tournee-row-poto">${escapeHtml(member?.name || "—")}</span>` : ""}
         <span class="ancienne-tournee-row-amount">${formatAncienneTourneeAmountHtml(entry)}</span>
-        ${financierView ? buildAncienneTourneeRepayControls(entry) : ""}
+        ${
+          financierView
+            ? `${buildPaymentSignalStatusHtml(getLatestPaymentSignal("ancienne-tournee", entry.id, entry.memberId))}${buildAncienneTourneeRepayControls(entry)}`
+            : buildPaymentSignalControls("ancienne-tournee", entry.id, entry.amount, "Dette ancienne tournée", entry.memberId)
+        }
       </article>`;
     })
     .join("");
@@ -4469,12 +4483,13 @@ function renderAmendesAdminHistory() {
         .map((amende) => {
           const member = getMemberById(amende.memberId);
           return `
-            <article class="ancienne-tournee-row amende-history-row">
+            <article class="ancienne-tournee-row amende-history-row" id="admin-amende-${escapeHtml(amende.id)}">
               <span class="ancienne-tournee-row-date">${formatFriendlyDate(amende.date)}</span>
               <span class="ancienne-tournee-row-poto">${escapeHtml(member?.name || "—")}</span>
               ${getAmendeTypeBadge(amende.type)}
               <span class="amende-history-note">${escapeHtml(amende.note || "—")}</span>
               <strong class="ancienne-tournee-row-amount">${formatEuro(amende.amount)}</strong>
+              ${buildPaymentSignalStatusHtml(getLatestPaymentSignal(isDetteAmende(amende) ? "dette" : "amende", amende.id, amende.memberId))}
               ${buildAmendeActionControls(amende, { showEdit: true })}
             </article>
           `;
@@ -4520,6 +4535,205 @@ function loadNotifications() {
   } catch {
     return [];
   }
+}
+
+function loadPaymentSignals() {
+  try {
+    const data = localStorage.getItem(PAYMENT_SIGNALS_KEY);
+    const parsed = data ? JSON.parse(data) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePaymentSignals() {
+  localStorage.setItem(PAYMENT_SIGNALS_KEY, JSON.stringify(paymentSignals));
+}
+
+function getLatestPaymentSignal(kind, itemId, memberId) {
+  return paymentSignals.find(
+    (signal) => signal.kind === kind && signal.itemId === itemId && signal.memberId === memberId
+  ) || null;
+}
+
+function canOfferPaymentSignal(signal) {
+  if (!signal) return true;
+  if (signal.status === "will_pay") return true;
+  const created = new Date(signal.createdAt).getTime();
+  return Number.isFinite(created) && Date.now() - created >= PAYMENT_SIGNAL_COOLDOWN_MS;
+}
+
+function formatDateTime(iso) {
+  if (!iso) return "";
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return formatDate(String(iso).split("T")[0]);
+  const hh = String(date.getHours()).padStart(2, "0");
+  const mm = String(date.getMinutes()).padStart(2, "0");
+  return `${formatDate(iso.split("T")[0])} · ${hh}h${mm}`;
+}
+
+function formatPaymentSignalStatus(signal) {
+  if (!signal) return "";
+  const label = signal.status === "paid" ? "Virement envoyé" : "Virement annoncé";
+  return `${label} · ${formatDateTime(signal.createdAt)}`;
+}
+
+function buildPaymentSignalStatusHtml(signal) {
+  if (!signal) return "";
+  return `<p class="payment-signal-status payment-signal-${escapeHtml(signal.status)}">${escapeHtml(formatPaymentSignalStatus(signal))}${
+    signal.note ? ` — ${escapeHtml(signal.note)}` : ""
+  }</p>`;
+}
+
+function memberHasTabAccess(memberId, tabId) {
+  if (isMemberAdmin(memberId)) return true;
+  const role = getMemberRole(memberId);
+  if (!role) return false;
+  return getTabAllowedRoles(tabId).includes(role);
+}
+
+function getPaymentSignalRecipients(kind) {
+  const tabByKind = {
+    amende: "amendes",
+    dette: "amendes",
+    pret: "prets",
+    "ancienne-tournee": "ancienne-tournee",
+    evenement: "evenements",
+  };
+  const tabId = tabByKind[kind] || "caisse";
+  const ids = new Set();
+  if (roles.tresorier) ids.add(roles.tresorier);
+  (adminIds || []).forEach((id) => ids.add(id));
+  members.forEach((member) => {
+    if (memberHasTabAccess(member.id, tabId)) ids.add(member.id);
+  });
+  const current = getCurrentMember();
+  if (current) ids.delete(current.id);
+  return [...ids].filter(Boolean);
+}
+
+function paymentSignalAdminTarget(kind) {
+  if (kind === "pret") return { tab: "admin", admin: "prets" };
+  if (kind === "ancienne-tournee") return { tab: "admin", admin: "ancienne-tournee" };
+  if (kind === "evenement") return { tab: "admin", admin: "evenements" };
+  return { tab: "admin", admin: "amendes" };
+}
+
+function paymentSignalElementId(kind, itemId) {
+  if (kind === "pret") return `loan-${itemId}`;
+  if (kind === "ancienne-tournee") return `ancienne-${itemId}`;
+  if (kind === "evenement") return `evenement-${itemId}`;
+  return `amende-${itemId}`;
+}
+
+function buildPaymentSignalControls(kind, itemId, amount, label, memberId) {
+  const current = getCurrentMember();
+  const signal = getLatestPaymentSignal(kind, itemId, memberId);
+  const statusHtml = buildPaymentSignalStatusHtml(signal);
+  const isOwner = current && current.id === memberId;
+  if (!isOwner || isAdminWorkspace() || !canOfferPaymentSignal(signal)) {
+    return statusHtml;
+  }
+  return `
+    ${statusHtml}
+    <button
+      type="button"
+      class="btn-secondary btn-payment-signal"
+      data-kind="${escapeHtml(kind)}"
+      data-item-id="${escapeHtml(itemId)}"
+      data-amount="${escapeHtml(String(amount))}"
+      data-label="${escapeHtml(label)}"
+    >Prévenir le Financier</button>
+  `;
+}
+
+let pendingPaymentSignal = null;
+
+function openPaymentSignalModal({ kind, itemId, amount, label }) {
+  const overlay = document.getElementById("paymentSignalModal");
+  const summary = document.getElementById("paymentSignalSummary");
+  const noteInput = document.getElementById("paymentSignalNote");
+  if (!overlay) return;
+  pendingPaymentSignal = { kind, itemId, amount: Number(amount) || 0, label: label || "paiement" };
+  if (summary) {
+    summary.textContent = `${label || "Paiement"} · ${formatEuro(pendingPaymentSignal.amount)}`;
+  }
+  if (noteInput) noteInput.value = "";
+  overlay.classList.add("open");
+}
+
+function closePaymentSignalModal() {
+  document.getElementById("paymentSignalModal")?.classList.remove("open");
+  pendingPaymentSignal = null;
+}
+
+function sendPaymentSignal(status) {
+  const current = getCurrentMember();
+  if (!current || !pendingPaymentSignal) return;
+  const { kind, itemId, amount, label } = pendingPaymentSignal;
+  const existing = getLatestPaymentSignal(kind, itemId, current.id);
+  if (existing) {
+    const age = Date.now() - new Date(existing.createdAt).getTime();
+    const upgradingToPaid = existing.status === "will_pay" && status === "paid";
+    if (!upgradingToPaid && Number.isFinite(age) && age < PAYMENT_SIGNAL_COOLDOWN_MS) {
+      alert("Le Financier a déjà été prévenu. Tu pourras renvoyer dans 12 h, ou dire « J'ai fait le virement » si c'est fait.");
+      return;
+    }
+  }
+
+  const note = String(document.getElementById("paymentSignalNote")?.value || "").trim().slice(0, 120);
+  const signal = {
+    id: generateId(),
+    kind,
+    itemId,
+    memberId: current.id,
+    amount,
+    label,
+    status,
+    note,
+    createdAt: new Date().toISOString(),
+  };
+  paymentSignals = paymentSignals.filter(
+    (item) => !(item.kind === kind && item.itemId === itemId && item.memberId === current.id)
+  );
+  paymentSignals.unshift(signal);
+  savePaymentSignals();
+
+  const recipients = getPaymentSignalRecipients(kind);
+  if (!recipients.length) {
+    alert("Aucun Financier ou admin à prévenir pour le moment. Le signal est quand même enregistré.");
+    closePaymentSignalModal();
+    render();
+    return;
+  }
+
+  const verb = status === "paid" ? "a viré" : "va virer";
+  const title = status === "paid" ? "Virement envoyé" : "Virement à venir";
+  const body = `${current.name} ${verb} ${formatEuro(amount)} (${label})${note ? ` — ${note}` : ""}`;
+  const target = paymentSignalAdminTarget(kind);
+  const url = `/?tab=${target.tab}&admin=${target.admin}&item=${encodeURIComponent(itemId)}`;
+
+  recipients.forEach((memberId) => {
+    addNotification(memberId, "payment_signal", itemId, body);
+    if (notifications[0]) {
+      notifications[0].kind = kind;
+      notifications[0].admin = target.admin;
+    }
+    queuePushMessage(memberId, {
+      title,
+      body,
+      url,
+      tab: target.tab,
+      admin: target.admin,
+      loanId: kind === "pret" ? itemId : "",
+      item: itemId,
+      tag: `pay-${kind}-${itemId}`,
+    });
+  });
+  saveNotifications(false);
+  closePaymentSignalModal();
+  render();
 }
 
 function savePrets(shouldRender = true) {
@@ -4755,13 +4969,22 @@ function queuePushMessage(memberId, payload) {
   if (!memberId || current?.id === memberId) return;
   const tab = payload.tab || "prets";
   const loanId = payload.loanId || "";
+  const admin = payload.admin || "";
+  const item = payload.item || "";
+  const urlParams = new URLSearchParams();
+  urlParams.set("tab", tab);
+  if (admin) urlParams.set("admin", admin);
+  if (loanId) urlParams.set("loan", loanId);
+  if (item) urlParams.set("item", item);
   pendingPushMessages.push({
     memberId,
     title: payload.title || "Poto Timide",
     body: payload.body || "",
-    url: payload.url || `/?tab=${tab}${loanId ? `&loan=${encodeURIComponent(loanId)}` : ""}`,
+    url: payload.url || `/?${urlParams.toString()}`,
     tab,
+    admin,
     loanId,
+    item,
     tag: payload.tag || "poto-timide",
   });
 }
@@ -5303,11 +5526,12 @@ async function deletePret(loanId) {
 }
 
 function isPretNotification(notif) {
-  return Boolean(notif.loanId) || (notif.type && notif.type.startsWith("loan_"));
+  return Boolean(notif.loanId) || (notif.type && notif.type.startsWith("loan_")) || notif.type === "payment_signal";
 }
 
 function isPersonalNotificationFor(notif, memberId) {
   if (!notif || notif.memberId !== memberId) return false;
+  if (notif.type === "payment_signal") return true;
   if (!isPretNotification(notif)) return false;
 
   if (notif.type === "loan_vote") return true;
@@ -5521,7 +5745,7 @@ function renderPretNotifications() {
   pretNotificationsList.innerHTML = mine
     .map(
       (notif) => `
-      <li class="pret-notif-item${notif.read ? "" : " pret-notif-unread"}" data-loan-id="${escapeHtml(notif.loanId || "")}">
+      <li class="pret-notif-item${notif.read ? "" : " pret-notif-unread"}" data-loan-id="${escapeHtml(notif.loanId || "")}" data-type="${escapeHtml(notif.type || "")}" data-admin="${escapeHtml(notif.admin || "")}">
         <div class="pret-notif-body">
           <p>${escapeHtml(notif.message)}</p>
           <span class="pret-notif-date">${formatDate(notif.createdAt.split("T")[0])}</span>
@@ -5654,7 +5878,12 @@ function buildLoanCard(loan, mode) {
       ${voteSection}
       ${financierSection}
       ${activeSection}
-      ${mode === "active" && balance > 0 ? `<p class="pret-balance">Reste à payer : <strong>${formatEuro(balance)}</strong></p>` : ""}
+      ${
+        mode === "active" && balance > 0
+          ? `<p class="pret-balance">Reste à payer : <strong>${formatEuro(balance)}</strong></p>
+             ${buildPaymentSignalControls("pret", loan.id, balance, "Prêt à rembourser", loan.borrowerId)}`
+          : ""
+      }
       ${mode === "history" ? buildLoanRepaymentsBlock(loan) : ""}
       ${financierControls}
     </article>
@@ -6322,7 +6551,7 @@ function buildEvenementMemberCard(evt, current) {
   const reimbursed = isEvenementReimbursed(evt);
 
   return `
-    <article class="evenement-card evenement-card-member">
+    <article class="evenement-card evenement-card-member" id="evenement-${escapeHtml(evt.id)}">
       <div class="evenement-head">
         <div>
           <h3>${escapeHtml(evt.title)}</h3>
@@ -6369,6 +6598,11 @@ function buildEvenementMemberCard(evt, current) {
                  ${
                    myPaid && myPaidAmount > share
                      ? `<p class="evenement-extra-note">+${formatEuro(myPaidAmount - share)} de plus que la cotisation.</p>`
+                     : ""
+                 }
+                 ${
+                   !myPaid
+                     ? buildPaymentSignalControls("evenement", evt.id, share, evt.title || "Événement", current.id)
                      : ""
                  }`
         }
@@ -6500,7 +6734,7 @@ function buildEvenementManagerCard(evt, current) {
     : "";
 
   return `
-    <article class="evenement-card">
+    <article class="evenement-card" id="admin-evenement-${escapeHtml(evt.id)}">
       <div class="evenement-head">
         <div>
           ${evt.type ? `<span class="evenement-type-badge type-${evt.type}">${escapeHtml(getEvenementTypeLabel(evt.type))}</span>` : ""}
@@ -7279,11 +7513,40 @@ pretNotificationsList?.addEventListener("click", (e) => {
     return;
   }
   const item = e.target.closest(".pret-notif-item");
-  const loanId = item?.dataset.loanId;
+  if (!item) return;
+  if (item.dataset.type === "payment_signal") {
+    openFromNotification({
+      tab: "admin",
+      admin: item.dataset.admin || "amendes",
+      item: item.dataset.loanId || "",
+      loanId: item.dataset.admin === "prets" ? item.dataset.loanId : "",
+    });
+    return;
+  }
+  const loanId = item.dataset.loanId;
   if (loanId) openFromNotification({ tab: "prets", loanId });
 });
 
 document.getElementById("pretNotificationsClearBtn")?.addEventListener("click", deleteAllOwnNotifications);
+
+document.addEventListener("click", (e) => {
+  const signalBtn = e.target.closest(".btn-payment-signal");
+  if (!signalBtn) return;
+  openPaymentSignalModal({
+    kind: signalBtn.dataset.kind,
+    itemId: signalBtn.dataset.itemId,
+    amount: signalBtn.dataset.amount,
+    label: signalBtn.dataset.label,
+  });
+});
+
+document.getElementById("paymentSignalCancel")?.addEventListener("click", () => closePaymentSignalModal());
+document.getElementById("paymentSignalWillPay")?.addEventListener("click", () => sendPaymentSignal("will_pay"));
+document.getElementById("paymentSignalPaid")?.addEventListener("click", () => sendPaymentSignal("paid"));
+document.getElementById("paymentSignalModal")?.addEventListener("click", (e) => {
+  if (e.target.id === "paymentSignalModal") closePaymentSignalModal();
+});
+document.getElementById("paymentSignalForm")?.addEventListener("submit", (e) => e.preventDefault());
 
 pretForm?.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -7652,28 +7915,60 @@ function rememberNotificationDeepLink() {
   if (loan) sessionStorage.setItem("poto-open-loan", loan);
 }
 
-function openFromNotification({ tab = "prets", loanId = "" } = {}) {
+function openFromNotification({ tab = "prets", admin = "", loanId = "", item = "" } = {}) {
+  if (admin) sessionStorage.setItem("poto-open-admin", admin);
+  if (item) sessionStorage.setItem("poto-open-item", item);
   if (tab) {
     sessionStorage.setItem("poto-open-tab", tab);
     showTab(tab);
   }
+  if (admin && tab === "admin") showAdminSub(admin);
   if (loanId) {
     sessionStorage.setItem("poto-open-loan", loanId);
     highlightLoanFromNotification();
   }
+  highlightNotificationItem();
 }
 
 function applyNotificationDeepLink() {
-  const tab = sessionStorage.getItem("poto-open-tab") || new URLSearchParams(location.search).get("tab");
-  const loanId = sessionStorage.getItem("poto-open-loan") || new URLSearchParams(location.search).get("loan");
+  const params = new URLSearchParams(location.search);
+  const tab = sessionStorage.getItem("poto-open-tab") || params.get("tab");
+  const admin = sessionStorage.getItem("poto-open-admin") || params.get("admin");
+  const item = sessionStorage.getItem("poto-open-item") || params.get("item");
+  const loanId = sessionStorage.getItem("poto-open-loan") || params.get("loan");
+  if (admin) sessionStorage.setItem("poto-open-admin", admin);
+  if (item) sessionStorage.setItem("poto-open-item", item);
   if (tab) {
     sessionStorage.removeItem("poto-open-tab");
     showTab(tab);
   }
+  if (admin && (tab === "admin" || getActiveMainTab() === "admin")) {
+    sessionStorage.removeItem("poto-open-admin");
+    showAdminSub(admin);
+  }
   if (loanId) {
     sessionStorage.setItem("poto-open-loan", loanId);
     highlightLoanFromNotification();
   }
+  highlightNotificationItem();
+}
+
+function highlightNotificationItem() {
+  const item = sessionStorage.getItem("poto-open-item") || new URLSearchParams(location.search).get("item");
+  if (!item) return;
+  const target =
+    document.getElementById(`admin-amende-${item}`) ||
+    document.getElementById(`admin-ancienne-${item}`) ||
+    document.getElementById(`admin-evenement-${item}`) ||
+    document.getElementById(`amende-${item}`) ||
+    document.getElementById(`ancienne-${item}`) ||
+    document.getElementById(`evenement-${item}`) ||
+    document.getElementById(`loan-${item}`);
+  if (!target) return;
+  sessionStorage.removeItem("poto-open-item");
+  target.classList.add("is-notif-target");
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => target.classList.remove("is-notif-target"), 4000);
 }
 
 function highlightLoanFromNotification() {

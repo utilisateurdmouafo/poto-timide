@@ -1,4 +1,4 @@
-const CACHE_NAME = "poto-timide-app-v2";
+const CACHE_NAME = "poto-timide-app-v3";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -74,7 +74,9 @@ self.addEventListener("push", (event) => {
     data: {
       url: data.url || "/?tab=prets",
       tab: data.tab || "prets",
+      admin: data.admin || "",
       loanId: data.loanId || "",
+      item: data.item || "",
     },
   };
 
@@ -98,7 +100,9 @@ self.addEventListener("notificationclick", (event) => {
           client.postMessage({
             type: "OPEN_NOTIFICATION",
             tab: data.tab || "prets",
+            admin: data.admin || "",
             loanId: data.loanId || "",
+            item: data.item || "",
             url: targetUrl,
           });
           return client.focus();

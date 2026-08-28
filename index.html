@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=pwa-2" />
+  <link rel="stylesheet" href="styles.css?v=pwa-3" />
 </head>
 <body>
   <div class="app" id="app">
@@ -767,6 +767,27 @@
     </div>
   </div>
 
+  <div class="modal-overlay" id="paymentSignalModal">
+    <div class="modal">
+      <div class="modal-hero">
+        <h3>Prévenir le Financier</h3>
+        <p class="modal-desc" id="paymentSignalSummary"></p>
+        <p class="modal-desc">Ça n'enregistre pas le paiement. Ça prévient seulement.</p>
+      </div>
+      <form id="paymentSignalForm">
+        <label>
+          Note (optionnel)
+          <input type="text" id="paymentSignalNote" maxlength="120" placeholder="Ex : Revolut, ce soir, réf 123" />
+        </label>
+        <div class="modal-actions payment-signal-actions">
+          <button type="button" class="btn-secondary" id="paymentSignalCancel">Annuler</button>
+          <button type="button" class="btn-secondary" id="paymentSignalWillPay">Je vais faire le virement</button>
+          <button type="button" class="btn-primary" id="paymentSignalPaid">J'ai fait le virement</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="changePasswordModal">
     <div class="modal">
       <div class="modal-hero">
@@ -817,6 +838,6 @@
   </div>
 
   <script src="api-client.js?v=online-1"></script>
-  <script src="app.js?v=pwa-3"></script>
+  <script src="app.js?v=pwa-4"></script>
 </body>
 </html>

@@ -32,6 +32,7 @@ const STORAGE_KEYS = [
   "poto-timide-tab-permissions",
   "poto-timide-prets",
   "poto-timide-notifications",
+  "poto-timide-payment-signals",
   "poto-timide-evenements",
   "poto-timide-admin-ids",
   "poto-timide-autre-argent",
@@ -847,7 +848,9 @@ function createApp() {
           body: String(message.body || "").slice(0, 180),
           url: String(message.url || "/?tab=prets"),
           tab: String(message.tab || "prets"),
+          admin: String(message.admin || ""),
           loanId: String(message.loanId || ""),
+          item: String(message.item || ""),
           tag: String(message.tag || "poto-timide"),
         };
         const result = await push.sendToUserIds([memberId], payload);
