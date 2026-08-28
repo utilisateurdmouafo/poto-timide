@@ -2758,8 +2758,8 @@ body::after {
 }
 
 .dette-status--due {
-  background: linear-gradient(180deg, #e0f2fe 0%, #ffffff 100%);
-  border-color: rgba(2, 132, 199, 0.28);
+  background: linear-gradient(180deg, #fff7ed 0%, #ffffff 100%);
+  border-color: rgba(234, 88, 12, 0.28);
 }
 
 .dette-status-mark {
@@ -2802,8 +2802,12 @@ body::after {
   color: var(--text);
 }
 
+.dette-status--due .dette-status-kicker {
+  color: #c2410c;
+}
+
 .dette-status--due .dette-status-amount {
-  color: var(--gold);
+  color: #ea580c;
 }
 
 .dette-status-meta {
@@ -2832,10 +2836,26 @@ body::after {
 }
 
 .dette-pill.type-dette,
-.dette-pill.type-absence { color: var(--danger); }
-.dette-pill.type-retard { color: #9a6700; }
-.dette-pill.type-bavardage { color: var(--primary); }
-.dette-pill.type-sanctions { color: #6d5ce0; }
+.dette-pill.type-absence {
+  color: var(--danger);
+  background: var(--danger-light);
+  border-color: rgba(225, 29, 72, 0.22);
+}
+.dette-pill.type-retard {
+  color: #c2410c;
+  background: var(--warning-light);
+  border-color: rgba(217, 119, 6, 0.22);
+}
+.dette-pill.type-bavardage {
+  color: #0369a1;
+  background: var(--primary-light);
+  border-color: rgba(2, 132, 199, 0.22);
+}
+.dette-pill.type-sanctions {
+  color: #6d28d9;
+  background: rgba(109, 40, 217, 0.12);
+  border-color: rgba(109, 40, 217, 0.22);
+}
 
 .dette-feed {
   display: flex;
@@ -2877,6 +2897,7 @@ body::after {
 .dette-group-total strong {
   font-size: 1rem;
   font-weight: 700;
+  color: #ea580c;
 }
 
 .dette-group-total-count {
@@ -2948,11 +2969,11 @@ body::after {
   color: var(--text);
 }
 
-.dette-card.type-dette .dette-card-amount,
+.dette-card.type-dette .dette-card-amount { color: #ea580c; }
 .dette-card.type-absence .dette-card-amount { color: var(--danger); }
-.dette-card.type-retard .dette-card-amount { color: #9a6700; }
+.dette-card.type-retard .dette-card-amount { color: #c2410c; }
 .dette-card.type-bavardage .dette-card-amount { color: var(--primary); }
-.dette-card.type-sanctions .dette-card-amount { color: #6d5ce0; }
+.dette-card.type-sanctions .dette-card-amount { color: #6d28d9; }
 
 .dette-card-end {
   display: flex;
@@ -5334,11 +5355,17 @@ textarea {
 
 .finance-stat--out strong,
 .finance-td-amount--out,
-.dette-card.type-dette .dette-card-amount,
 .dette-card.type-absence .dette-card-amount,
+.dette-td-amount.type-absence {
+  color: var(--danger);
+}
+
+.dette-card.type-dette .dette-card-amount,
 .dette-td-amount.type-dette,
-.dette-td-amount.type-absence,
-.dette-status--due .dette-status-amount,
+.dette-status--due .dette-status-amount {
+  color: #ea580c;
+}
+
 .dette-pill.type-dette,
 .dette-pill.type-absence {
   color: var(--danger);
@@ -5467,8 +5494,8 @@ textarea {
   gap: 1rem;
   margin: 0 0 1rem;
   padding: 0.95rem 1.1rem;
-  background: linear-gradient(135deg, #e0f2fe 0%, #ffffff 60%);
-  border: 1px solid var(--border-strong);
+  background: linear-gradient(135deg, #fff1f2 0%, #ffffff 62%);
+  border: 1px solid rgba(225, 29, 72, 0.28);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-soft);
 }
@@ -5476,7 +5503,7 @@ textarea {
 .amende-excel-total span {
   font-size: 0.92rem;
   font-weight: 600;
-  color: var(--text-muted);
+  color: #9f1239;
 }
 
 .amende-excel-total strong {
@@ -5484,7 +5511,7 @@ textarea {
   font-size: clamp(1.4rem, 4vw, 1.85rem);
   font-weight: 800;
   letter-spacing: -0.03em;
-  color: var(--primary-hover);
+  color: var(--danger);
 }
 
 .amende-excel-table {
@@ -5498,28 +5525,28 @@ textarea {
 
 .amende-excel-table th,
 .amende-excel-table td {
-  border: 1px solid rgba(14, 165, 233, 0.2);
+  border: 1px solid rgba(251, 113, 133, 0.28);
   padding: 0.55rem 0.7rem;
   text-align: left;
   vertical-align: middle;
 }
 
 .amende-excel-table th {
-  background: #bae6fd;
+  background: #ffe4e6;
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #072033;
+  color: #9f1239;
   white-space: nowrap;
 }
 
 .amende-excel-table tbody tr:nth-child(even) {
-  background: #f0f9ff;
+  background: #fff1f2;
 }
 
 .amende-excel-table tbody tr:hover {
-  background: #e0f2fe;
+  background: #ffe4e6;
 }
 
 .amende-excel-table .num {
@@ -5527,16 +5554,17 @@ textarea {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   font-weight: 700;
-  color: var(--navy);
+  color: #c2410c;
 }
 
 .amende-excel-table tfoot td {
-  background: #e0f2fe;
+  background: #ffe4e6;
   font-weight: 800;
+  color: #9f1239;
 }
 
 .amende-excel-table tfoot .num {
-  color: var(--primary-hover);
+  color: var(--danger);
 }
 
 .payment-signal-status {
