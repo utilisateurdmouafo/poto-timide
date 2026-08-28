@@ -33,6 +33,7 @@ const STORAGE_KEYS = [
   "poto-timide-prets",
   "poto-timide-notifications",
   "poto-timide-evenements",
+  "poto-timide-communication",
   "poto-timide-admin-ids",
   "poto-timide-autre-argent",
   "poto-timide-ancienne-tournee-dettes",

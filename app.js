@@ -47,6 +47,8 @@ const PRETS_KEY = "poto-timide-prets";
 const NOTIFICATIONS_KEY = "poto-timide-notifications";
 
 const EVENEMENTS_KEY = "poto-timide-evenements";
+const COMMUNICATION_KEY = "poto-timide-communication";
+const COMMUNICATION_SUBTAB_KEY = "poto-timide-communication-subtab";
 const ADMIN_IDS_KEY = "poto-timide-admin-ids";
 const AUTRE_ARGENT_KEY = "poto-timide-autre-argent";
 const ANCIENNE_TOURNEE_DETTES_KEY = "poto-timide-ancienne-tournee-dettes";
@@ -57,7 +59,33 @@ const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["membres", "tournee", "prets", "evenements", "dettes", "amendes", "finance", "admin"];
+const TAB_IDS = ["membres", "tournee", "prets", "evenements", "communication", "dettes", "amendes", "finance", "admin"];
+const COMMUNICATION_KINDS = [
+  {
+    id: "rapport",
+    label: "Rapports de réunions",
+    singular: "rapport",
+    composerTitle: "Publier un rapport de réunion",
+    titlePlaceholder: "Ex : Réunion du 15 mars",
+    bodyPlaceholder: "Compte rendu : présents, décisions, suites à donner…",
+  },
+  {
+    id: "ordre-du-jour",
+    label: "Ordre du jour",
+    singular: "ordre du jour",
+    composerTitle: "Publier l'ordre du jour",
+    titlePlaceholder: "Ex : Réunion du 12 avril",
+    bodyPlaceholder: "1. Accueil\n2. Point caisse\n3. …",
+  },
+  {
+    id: "communique",
+    label: "Communiqué",
+    singular: "communiqué",
+    composerTitle: "Publier un communiqué",
+    titlePlaceholder: "Ex : Information aux potos",
+    bodyPlaceholder: "Texte du communiqué…",
+  },
+];
 const FINANCE_SUBTABS = ["caisse", "archives"];
 const FINANCE_LIVE_DETTE_SUB = "dettes-amendes";
 const FINANCE_CAISSE_SUB = "caisse";
@@ -108,6 +136,7 @@ const MANAGEABLE_TABS = [
   { id: "prets", label: "Prêts" },
   { id: "amendes", label: "Dettes & amendes" },
   { id: "evenements", label: "Événements" },
+  { id: "communication", label: "Communication" },
 ];
 
 const DEFAULT_TAB_PERMISSIONS = {
@@ -119,6 +148,7 @@ const DEFAULT_TAB_PERMISSIONS = {
   prets: ["tresorier"],
   amendes: ["censeur", "tresorier"],
   evenements: ["tresorier"],
+  communication: ["president"],
 };
 
 const DEFAULT_MEMBER_NAMES = [
@@ -239,6 +269,17 @@ const evenementListTitle = document.getElementById("evenementListTitle");
 const evenementListSubtitle = document.getElementById("evenementListSubtitle");
 const evenementSaveMsg = document.getElementById("evenementSaveMsg");
 const evenementMemberSummary = document.getElementById("evenementMemberSummary");
+const communicationSubtabs = document.getElementById("communicationSubtabs");
+const communicationForm = document.getElementById("communicationForm");
+const communicationTitleInput = document.getElementById("communicationTitle");
+const communicationBodyInput = document.getElementById("communicationBody");
+const communicationSubmitBtn = document.getElementById("communicationSubmitBtn");
+const communicationCancelBtn = document.getElementById("communicationCancelBtn");
+const communicationComposer = document.getElementById("communicationComposer");
+const communicationComposerTitle = document.getElementById("communicationComposerTitle");
+const communicationList = document.getElementById("communicationList");
+const communicationLockMsg = document.getElementById("communicationLockMsg");
+const communicationSaveMsg = document.getElementById("communicationSaveMsg");
 const adminRolesPanel = document.getElementById("adminRolesPanel");
 const adminList = document.getElementById("adminList");
 const adminForm = document.getElementById("adminForm");
@@ -312,6 +353,9 @@ let tabPermissions = {};
 let prets = [];
 let notifications = [];
 let evenements = [];
+let communicationPosts = [];
+let activeCommunicationSub = "rapport";
+let editingCommunicationId = null;
 let autreArgent = [];
 let ancienneTourneeDettes = [];
 let fondCaisse = DEFAULT_FOND_CAISSE;
@@ -2458,6 +2502,8 @@ function reloadFromStorage() {
   prets = loadPrets();
   notifications = loadNotifications();
   evenements = loadEvenements();
+  communicationPosts = loadCommunicationPosts();
+  activeCommunicationSub = loadCommunicationSubtab();
   autreArgent = loadAutreArgent();
   ancienneTourneeDettes = loadAncienneTourneeDettes();
   fondCaisse = loadFondCaisse();
@@ -3252,6 +3298,7 @@ function saveTabPermissionsFromUI() {
   renderAmendes();
   renderPrets();
   renderEvenements();
+  renderCommunication();
 }
 
 function buildBureauHtml(allowClear) {
@@ -3839,6 +3886,11 @@ function showTab(tabId) {
   if (tabId === "evenements") {
     reloadFromStorage();
     renderEvenements();
+  }
+
+  if (tabId === "communication") {
+    reloadFromStorage();
+    renderCommunication();
   }
 
   if (tabId === "dettes") {
@@ -7390,6 +7442,189 @@ function renderEvenements() {
   refreshFinancierPayBoxes();
 }
 
+function loadCommunicationPosts() {
+  try {
+    const data = localStorage.getItem(COMMUNICATION_KEY);
+    const parsed = data ? JSON.parse(data) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCommunicationPosts() {
+  localStorage.setItem(COMMUNICATION_KEY, JSON.stringify(communicationPosts));
+  bumpLiveDataRevision();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+}
+
+function loadCommunicationSubtab() {
+  const stored = localStorage.getItem(COMMUNICATION_SUBTAB_KEY);
+  if (COMMUNICATION_KINDS.some((kind) => kind.id === stored)) return stored;
+  return "rapport";
+}
+
+function getCommunicationKind(kindId) {
+  return COMMUNICATION_KINDS.find((kind) => kind.id === kindId) || COMMUNICATION_KINDS[0];
+}
+
+function canPublishCommunication() {
+  if (!isLoggedIn()) return false;
+  if (isGroupAdmin()) return true;
+  return hasRoleTabAccess("communication");
+}
+
+function getCommunicationPostsForKind(kindId) {
+  return communicationPosts
+    .filter((post) => post.kind === kindId)
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+}
+
+function cancelEditCommunication() {
+  editingCommunicationId = null;
+  communicationForm?.reset();
+  if (communicationCancelBtn) communicationCancelBtn.hidden = true;
+  if (communicationSubmitBtn) communicationSubmitBtn.textContent = "Publier";
+}
+
+function showCommunicationSub(kindId) {
+  if (!COMMUNICATION_KINDS.some((kind) => kind.id === kindId)) kindId = "rapport";
+  activeCommunicationSub = kindId;
+  localStorage.setItem(COMMUNICATION_SUBTAB_KEY, kindId);
+  cancelEditCommunication();
+  renderCommunication();
+}
+
+function renderCommunicationComposer() {
+  const kind = getCommunicationKind(activeCommunicationSub);
+  const canPublish = canPublishCommunication();
+  if (communicationComposer) communicationComposer.hidden = !canPublish;
+  if (communicationLockMsg) {
+    communicationLockMsg.hidden = canPublish || !isLoggedIn();
+  }
+  if (communicationComposerTitle) {
+    communicationComposerTitle.textContent = editingCommunicationId
+      ? `Modifier ce ${kind.singular}`
+      : kind.composerTitle;
+  }
+  if (communicationTitleInput) communicationTitleInput.placeholder = kind.titlePlaceholder;
+  if (communicationBodyInput) communicationBodyInput.placeholder = kind.bodyPlaceholder;
+  if (communicationSubmitBtn && !editingCommunicationId) {
+    communicationSubmitBtn.textContent = "Publier";
+  }
+}
+
+function renderCommunicationList() {
+  if (!communicationList) return;
+  const kind = getCommunicationKind(activeCommunicationSub);
+  const posts = getCommunicationPostsForKind(kind.id);
+  const canPublish = canPublishCommunication();
+  if (!posts.length) {
+    communicationList.innerHTML = `<p class="communication-empty">Aucun ${escapeHtml(kind.singular)} publié pour le moment.</p>`;
+    return;
+  }
+  communicationList.innerHTML = posts
+    .map((post) => {
+      const author = getMemberById(post.createdBy);
+      const dateLabel = formatFriendlyDate(post.updatedAt || post.createdAt);
+      return `
+        <article class="communication-card" id="comm-${escapeHtml(post.id)}">
+          <div class="communication-card-head">
+            <h3>${escapeHtml(post.title)}</h3>
+            <p class="communication-card-meta">${escapeHtml(dateLabel)}${author ? ` · ${escapeHtml(author.name)}` : ""}</p>
+          </div>
+          <div class="communication-card-body">${escapeHtml(post.body)}</div>
+          ${
+            canPublish
+              ? `<div class="communication-card-actions">
+                  <button type="button" class="btn-secondary btn-comm-edit" data-id="${escapeHtml(post.id)}">Modifier</button>
+                  <button type="button" class="btn-secondary btn-comm-delete" data-id="${escapeHtml(post.id)}">Supprimer</button>
+                </div>`
+              : ""
+          }
+        </article>`;
+    })
+    .join("");
+}
+
+function renderCommunication() {
+  communicationSubtabs?.querySelectorAll("[data-comm-sub]").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.commSub === activeCommunicationSub);
+  });
+  renderCommunicationComposer();
+  renderCommunicationList();
+}
+
+function publishCommunication() {
+  if (!canPublishCommunication()) {
+    alert("Tu n'as pas l'autorisation de publier dans Communication. Un admin peut te l'accorder dans Accès.");
+    return;
+  }
+  const title = String(communicationTitleInput?.value || "").trim();
+  const body = String(communicationBodyInput?.value || "").trim();
+  if (!title || !body) {
+    alert("Indique un titre et un texte.");
+    return;
+  }
+  const kind = getCommunicationKind(activeCommunicationSub);
+  const now = new Date().toISOString();
+  const wasEdit = Boolean(editingCommunicationId);
+  if (editingCommunicationId) {
+    const post = communicationPosts.find((item) => item.id === editingCommunicationId);
+    if (!post) return;
+    post.title = title;
+    post.body = body;
+    post.updatedAt = now;
+    post.updatedBy = getCurrentMember()?.id || null;
+  } else {
+    communicationPosts.unshift({
+      id: generateId(),
+      kind: kind.id,
+      title,
+      body,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: getCurrentMember()?.id || null,
+    });
+  }
+  saveCommunicationPosts();
+  cancelEditCommunication();
+  renderCommunication();
+  if (communicationSaveMsg) {
+    const label = `${kind.singular[0].toUpperCase()}${kind.singular.slice(1)}`;
+    communicationSaveMsg.textContent = wasEdit ? `${label} mis à jour.` : `${label} publié.`;
+    communicationSaveMsg.className = "save-msg save-msg-success";
+    communicationSaveMsg.hidden = false;
+  }
+}
+
+function startEditCommunication(id) {
+  if (!canPublishCommunication()) return;
+  const post = communicationPosts.find((item) => item.id === id);
+  if (!post) return;
+  activeCommunicationSub = post.kind;
+  editingCommunicationId = id;
+  if (communicationTitleInput) communicationTitleInput.value = post.title || "";
+  if (communicationBodyInput) communicationBodyInput.value = post.body || "";
+  if (communicationCancelBtn) communicationCancelBtn.hidden = false;
+  if (communicationSubmitBtn) communicationSubmitBtn.textContent = "Enregistrer";
+  renderCommunication();
+  communicationComposer?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function deleteCommunication(id) {
+  if (!canPublishCommunication()) return;
+  const post = communicationPosts.find((item) => item.id === id);
+  if (!post) return;
+  if (!(await appConfirm(`Supprimer « ${post.title} » ?`))) return;
+  communicationPosts = communicationPosts.filter((item) => item.id !== id);
+  if (editingCommunicationId === id) cancelEditCommunication();
+  saveCommunicationPosts();
+  renderCommunication();
+}
+
 function render() {
   memberCounter.textContent = `${members.length} / ${MAX_MEMBERS} membres`;
   updateSessionUI();
@@ -7402,6 +7637,7 @@ function render() {
   renderTourneeTable();
   renderAmendes();
   renderEvenements();
+  renderCommunication();
   renderAdminList();
   if (canAccessCaisse()) renderAutreArgent();
   refreshFinancierPayBoxes();
@@ -7874,6 +8110,32 @@ financeSubtabs?.addEventListener("click", (e) => {
   const btn = e.target.closest(".finance-subtab");
   if (!btn?.dataset.financeSub) return;
   showFinanceSub(btn.dataset.financeSub);
+});
+
+communicationSubtabs?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-comm-sub]");
+  if (!btn?.dataset.commSub) return;
+  showCommunicationSub(btn.dataset.commSub);
+});
+
+communicationForm?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  publishCommunication();
+});
+
+communicationCancelBtn?.addEventListener("click", () => {
+  cancelEditCommunication();
+  renderCommunication();
+});
+
+communicationList?.addEventListener("click", (e) => {
+  const editBtn = e.target.closest(".btn-comm-edit");
+  if (editBtn) {
+    startEditCommunication(editBtn.dataset.id);
+    return;
+  }
+  const deleteBtn = e.target.closest(".btn-comm-delete");
+  if (deleteBtn) deleteCommunication(deleteBtn.dataset.id);
 });
 
 adminSubtabs?.addEventListener("click", (e) => {

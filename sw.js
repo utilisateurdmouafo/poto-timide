@@ -1,4 +1,4 @@
-const CACHE_NAME = "poto-timide-app-v15";
+const CACHE_NAME = "poto-timide-app-v16";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
