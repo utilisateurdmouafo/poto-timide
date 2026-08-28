@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=head-1" />
+  <link rel="stylesheet" href="styles.css?v=head-5" />
 </head>
 <body>
   <div class="app" id="app">
@@ -34,8 +34,8 @@
           <div class="header-actions">
             <span class="admin-badge" id="userStatus">Non connecté</span>
             <button class="btn-header" id="loginBtn" type="button">Se connecter</button>
-            <button class="btn-header btn-header-out" id="logoutBtn" type="button" hidden>
-              Se déconnecter
+            <button class="btn-header btn-header-out" id="logoutBtn" type="button" hidden aria-label="Se déconnecter">
+              <span class="btn-header-label">Se déconnecter</span>
               <svg class="btn-header-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path d="M10 7V5a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7a2 2 0 0 1-2-2v-2" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                 <path d="M15 12H3m0 0 3.5-3.5M3 12l3.5 3.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
@@ -66,7 +66,8 @@
             Finance
           </button>
           <button class="tab" data-tab="ancienne-tournee">
-            Dette ancienne tournée
+            <span class="tab-label-full">Dette ancienne tournée</span>
+            <span class="tab-label-short">Ancienne tournée</span>
           </button>
           <button class="tab tab-admin-entry" data-tab="admin" id="tabBtnAdmin" hidden>
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5 19 6.5v5.2c0 4.2-2.9 7.4-7 8.8-4.1-1.4-7-4.6-7-8.8V6.5L12 3.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m9 12 2 2 4-4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -308,7 +309,10 @@
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="admins">Admins</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="acces">Accès</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="tournee">Tournée</button>
-            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="ancienne-tournee">Dette ancienne tournée</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="ancienne-tournee">
+              <span class="tab-label-full">Dette ancienne tournée</span>
+              <span class="tab-label-short">Ancienne tournée</span>
+            </button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="caisse">Caisse</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="prets">Prêts</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="amendes">Amendes</button>
