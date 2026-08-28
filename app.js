@@ -3315,15 +3315,6 @@ function formatEuro(amount) {
   }).format(amount);
 }
 
-function formatExcelEuro(amount) {
-  return new Intl.NumberFormat("fr-FR", {
-    style: "currency",
-    currency: "EUR",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(amount) || 0);
-}
-
 function getCotisationSource() {
   if (canEditTourneePlanning()) return cotisationsDraft;
   cotisations = loadCotisations();
@@ -4312,26 +4303,27 @@ function renderAmendeTable(rows) {
   if (amendeRegularWrap) amendeRegularWrap.hidden = false;
 
   if (!rows.length) {
-    amendeBody.innerHTML = `<tr><td class="excel-row-num"></td><td colspan="7" class="empty-cell">Aucune amende pour le moment.</td></tr>`;
+    amendeBody.innerHTML = `<tr class="amende-empty-row"><td colspan="7">Aucune amende pour le moment.</td></tr>`;
     if (foot) foot.innerHTML = "";
     return;
   }
 
   amendeBody.innerHTML = rows
-    .map((row, index) => {
+    .map((row) => {
       const repaid = Number(row.repaid) || 0;
       const remaining = Number(row.remaining) || 0;
       const original = Number(row.original) || remaining + repaid;
       return `
         <tr id="amende-${escapeHtml(row.id)}" class="${row.settled ? "is-settled" : ""}">
-          <th class="excel-row-num" scope="row">${index + 1}</th>
-          <td>${escapeHtml(formatFriendlyDate(row.date))}</td>
-          <td>${escapeHtml(getAmendeTypeLabel(row.type))}</td>
-          <td>${escapeHtml(row.detail || "—")}</td>
-          <td class="num">${formatExcelEuro(original)}</td>
-          <td class="num ${repaid > 0 ? "num-paid" : ""}">${repaid > 0 ? formatExcelEuro(repaid) : "—"}</td>
-          <td class="num num-remain ${remaining <= 0 ? "is-zero" : ""}">${formatExcelEuro(remaining)}</td>
-          <td class="${row.settled ? "excel-status-paid" : "excel-status-open"}">${row.settled ? "Soldée" : "En cours"}</td>
+          <td class="amende-col-date" data-label="Date">${escapeHtml(formatFriendlyDate(row.date))}</td>
+          <td class="amende-col-type" data-label="Type">${escapeHtml(getAmendeTypeLabel(row.type))}</td>
+          <td class="amende-col-detail" data-label="Détail">${escapeHtml(row.detail || "—")}</td>
+          <td class="num amende-col-amount" data-label="Montant">${formatEuro(original)}</td>
+          <td class="num amende-col-paid ${repaid > 0 ? "num-paid" : ""}" data-label="Déjà versé">${repaid > 0 ? formatEuro(repaid) : "—"}</td>
+          <td class="num amende-col-remain num-remain ${remaining <= 0 ? "is-zero" : ""}" data-label="Reste">${formatEuro(remaining)}</td>
+          <td class="amende-col-status" data-label="Statut">
+            <span class="amende-chip ${row.settled ? "is-paid" : "is-open"}">${row.settled ? "Soldée" : "En cours"}</span>
+          </td>
         </tr>`;
     })
     .join("");
@@ -4339,11 +4331,10 @@ function renderAmendeTable(rows) {
   if (foot) {
     foot.innerHTML = `
       <tr>
-        <th class="excel-row-num" scope="row"></th>
         <td colspan="3">Total</td>
-        <td class="num">${formatExcelEuro(originalTotal)}</td>
-        <td class="num num-paid">${formatExcelEuro(repaidTotal)}</td>
-        <td class="num num-remain">${formatExcelEuro(remainingTotal)}</td>
+        <td class="num">${formatEuro(originalTotal)}</td>
+        <td class="num num-paid">${formatEuro(repaidTotal)}</td>
+        <td class="num num-remain">${formatEuro(remainingTotal)}</td>
         <td></td>
       </tr>`;
   }
@@ -4383,16 +4374,28 @@ function renderMesAmendes() {
   if (!current) return;
   const rows = buildMesAmendesRows(current.id);
   const total = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
+  const openCount = rows.filter((row) => !row.settled).length;
   if (amendeTitle) amendeTitle.textContent = "Mes amendes";
   if (amendeSubtitle) {
     amendeSubtitle.hidden = false;
     amendeSubtitle.textContent = `Pour ${current.name} — consultation uniquement.`;
   }
   if (amendeSummary) {
-    amendeSummary.innerHTML = `
-      <span class="amende-excel-fx">fx</span>
-      <span class="amende-excel-formula-text">=SOMME(Reste à régler)</span>
-      <strong>${formatExcelEuro(total)}</strong>`;
+    amendeSummary.className = `amende-hero ${total > 0 ? "is-due" : "is-clear"}`;
+    amendeSummary.innerHTML = total > 0
+      ? `
+        <div class="amende-hero-copy">
+          <p class="amende-hero-kicker">Total à régler</p>
+          <strong class="amende-hero-amount">${formatEuro(total)}</strong>
+          <p class="amende-hero-meta">${openCount} amende${openCount > 1 ? "s" : ""} en cours</p>
+        </div>`
+      : `
+        <span class="amende-hero-mark" aria-hidden="true">✓</span>
+        <div class="amende-hero-copy">
+          <p class="amende-hero-kicker">Tout est à jour</p>
+          <strong class="amende-hero-amount">0 €</strong>
+          <p class="amende-hero-meta">Aucune amende à régler</p>
+        </div>`;
   }
   renderAmendeTable(rows);
 }

@@ -5498,207 +5498,295 @@ textarea {
   color: var(--text-muted);
 }
 
-.amende-excel-workbook {
-  --excel-green: #217346;
-  --excel-header: #548235;
-  --excel-header-border: #375623;
-  --excel-stripe: #e2efda;
-  --excel-total: #c6efce;
-  --excel-grid: #d0d0d0;
-  --excel-head-grid: #b1b1b1;
-  --excel-red: #9c0006;
-  --excel-paid: #006100;
-  --excel-open: #9c5700;
-  margin: 0;
-  border: 1px solid var(--excel-green);
-  background: #f3f3f3;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.16);
-  font-family: Calibri, Carlito, "Segoe UI", Arial, sans-serif;
-  overflow: hidden;
-}
-
-.amende-excel-tabbar {
+.amende-ledger {
   display: flex;
-  align-items: flex-end;
-  min-height: 2.1rem;
-  padding: 0.35rem 0.45rem 0;
-  background: var(--excel-green);
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.amende-excel-sheet-tab {
-  display: inline-block;
-  padding: 0.35rem 1rem 0.3rem;
-  border-radius: 4px 4px 0 0;
-  background: #fff;
-  color: var(--excel-green);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.amende-excel-formula {
+.amende-hero {
   display: flex;
   align-items: center;
-  gap: 0.55rem;
-  padding: 0.4rem 0.55rem;
-  background: #fff;
-  border-bottom: 1px solid #c6c6c6;
-  color: #000;
+  gap: 1rem;
+  padding: 1.15rem 1.25rem;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #ffffff 0%, #f0f9ff 100%);
+  box-shadow: var(--shadow-soft);
 }
 
-.amende-excel-fx {
-  flex: 0 0 auto;
-  padding: 0.05rem 0.45rem;
-  border: 1px solid #c6c6c6;
-  color: var(--excel-green);
-  font-style: italic;
+.amende-hero.is-due {
+  background: linear-gradient(180deg, #fff1f2 0%, #ffffff 100%);
+  border-color: rgba(225, 29, 72, 0.28);
+}
+
+.amende-hero.is-clear {
+  background: linear-gradient(180deg, #ecfdf5 0%, #ffffff 100%);
+  border-color: rgba(13, 148, 136, 0.28);
+}
+
+.amende-hero-mark {
+  flex-shrink: 0;
+  width: 2.4rem;
+  height: 2.4rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--success-light);
+  color: var(--success);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.amende-hero-kicker {
+  margin: 0;
+  font-size: 0.72rem;
   font-weight: 700;
-  font-size: 0.82rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
 }
 
-.amende-excel-formula-text {
-  color: #595959;
-  font-size: 0.84rem;
-  font-weight: 600;
+.amende-hero.is-due .amende-hero-kicker {
+  color: var(--danger);
 }
 
-.amende-excel-formula strong {
-  margin-left: auto;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--excel-red);
-  font-variant-numeric: tabular-nums;
+.amende-hero-amount {
+  display: block;
+  margin: 0.12rem 0 0.1rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.55rem, 4vw, 2.05rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  color: var(--text);
 }
 
-.amende-excel-scroll {
+.amende-hero.is-due .amende-hero-amount {
+  color: var(--danger);
+}
+
+.amende-hero.is-clear .amende-hero-amount {
+  color: var(--success);
+}
+
+.amende-hero-meta {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+.amende-table-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: 18px;
   background: #fff;
+  box-shadow: var(--shadow-soft);
 }
 
-.amende-excel-table {
+.amende-table {
   width: 100%;
-  min-width: 38rem;
+  min-width: 36rem;
   border-collapse: collapse;
-  table-layout: auto;
-  font-size: 13px;
-  color: #000;
-  background: #fff;
+  font-size: 0.9rem;
 }
 
-.amende-excel-table th,
-.amende-excel-table td {
-  border: 1px solid var(--excel-grid);
-  padding: 0.38rem 0.55rem;
+.amende-table th,
+.amende-table td {
+  padding: 0.8rem 1rem;
   text-align: left;
   vertical-align: middle;
-  color: #000;
-  background: #fff;
-  font-weight: 400;
+  border-bottom: 1px solid rgba(14, 165, 233, 0.12);
+  color: var(--text);
+  background: transparent;
+  font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
+}
+
+.amende-table th {
+  background: #f0f9ff;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
   white-space: nowrap;
 }
 
-.amende-excel-table .excel-letters th {
-  background: #e6e6e6;
-  color: #666;
-  font-size: 11px;
-  font-weight: 600;
-  text-align: center;
-  padding: 0.12rem 0.4rem;
-  border-color: var(--excel-head-grid);
+.amende-table tbody tr:last-child td {
+  border-bottom: none;
 }
 
-.amende-excel-table .excel-header th {
-  background: var(--excel-header);
-  color: #fff;
-  font-size: 12px;
-  font-weight: 700;
-  border-color: var(--excel-header-border);
+.amende-table tbody tr:hover td {
+  background: #f8fbff;
 }
 
-.amende-excel-table .excel-header th.num {
-  text-align: right;
-  color: #fff;
+.amende-table tbody tr.is-settled td {
+  color: var(--text-muted);
 }
 
-.amende-excel-table .excel-corner,
-.amende-excel-table .excel-row-num {
-  width: 2.1rem;
-  min-width: 2.1rem;
-  background: #e6e6e6;
-  color: #666;
-  text-align: center;
-  font-weight: 600;
-  border-color: var(--excel-head-grid);
-}
-
-.amende-excel-table tbody tr:nth-child(even) td:not(.excel-row-num) {
-  background: var(--excel-stripe);
-}
-
-.amende-excel-table tbody tr:hover td:not(.excel-row-num) {
-  background: #fff2cc;
-}
-
-.amende-excel-table tbody tr.is-settled td:not(.excel-row-num) {
-  background: var(--excel-total);
-}
-
-.amende-excel-table .num {
+.amende-table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  font-weight: 400;
-  color: #000;
-}
-
-.amende-excel-table .num-paid {
-  color: var(--excel-paid);
+  font-family: var(--font-display);
   font-weight: 700;
 }
 
-.amende-excel-table .num-remain {
-  color: var(--excel-red);
+.amende-table .num-paid {
+  color: var(--success);
+}
+
+.amende-table .num-remain {
+  color: var(--danger);
+  font-weight: 800;
+}
+
+.amende-table .num-remain.is-zero {
+  color: var(--success);
+}
+
+.amende-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.22rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
-.amende-excel-table .num-remain.is-zero {
-  color: var(--excel-paid);
+.amende-chip.is-open {
+  background: var(--warning-light);
+  color: #c2410c;
 }
 
-.amende-excel-table .excel-status-open {
-  color: var(--excel-open);
-  font-weight: 700;
+.amende-chip.is-paid {
+  background: var(--success-light);
+  color: var(--success);
 }
 
-.amende-excel-table .excel-status-paid {
-  color: var(--excel-paid);
-  font-weight: 700;
+.amende-table tfoot td {
+  background: #f8fbff;
+  font-weight: 800;
+  border-bottom: none;
+  border-top: 1px solid var(--border);
 }
 
-.amende-excel-table tfoot td,
-.amende-excel-table tfoot th {
-  background: var(--excel-total);
-  color: #000;
-  font-weight: 700;
-  border-color: var(--excel-header);
+.amende-table tfoot .num-remain {
+  color: var(--danger);
 }
 
-.amende-excel-table tfoot .num-remain {
-  color: var(--excel-red);
-}
-
-.amende-excel-table .empty-cell {
+.amende-empty-row td {
   text-align: center;
-  color: #666;
+  color: var(--text-muted);
   font-style: italic;
-  white-space: normal;
+  padding: 1.4rem 1rem;
 }
 
-.amende-excel-table td:nth-child(4) {
-  white-space: normal;
-  min-width: 7.5rem;
+.amende-col-detail {
+  min-width: 7rem;
+}
+
+@media (max-width: 720px) {
+  .amende-table-wrap {
+    overflow: visible;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .amende-table {
+    min-width: 0;
+  }
+
+  .amende-table thead,
+  .amende-table tfoot {
+    display: none;
+  }
+
+  .amende-table,
+  .amende-table tbody,
+  .amende-table tbody tr,
+  .amende-table tbody td {
+    display: block;
+    width: 100%;
+  }
+
+  .amende-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.45rem 0.7rem;
+    margin-bottom: 0.7rem;
+    padding: 0.95rem 1rem;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .amende-table tbody tr:hover td {
+    background: transparent;
+  }
+
+  .amende-table tbody td {
+    padding: 0;
+    border: 0;
+    white-space: normal;
+  }
+
+  .amende-table tbody td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.12rem;
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .amende-col-date {
+    grid-column: 1 / 3;
+  }
+
+  .amende-col-status {
+    grid-column: 3;
+    justify-self: end;
+    align-self: start;
+  }
+
+  .amende-col-status[data-label]::before {
+    display: none;
+  }
+
+  .amende-col-type,
+  .amende-col-detail {
+    grid-column: 1 / -1;
+  }
+
+  .amende-col-detail {
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .amende-col-amount,
+  .amende-col-paid,
+  .amende-col-remain {
+    text-align: left;
+  }
+
+  .amende-empty-row {
+    display: block;
+    padding: 1rem;
+    background: #fff;
+    border: 1px dashed var(--border);
+    border-radius: 16px;
+  }
 }
 
 .payment-signal-status {
