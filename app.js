@@ -57,7 +57,7 @@ const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["membres", "tournee", "prets", "evenements", "dettes", "amendes", "finance", "ancienne-tournee", "admin"];
+const TAB_IDS = ["membres", "tournee", "prets", "evenements", "dettes", "amendes", "finance", "admin"];
 const FINANCE_SUBTABS = ["caisse", "archives"];
 const FINANCE_LIVE_DETTE_SUB = "dettes-amendes";
 const FINANCE_CAISSE_SUB = "caisse";
@@ -3556,7 +3556,7 @@ function renderTourneeTable() {
 
 function resolveLegacyTab(tabId) {
   if (!tabId) return null;
-  if (tabId === "dettes-amendes") return "dettes";
+  if (tabId === "dettes-amendes" || tabId === "ancienne-tournee") return "dettes";
   if (tabId === "amendes" || tabId === "dettes") return tabId;
   if (tabId === "autre-argent" || tabId === "caisse") {
     activeFinanceSub = FINANCE_CAISSE_SUB;
@@ -3658,11 +3658,6 @@ function showTab(tabId) {
       localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_ARCHIVES_SUB);
     }
     renderFinance();
-  }
-
-  if (tabId === "ancienne-tournee") {
-    reloadFromStorage();
-    renderAncienneTourneeMemberView();
   }
 
   if (tabId === "admin") {
@@ -3883,56 +3878,95 @@ function renderAncienneTourneeDettesAdmin() {
     .join("");
 }
 
+function getOpenEvenementDebtsForMember(memberId) {
+  return evenements
+    .filter((evt) => {
+      if (isEvenementBeneficiary(evt, memberId)) return false;
+      if (isEvenementPaid(evt, memberId)) return false;
+      if (evt.payments?.[memberId]?.convertedToDebt) return false;
+      return true;
+    })
+    .map((evt) => ({
+      id: evt.id,
+      title: evt.title || "Événement",
+      amount: getEvenementShare(evt),
+      createdAt: evt.createdAt,
+    }));
+}
+
+function renderOpenEvenementDebts(memberId) {
+  const wrap = document.getElementById("detteOpenEvenementWrap");
+  const body = document.getElementById("detteOpenEvenementBody");
+  const summary = document.getElementById("detteOpenEvenementSummary");
+  if (!wrap || !body) return [];
+  const items = getOpenEvenementDebtsForMember(memberId);
+  if (!items.length) {
+    wrap.hidden = true;
+    body.innerHTML = "";
+    if (summary) summary.innerHTML = "";
+    return items;
+  }
+  wrap.hidden = false;
+  const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  if (summary) {
+    summary.innerHTML = `<span class="dette-group-total-count">${items.length}</span><strong>${formatEuro(total)}</strong>`;
+  }
+  body.innerHTML = items
+    .map(
+      (item, index) => `
+      <article class="dette-card type-dette" id="dette-evenement-${escapeHtml(item.id)}" style="--i: ${index}">
+        <span class="dette-pill type-dette">Événement</span>
+        <div class="dette-card-main">
+          <p class="dette-card-title">${escapeHtml(item.title)}</p>
+          <p class="dette-card-meta">${item.createdAt ? escapeHtml(formatFriendlyDate(item.createdAt)) : "À payer"}</p>
+        </div>
+        <strong class="dette-card-amount">${formatEuro(item.amount)}</strong>
+        ${buildPaymentSignalControls("evenement", item.id, item.amount, item.title, memberId)}
+      </article>`
+    )
+    .join("");
+  return items;
+}
+
 function renderAncienneTourneeMemberView() {
   const body = document.getElementById("ancienneTourneeMemberBody");
   const totalEl = document.getElementById("ancienneTourneeMemberTotal");
+  const wrap = document.getElementById("detteAncienneWrap");
   const current = getCurrentMember();
-  if (!body) return;
+  if (!body) return [];
 
   if (!current) {
-    body.innerHTML = `<p class="empty-cell">Connecte-toi pour voir tes dettes.</p>`;
+    if (wrap) wrap.hidden = true;
+    body.innerHTML = "";
     if (totalEl) totalEl.textContent = formatEuro(0);
-    return;
+    return [];
   }
 
-  const financierView = canRepayAncienneTourneeDette();
-  const desc = document.querySelector("#tab-ancienne-tournee .panel-desc");
-  if (desc && !desc.querySelector("#ancienneTourneeMemberTotal")) {
-    desc.textContent = financierView
-      ? "Valide le remboursement des dettes d’ancienne tournée."
-      : "Ce que tu dois encore pour l’ancienne tournée.";
-  }
-  const entries = (financierView ? [...ancienneTourneeDettes] : getAncienneTourneeEntriesFor(current.id)).sort(
+  const entries = getAncienneTourneeEntriesFor(current.id).sort(
     (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
   );
-  const total = financierView
-    ? entries.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0)
-    : getAncienneTourneeDette(current.id);
+  const total = getAncienneTourneeDette(current.id);
   if (totalEl) totalEl.textContent = formatEuro(total);
 
   if (!entries.length) {
-    body.innerHTML = `<p class="empty-cell">${
-      financierView ? "Aucune dette d'ancienne tournée." : "Tu n'as pas de dette d'ancienne tournée."
-    }</p>`;
-    return;
+    if (wrap) wrap.hidden = true;
+    body.innerHTML = "";
+    return [];
   }
+
+  if (wrap) wrap.hidden = false;
 
   body.innerHTML = entries
     .map((entry) => {
-      const member = getMemberById(entry.memberId);
       return `
       <article class="ancienne-tournee-row" id="ancienne-${escapeHtml(entry.id)}">
         <span class="ancienne-tournee-row-date">${formatDate(String(entry.createdAt).split("T")[0])}</span>
-        ${financierView ? `<span class="ancienne-tournee-row-poto">${escapeHtml(member?.name || "—")}</span>` : ""}
         <span class="ancienne-tournee-row-amount">${formatAncienneTourneeAmountHtml(entry)}</span>
-        ${
-          financierView
-            ? `${buildPaymentSignalStatusHtml(getLatestPaymentSignal("ancienne-tournee", entry.id, entry.memberId))}${buildAncienneTourneeRepayControls(entry)}`
-            : buildPaymentSignalControls("ancienne-tournee", entry.id, entry.amount, "Dette ancienne tournée", entry.memberId)
-        }
+        ${buildPaymentSignalControls("ancienne-tournee", entry.id, entry.amount, "Dette ancienne tournée", entry.memberId)}
       </article>`;
     })
     .join("");
+  return entries;
 }
 
 function isFinancierPoste() {
@@ -4147,14 +4181,27 @@ function renderMesDettes() {
   const current = getCurrentMember();
   if (!current) return;
   const detteAmendes = getAmendesForMember(current.id).filter((amende) => isDetteAmende(amende));
+  const ancienneEntries = renderAncienneTourneeMemberView();
+  const openEvents = renderOpenEvenementDebts(current.id);
+  const ancienneTotal = getAncienneTourneeDette(current.id);
+  const openTotal = openEvents.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const eventDebtTotal = detteAmendes.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const allItems = [
+    ...detteAmendes,
+    ...openEvents,
+    ...ancienneEntries.map((entry) => ({ amount: entry.amount })),
+  ];
   if (detteTitle) detteTitle.textContent = "Mes dettes";
   if (detteSubtitle) {
     detteSubtitle.hidden = false;
     detteSubtitle.textContent = `Pour ${current.name} — consultation uniquement. Les remboursements se font dans Admin.`;
   }
-  renderDebtDashboard(detteSummary, detteAmendes, "Pas de dette d'événement pour le moment.", (items) => {
-    const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-    return items.length ? [`<span class="dette-pill type-dette">Événements · ${formatEuro(total)}</span>`] : [];
+  renderDebtDashboard(detteSummary, allItems, "Tu n'as aucune dette pour le moment.", () => {
+    const chips = [];
+    if (detteAmendes.length) chips.push(`<span class="dette-pill type-dette">Dettes événements · ${formatEuro(eventDebtTotal)}</span>`);
+    if (openEvents.length) chips.push(`<span class="dette-pill type-dette">À payer · ${formatEuro(openTotal)}</span>`);
+    if (ancienneTotal > 0) chips.push(`<span class="dette-pill type-absence">Ancienne tournée · ${formatEuro(ancienneTotal)}</span>`);
+    return chips;
   });
   renderDetteBanner(detteAmendes, false);
 }
@@ -7678,9 +7725,9 @@ function handleAncienneTourneeKeydown(e) {
 }
 
 document.getElementById("adminSub-ancienne-tournee")?.addEventListener("click", handleAncienneTourneeActionClick);
-document.getElementById("tab-ancienne-tournee")?.addEventListener("click", handleAncienneTourneeActionClick);
+document.getElementById("tab-dettes")?.addEventListener("click", handleAncienneTourneeActionClick);
 document.getElementById("adminSub-ancienne-tournee")?.addEventListener("keydown", handleAncienneTourneeKeydown);
-document.getElementById("tab-ancienne-tournee")?.addEventListener("keydown", handleAncienneTourneeKeydown);
+document.getElementById("tab-dettes")?.addEventListener("keydown", handleAncienneTourneeKeydown);
 
 autreArgentForm?.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -7946,6 +7993,7 @@ function highlightNotificationItem() {
     document.getElementById(`admin-amende-${item}`) ||
     document.getElementById(`admin-ancienne-${item}`) ||
     document.getElementById(`admin-evenement-${item}`) ||
+    document.getElementById(`dette-evenement-${item}`) ||
     document.getElementById(`amende-${item}`) ||
     document.getElementById(`ancienne-${item}`) ||
     document.getElementById(`evenement-${item}`) ||

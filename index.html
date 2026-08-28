@@ -78,10 +78,6 @@
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19h16M7 16v-4m5 4V8m5 8v-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
             Finance
           </button>
-          <button class="tab" data-tab="ancienne-tournee">
-            <span class="tab-label-full">Dette ancienne tournée</span>
-            <span class="tab-label-short">Ancienne tournée</span>
-          </button>
           <button class="tab tab-admin-entry" data-tab="admin" id="tabBtnAdmin" hidden>
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5 19 6.5v5.2c0 4.2-2.9 7.4-7 8.8-4.1-1.4-7-4.6-7-8.8V6.5L12 3.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m9 12 2 2 4-4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Admin
@@ -226,19 +222,43 @@
         <section class="panel amende-panel">
           <div class="amende-head">
             <h2 id="detteTitle">Mes dettes</h2>
-            <p class="panel-desc" id="detteSubtitle">Cotisations d'événements encore ouvertes.</p>
+            <p class="panel-desc" id="detteSubtitle">Tout ce que tu dois encore : événements, ancienne tournée, cotisations ouvertes.</p>
           </div>
           <div class="dette-dashboard" id="detteSummary"></div>
           <div class="dette-feed">
             <section class="dette-group dette-group-events" id="amendeDetteWrap" hidden>
               <div class="dette-group-head">
                 <div>
-                  <h3>Événements</h3>
-                  <p class="dette-block-desc" id="amendeDetteSubtitle">Cotisations non réglées après un événement.</p>
+                  <h3>Dettes événements</h3>
+                  <p class="dette-block-desc" id="amendeDetteSubtitle">Cotisations transformées en dette.</p>
                 </div>
                 <div class="dette-group-total" id="amendeDetteSummary"></div>
               </div>
               <div class="dette-card-list" id="amendeDetteBody"></div>
+            </section>
+
+            <section class="dette-group" id="detteOpenEvenementWrap" hidden>
+              <div class="dette-group-head">
+                <div>
+                  <h3>Événements à payer</h3>
+                  <p class="dette-block-desc">Cotisations d'événements pas encore réglées.</p>
+                </div>
+                <div class="dette-group-total" id="detteOpenEvenementSummary"></div>
+              </div>
+              <div class="dette-card-list" id="detteOpenEvenementBody"></div>
+            </section>
+
+            <section class="dette-group" id="detteAncienneWrap" hidden>
+              <div class="dette-group-head">
+                <div>
+                  <h3>Ancienne tournée</h3>
+                  <p class="dette-block-desc">Ce que tu dois encore pour l'ancienne tournée.</p>
+                </div>
+                <div class="dette-group-total" id="ancienneTourneeMemberTotalWrap">
+                  <strong id="ancienneTourneeMemberTotal">0 €</strong>
+                </div>
+              </div>
+              <div class="ancienne-tournee-list" id="ancienneTourneeMemberBody"></div>
             </section>
           </div>
         </section>
@@ -301,20 +321,6 @@
             </p>
           </section>
         </div>
-      </div>
-
-      <!-- ========== DETTE ANCIENNE TOURNÉE ========== -->
-      <div class="tab-content" id="tab-ancienne-tournee">
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2>Dette ancienne tournée</h2>
-              <p class="panel-desc">Ce que tu dois encore pour l’ancienne tournée.</p>
-            </div>
-          </div>
-          <p class="panel-desc">Total : <strong id="ancienneTourneeMemberTotal">0 €</strong></p>
-          <div class="ancienne-tournee-list" id="ancienneTourneeMemberBody"></div>
-        </section>
       </div>
 
       <!-- ========== ADMIN (manipulations uniquement) ========== -->
@@ -856,6 +862,6 @@
   </div>
 
   <script src="api-client.js?v=online-1"></script>
-  <script src="app.js?v=pwa-7"></script>
+  <script src="app.js?v=pwa-8"></script>
 </body>
 </html>
