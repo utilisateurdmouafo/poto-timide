@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=pwa-19" />
+  <link rel="stylesheet" href="styles.css?v=pwa-21" />
 </head>
 <body>
   <div class="app" id="app">
@@ -671,7 +671,27 @@
               </section>
               <section class="panel">
                 <h2>Prêts en cours et historique</h2>
-                <div id="adminPretActiveList" class="pret-loan-list"></div>
+                <div class="amende-ledger" id="adminPretLedger">
+                  <div class="amende-hero" id="adminPretHero"></div>
+                  <div class="amende-table-wrap">
+                    <table class="amende-table amende-table-admin">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Type</th>
+                          <th>Détail</th>
+                          <th class="num">Montant</th>
+                          <th class="num">Déjà versé</th>
+                          <th class="num">Reste</th>
+                          <th>Statut</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody id="adminPretActiveList"></tbody>
+                      <tfoot id="adminPretTableFoot"></tfoot>
+                    </table>
+                  </div>
+                </div>
               </section>
             </div>
 
@@ -860,6 +880,6 @@
   </div>
 
   <script src="api-client.js?v=online-2"></script>
-  <script src="app.js?v=pwa-20"></script>
+  <script src="app.js?v=pwa-21"></script>
 </body>
 </html>

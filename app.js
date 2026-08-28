@@ -6117,6 +6117,121 @@ function renderPrets() {
   }
 }
 
+function buildAdminPretActionsHtml(loan) {
+  const balance = getLoanBalance(loan);
+  const dueDates = getLoanDueDates(loan);
+  const isOpen = loan.status === "active" || loan.status === "defaulted";
+  return `
+    <div class="amende-admin-actions">
+      ${
+        dueDates && isOpen
+          ? `<p class="pret-due-dates">Échéance 80 % : ${formatDate(dueDates.month1.toISOString().split("T")[0])} · Solde : ${formatDate(dueDates.month2.toISOString().split("T")[0])}</p>`
+          : ""
+      }
+      ${
+        canManagePretsActions() && isOpen && balance > 0
+          ? `<div class="pret-repay-form">
+              <input type="number" class="pret-repay-input" data-loan-id="${loan.id}" min="0.5" step="0.5" max="${balance}" placeholder="Montant" inputmode="decimal" aria-label="Montant remboursé, reste ${formatEuro(balance)}" />
+              <button type="button" class="btn-primary btn-pret-repay" data-loan-id="${loan.id}">Valider</button>
+            </div>`
+          : ""
+      }
+      ${buildLoanRepaymentsBlock(loan)}
+      ${buildFinancierActions(loan)}
+    </div>
+  `;
+}
+
+function buildAdminPretLedgerRows() {
+  return prets
+    .filter((loan) => ["active", "defaulted", "completed", "rejected"].includes(loan.status))
+    .map((loan) => {
+      const repaid = Math.round((Number(loan.totalRepaid) || 0) * 100) / 100;
+      const isRejected = loan.status === "rejected";
+      const remaining = isRejected ? 0 : Math.round((getLoanBalance(loan) || 0) * 100) / 100;
+      const original = Math.round((Number(loan.amount) || 0) * 100) / 100;
+      const member = getMemberById(loan.borrowerId);
+      const note = String(loan.note || "").trim();
+      const settled = isRejected || loan.status === "completed" || remaining <= 0;
+      return {
+        loan,
+        id: loan.id,
+        date: loan.approvedAt || loan.createdAt,
+        type: "pret",
+        detail: note ? `${member?.name || "—"} — ${note}` : member?.name || "—",
+        original,
+        repaid,
+        remaining,
+        settled,
+        statusLabel: getPretStatusLabel(loan.status),
+        sortAt: loan.approvedAt || loan.createdAt,
+      };
+    })
+    .sort((a, b) => {
+      if (a.settled !== b.settled) return a.settled ? 1 : -1;
+      return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+    });
+}
+
+function renderAdminPretLedger() {
+  const body = document.getElementById("adminPretActiveList");
+  const foot = document.getElementById("adminPretTableFoot");
+  const hero = document.getElementById("adminPretHero");
+  if (!body) return;
+
+  const rows = buildAdminPretLedgerRows();
+  const total = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
+  const openCount = rows.filter((row) => !row.settled).length;
+  renderLedgerHero(hero, {
+    total,
+    openCount,
+    noun: "prêt",
+    emptyMeta: "Aucun prêt en cours",
+  });
+
+  if (!rows.length) {
+    body.innerHTML = `<tr class="amende-empty-row"><td colspan="8">Aucun prêt pour le moment.</td></tr>`;
+    if (foot) foot.innerHTML = "";
+    return;
+  }
+
+  body.innerHTML = rows
+    .map((row) => {
+      const repaid = Number(row.repaid) || 0;
+      const remaining = Number(row.remaining) || 0;
+      const chipClass =
+        row.loan.status === "rejected" ? "is-rejected" : row.settled ? "is-paid" : "is-open";
+      return `
+        <tr id="loan-${escapeHtml(row.id)}" class="${row.settled ? "is-settled" : ""}">
+          <td class="amende-col-date" data-label="Date">${escapeHtml(formatFriendlyDate(row.date))}</td>
+          <td class="amende-col-type" data-label="Type">${escapeHtml(getAmendeTypeLabel(row.type))}</td>
+          <td class="amende-col-detail" data-label="Détail">${escapeHtml(row.detail || "—")}</td>
+          <td class="num amende-col-amount" data-label="Montant">${formatEuro(row.original)}</td>
+          <td class="num amende-col-paid ${repaid > 0 ? "num-paid" : ""}" data-label="Déjà versé">${repaid > 0 ? formatEuro(repaid) : "—"}</td>
+          <td class="num amende-col-remain num-remain ${remaining <= 0 ? "is-zero" : ""}" data-label="Reste">${formatEuro(remaining)}</td>
+          <td class="amende-col-status" data-label="Statut">
+            <span class="amende-chip ${chipClass}">${escapeHtml(row.statusLabel)}</span>
+          </td>
+          <td class="amende-col-actions" data-label="Actions">${buildAdminPretActionsHtml(row.loan)}</td>
+        </tr>`;
+    })
+    .join("");
+
+  if (foot) {
+    const remainingTotal = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
+    const repaidTotal = rows.reduce((sum, row) => sum + (Number(row.repaid) || 0), 0);
+    const originalTotal = rows.reduce((sum, row) => sum + (Number(row.original) || 0), 0);
+    foot.innerHTML = `
+      <tr>
+        <td colspan="3">Total</td>
+        <td class="num">${formatEuro(originalTotal)}</td>
+        <td class="num num-paid">${formatEuro(repaidTotal)}</td>
+        <td class="num num-remain">${formatEuro(remainingTotal)}</td>
+        <td colspan="2"></td>
+      </tr>`;
+  }
+}
+
 function renderAdminPrets() {
   if (!hasRoleTabAccess("prets")) return;
 
@@ -6125,16 +6240,12 @@ function renderAdminPrets() {
   const summaryEl = document.getElementById("adminPretSummary");
   const votingEl = document.getElementById("adminPretVotingList");
   const awaitEl = document.getElementById("adminPretFinancierList");
-  const activeEl = document.getElementById("adminPretActiveList");
 
   const caisseDisponible = getCaisseDisponible();
   const borrowable = getBorrowableAmount();
   const activeLoansLive = prets.filter((loan) => loan.status === "active" || loan.status === "defaulted");
   const votingLoans = prets.filter((loan) => loan.status === "voting");
   const awaitingLoans = prets.filter((loan) => loan.status === "awaiting_financier");
-  const historyLoans = prets.filter((loan) =>
-    ["active", "defaulted", "completed", "rejected"].includes(loan.status)
-  );
 
   if (summaryEl) {
     summaryEl.innerHTML = `
@@ -6169,18 +6280,7 @@ function renderAdminPrets() {
       : `<p class="pret-empty">Aucune demande en attente de validation.</p>`;
   }
 
-  if (activeEl) {
-    activeEl.innerHTML = historyLoans.length
-      ? historyLoans
-          .map((loan) => {
-            if (loan.status === "active" || loan.status === "defaulted") {
-              return buildLoanCard(loan, "active");
-            }
-            return buildLoanCard(loan, "history");
-          })
-          .join("")
-      : `<p class="pret-empty">Aucun prêt pour le moment.</p>`;
-  }
+  renderAdminPretLedger();
 }
 
 function loadEvenements() {

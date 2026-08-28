@@ -5487,7 +5487,8 @@ textarea {
 }
 
 .pret-loan-card.is-notif-target,
-#pretVotingList.is-notif-target {
+#pretVotingList.is-notif-target,
+.amende-table tbody tr.is-notif-target {
   box-shadow: 0 0 0 3px rgba(14, 165, 233, 0.45);
   animation: notifPulse 1.2s ease-out 2;
 }
@@ -5720,6 +5721,43 @@ textarea {
   color: var(--success);
 }
 
+.amende-chip.is-rejected {
+  background: var(--danger-light);
+  color: var(--danger);
+}
+
+.amende-col-actions {
+  min-width: 11rem;
+  white-space: normal;
+}
+
+.amende-admin-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+}
+
+.amende-table-admin .pret-repay-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.amende-table-admin .pret-repay-input {
+  width: 5.2rem;
+}
+
+.amende-table-admin .pret-financier-controls {
+  flex-wrap: wrap;
+}
+
+.amende-table-admin .pret-repay-history {
+  width: 100%;
+  margin: 0;
+}
+
 .amende-table tfoot td {
   background: #f8fbff;
   font-weight: 800;
@@ -5829,6 +5867,11 @@ textarea {
   .amende-col-paid,
   .amende-col-remain {
     text-align: left;
+  }
+
+  .amende-col-actions {
+    grid-column: 1 / -1;
+    min-width: 0;
   }
 
   .amende-empty-row {
