@@ -40,12 +40,25 @@ function rawSetItem(key, value) {
   fn.call(localStorage, key, value);
 }
 
+function friendlyNetworkError(err) {
+  const msg = String(err?.message || err || "");
+  if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
+    return "Connexion au serveur impossible. Chez Orange, le filtre peut bloquer onrender.com. Essaie la 4G / un autre réseau, ou ouvre le site dans Chrome/Safari sans l'appli installée.";
+  }
+  return msg || "Erreur réseau";
+}
+
 async function apiFetch(url, options = {}) {
-  const res = await fetch(url, {
-    credentials: "include",
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options,
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      credentials: "include",
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+      ...options,
+    });
+  } catch (err) {
+    throw new Error(friendlyNetworkError(err));
+  }
 
   let body = null;
   try {
