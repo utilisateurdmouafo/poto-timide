@@ -5494,8 +5494,8 @@ textarea {
   gap: 1rem;
   margin: 0 0 1rem;
   padding: 0.95rem 1.1rem;
-  background: linear-gradient(135deg, #fff1f2 0%, #ffffff 62%);
-  border: 1px solid rgba(225, 29, 72, 0.28);
+  background: linear-gradient(135deg, #e0f2fe 0%, #ffffff 62%);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-soft);
 }
@@ -5503,7 +5503,7 @@ textarea {
 .amende-excel-total span {
   font-size: 0.92rem;
   font-weight: 600;
-  color: #9f1239;
+  color: var(--text-muted);
 }
 
 .amende-excel-total strong {
@@ -5525,28 +5525,28 @@ textarea {
 
 .amende-excel-table th,
 .amende-excel-table td {
-  border: 1px solid rgba(251, 113, 133, 0.28);
+  border: 1px solid var(--border);
   padding: 0.55rem 0.7rem;
   text-align: left;
   vertical-align: middle;
 }
 
 .amende-excel-table th {
-  background: #ffe4e6;
+  background: var(--bg-muted);
   font-size: 0.75rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: #9f1239;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 
 .amende-excel-table tbody tr:nth-child(even) {
-  background: #fff1f2;
+  background: var(--ice);
 }
 
 .amende-excel-table tbody tr:hover {
-  background: #ffe4e6;
+  background: var(--primary-light);
 }
 
 .amende-excel-table .num {
@@ -5554,13 +5554,13 @@ textarea {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   font-weight: 700;
-  color: #c2410c;
+  color: var(--danger);
 }
 
 .amende-excel-table tfoot td {
-  background: #ffe4e6;
+  background: var(--bg-muted);
   font-weight: 800;
-  color: #9f1239;
+  color: var(--text);
 }
 
 .amende-excel-table tfoot .num {
