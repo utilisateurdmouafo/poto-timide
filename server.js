@@ -8,6 +8,7 @@ const path = require("path");
 const fs = require("fs");
 const db = require("./lib/db");
 const { ensureFrozenPlanning } = require("./lib/default-planning");
+const push = require("./lib/push");
 
 const PORT = process.env.PORT || 8080;
 const DEFAULT_PASSWORD = "1234";
@@ -800,6 +801,66 @@ function createApp() {
     }
   });
 
+  app.get("/api/push/public-key", requireAuth, async (req, res) => {
+    try {
+      const keys = await push.ensureVapidKeys();
+      res.json({ publicKey: keys.publicKey });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Clé push indisponible" });
+    }
+  });
+
+  app.post("/api/push/subscribe", requireAuth, async (req, res) => {
+    try {
+      await push.saveSubscription(req.session.userId, req.body || {});
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      res.status(400).json({ error: err.message || "Abonnement push impossible" });
+    }
+  });
+
+  app.post("/api/push/unsubscribe", requireAuth, async (req, res) => {
+    try {
+      await push.deleteSubscription(req.session.userId, req.body?.endpoint);
+      res.json({ ok: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Désabonnement impossible" });
+    }
+  });
+
+  app.post("/api/push/send", requireAuth, async (req, res) => {
+    try {
+      const messages = Array.isArray(req.body?.messages) ? req.body.messages : [];
+      if (!messages.length) return res.json({ ok: true, sent: 0 });
+
+      const senderId = req.session.userId;
+      let sent = 0;
+
+      for (const message of messages) {
+        const memberId = String(message?.memberId || "");
+        if (!memberId || memberId === senderId) continue;
+        const payload = {
+          title: String(message.title || "Poto Timide").slice(0, 80),
+          body: String(message.body || "").slice(0, 180),
+          url: String(message.url || "/?tab=prets"),
+          tab: String(message.tab || "prets"),
+          loanId: String(message.loanId || ""),
+          tag: String(message.tag || "poto-timide"),
+        };
+        const result = await push.sendToUserIds([memberId], payload);
+        sent += result.sent;
+      }
+
+      res.json({ ok: true, sent });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Envoi de notification impossible" });
+    }
+  });
+
   app.get("/api/data", requireAuth, async (req, res) => {
     try {
       const data = {};
@@ -918,6 +979,7 @@ function createApp() {
 async function main() {
   await db.init();
   await seedDatabase();
+  await push.ensureVapidKeys();
 
   const app = createApp();
   app.listen(PORT, "0.0.0.0", () => {

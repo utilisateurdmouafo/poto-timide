@@ -1,4 +1,4 @@
-const CACHE_NAME = "poto-timide-app-v1";
+const CACHE_NAME = "poto-timide-app-v2";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -53,3 +53,61 @@ async function networkFirst(request) {
     throw err;
   }
 }
+
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = { body: event.data ? event.data.text() : "" };
+  }
+
+  const title = data.title || "Poto Timide";
+  const options = {
+    body: data.body || "Nouvelle notification",
+    icon: "/assets/icons/icon-192.png",
+    badge: "/assets/icons/icon-192.png",
+    lang: "fr",
+    tag: data.tag || "poto-timide",
+    renotify: true,
+    vibrate: [140, 80, 140],
+    data: {
+      url: data.url || "/?tab=prets",
+      tab: data.tab || "prets",
+      loanId: data.loanId || "",
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const data = event.notification.data || {};
+  const targetUrl = data.url || "/?tab=prets";
+
+  event.waitUntil(
+    (async () => {
+      const windowClients = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+
+      for (const client of windowClients) {
+        if (client.url.startsWith(self.location.origin) && "focus" in client) {
+          client.postMessage({
+            type: "OPEN_NOTIFICATION",
+            tab: data.tab || "prets",
+            loanId: data.loanId || "",
+            url: targetUrl,
+          });
+          return client.focus();
+        }
+      }
+
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })()
+  );
+});

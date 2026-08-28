@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=pwa-1" />
+  <link rel="stylesheet" href="styles.css?v=pwa-2" />
 </head>
 <body>
   <div class="app" id="app">
@@ -794,6 +794,17 @@
     </div>
   </div>
 
+  <div class="install-banner" id="pushBanner" hidden>
+    <div class="install-banner-text">
+      <strong>Activer les notifications</strong>
+      <span>Reçois une bannière dès qu'un prêt est lancé, pour voter tout de suite.</span>
+    </div>
+    <div class="install-banner-actions">
+      <button type="button" class="btn-secondary" id="pushDismissBtn">Plus tard</button>
+      <button type="button" class="btn-primary" id="pushEnableBtn">Activer</button>
+    </div>
+  </div>
+
   <div class="install-banner" id="installBanner" hidden>
     <div class="install-banner-text">
       <strong>Installer l'application</strong>
@@ -806,6 +817,6 @@
   </div>
 
   <script src="api-client.js?v=online-1"></script>
-  <script src="app.js?v=pwa-1"></script>
+  <script src="app.js?v=pwa-2"></script>
 </body>
 </html>

@@ -2550,6 +2550,9 @@ async function loginMember(name, password) {
     updateSessionUI();
     render();
     maybeShowInstallBanner();
+    pushSetupStarted = false;
+    setupPushNotifications();
+    applyNotificationDeepLink();
     return true;
   } catch (err) {
     loginError.textContent = err.message || "Identifiant ou mot de passe incorrect.";
@@ -3557,6 +3560,10 @@ function resolveLegacyTab(tabId) {
 }
 
 function getSavedTab() {
+  const queryTab = new URLSearchParams(location.search).get("tab");
+  const fromQuery = resolveLegacyTab(queryTab);
+  if (fromQuery) return fromQuery;
+
   const hashTab = location.hash.replace(/^#/, "");
   const fromHash = resolveLegacyTab(hashTab);
   if (fromHash) return fromHash;
@@ -4518,6 +4525,7 @@ function savePrets(shouldRender = true) {
 function saveNotifications(shouldRender = true) {
   localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
   if (shouldRender) renderPrets();
+  flushPushMessages();
 }
 
 function getTotalAmendesInCaisse() {
@@ -4735,6 +4743,38 @@ function getLoanDueDates(loan) {
   return { month1, month2 };
 }
 
+const pendingPushMessages = [];
+
+function queuePushMessage(memberId, payload) {
+  const current = getCurrentMember();
+  if (!memberId || current?.id === memberId) return;
+  const tab = payload.tab || "prets";
+  const loanId = payload.loanId || "";
+  pendingPushMessages.push({
+    memberId,
+    title: payload.title || "Poto Timide",
+    body: payload.body || "",
+    url: payload.url || `/?tab=${tab}${loanId ? `&loan=${encodeURIComponent(loanId)}` : ""}`,
+    tab,
+    loanId,
+    tag: payload.tag || "poto-timide",
+  });
+}
+
+async function flushPushMessages() {
+  if (!pendingPushMessages.length) return;
+  const messages = pendingPushMessages.splice(0, pendingPushMessages.length);
+  try {
+    if (typeof flushServerSync === "function") await flushServerSync();
+    await apiFetch("/api/push/send", {
+      method: "POST",
+      body: JSON.stringify({ messages }),
+    });
+  } catch (err) {
+    console.warn("Notifications push non envoyées.", err);
+  }
+}
+
 function addNotification(memberId, type, loanId, message) {
   notifications.unshift({
     id: generateId(),
@@ -4770,19 +4810,25 @@ function updateLoanNotificationsOnDecision(loan, decision) {
       ? formatDate(dueDates.month1.toISOString().split("T")[0])
       : "—";
 
-    upsertLoanNotification(
-      loan.borrowerId,
-      loan.id,
-      "loan_approved",
-      `Prêt accordé — ${formatEuro(loan.amount)}. Remboursez 80 % avant le ${dueLabel}.`
-    );
+    const approvedMsg = `Prêt accordé — ${formatEuro(loan.amount)}. Remboursez 80 % avant le ${dueLabel}.`;
+    upsertLoanNotification(loan.borrowerId, loan.id, "loan_approved", approvedMsg);
+    queuePushMessage(loan.borrowerId, {
+      title: "Prêt accordé",
+      body: approvedMsg,
+      tab: "prets",
+      loanId: loan.id,
+      tag: `loan-approved-${loan.id}`,
+    });
   } else {
-    upsertLoanNotification(
-      loan.borrowerId,
-      loan.id,
-      "loan_rejected",
-      `Prêt refusé — votre demande de ${formatEuro(loan.amount)} a été refusée par le Financier.`
-    );
+    const rejectedMsg = `Prêt refusé — votre demande de ${formatEuro(loan.amount)} a été refusée par le Financier.`;
+    upsertLoanNotification(loan.borrowerId, loan.id, "loan_rejected", rejectedMsg);
+    queuePushMessage(loan.borrowerId, {
+      title: "Prêt refusé",
+      body: rejectedMsg,
+      tab: "prets",
+      loanId: loan.id,
+      tag: `loan-rejected-${loan.id}`,
+    });
   }
 
   notifications = notifications.filter((notif) => {
@@ -4842,6 +4888,13 @@ function notifyAllMembersOnLoanInitiated(loan) {
       loan.id,
       `${borrowerName} demande un prêt de ${amountLabel}. Votez Oui ou Non sous 24 h.`
     );
+    queuePushMessage(member.id, {
+      title: "Nouveau prêt à voter",
+      body: `${borrowerName} demande un prêt de ${amountLabel}. Votez Oui ou Non sous 24 h.`,
+      tab: "prets",
+      loanId: loan.id,
+      tag: `loan-vote-${loan.id}`,
+    });
   });
 }
 
@@ -4863,6 +4916,13 @@ function notifyFinancierForLoan(loan) {
 
   recipients.forEach((memberId) => {
     addNotification(memberId, "loan_financier", loan.id, fullMessage);
+    queuePushMessage(memberId, {
+      title: "Prêt à valider",
+      body: fullMessage,
+      tab: "prets",
+      loanId: loan.id,
+      tag: `loan-financier-${loan.id}`,
+    });
   });
 }
 
@@ -4906,11 +4966,15 @@ function processLoanStatusUpdates() {
       loan.interestApplied = true;
       loan.interestAmount = Math.round(balance * LOAN_INTEREST_RATE * 100) / 100;
       loan.status = "defaulted";
-      notifyBorrower(
-        loan,
-        "loan_interest",
-        `Retard de remboursement : intérêts de 10 % appliqués (${formatEuro(loan.interestAmount)}).`
-      );
+      const interestMsg = `Retard de remboursement : intérêts de 10 % appliqués (${formatEuro(loan.interestAmount)}).`;
+      notifyBorrower(loan, "loan_interest", interestMsg);
+      queuePushMessage(loan.borrowerId, {
+        title: "Retard de prêt",
+        body: interestMsg,
+        tab: "prets",
+        loanId: loan.id,
+        tag: `loan-interest-${loan.id}`,
+      });
       changed = true;
     }
   });
@@ -5452,7 +5516,7 @@ function renderPretNotifications() {
   pretNotificationsList.innerHTML = mine
     .map(
       (notif) => `
-      <li class="pret-notif-item${notif.read ? "" : " pret-notif-unread"}">
+      <li class="pret-notif-item${notif.read ? "" : " pret-notif-unread"}" data-loan-id="${escapeHtml(notif.loanId || "")}">
         <div class="pret-notif-body">
           <p>${escapeHtml(notif.message)}</p>
           <span class="pret-notif-date">${formatDate(notif.createdAt.split("T")[0])}</span>
@@ -5575,7 +5639,7 @@ function buildLoanCard(loan, mode) {
   }
 
   return `
-    <article class="pret-loan-card pret-status-${loan.status}">
+    <article class="pret-loan-card pret-status-${loan.status}" id="loan-${escapeHtml(loan.id)}">
       <div class="pret-loan-head">
         <h3>${escapeHtml(borrower?.name || "Membre")} — ${formatEuro(loan.amount)}</h3>
         <span class="pret-loan-status">${getPretStatusLabel(loan.status)}</span>
@@ -5652,6 +5716,8 @@ function renderPrets() {
           .join("")
       : `<p class="pret-empty">Aucun prêt pour le moment.</p>`;
   }
+
+  highlightLoanFromNotification();
 
   // Si l'admin regarde la gestion des prêts, rafraîchir aussi
   if (isAdminWorkspace() && activeAdminSub === "prets") {
@@ -7203,8 +7269,13 @@ document.getElementById("amendeHistoryPanel")?.addEventListener("click", handleA
 
 pretNotificationsList?.addEventListener("click", (e) => {
   const deleteBtn = e.target.closest(".pret-notif-delete");
-  if (!deleteBtn) return;
-  deleteOwnNotification(deleteBtn.dataset.id);
+  if (deleteBtn) {
+    deleteOwnNotification(deleteBtn.dataset.id);
+    return;
+  }
+  const item = e.target.closest(".pret-notif-item");
+  const loanId = item?.dataset.loanId;
+  if (loanId) openFromNotification({ tab: "prets", loanId });
 });
 
 document.getElementById("pretNotificationsClearBtn")?.addEventListener("click", deleteAllOwnNotifications);
@@ -7537,10 +7608,146 @@ async function initApp() {
   updatePretTabBadge();
   showTab(getSavedTab());
   setupPwaInstall();
+  if (authState.loggedIn) setupPushNotifications();
+  applyNotificationDeepLink();
+  navigator.serviceWorker?.addEventListener("message", (event) => {
+    if (event.data?.type === "OPEN_NOTIFICATION") openFromNotification(event.data);
+  });
 }
 
 const INSTALL_DISMISS_KEY = "poto-install-dismissed";
+const PUSH_DISMISS_KEY = "poto-push-dismissed";
 let deferredPwaPrompt = null;
+let pushSetupStarted = false;
+let pushListenersBound = false;
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const raw = atob(base64);
+  const output = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) output[i] = raw.charCodeAt(i);
+  return output;
+}
+
+function canUseWebPush() {
+  return (
+    "Notification" in window &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    (!isIosDevice() || isPwaStandalone())
+  );
+}
+
+function rememberNotificationDeepLink() {
+  const params = new URLSearchParams(location.search);
+  const tab = params.get("tab");
+  const loan = params.get("loan");
+  if (tab) sessionStorage.setItem("poto-open-tab", tab);
+  if (loan) sessionStorage.setItem("poto-open-loan", loan);
+}
+
+function openFromNotification({ tab = "prets", loanId = "" } = {}) {
+  if (tab) {
+    sessionStorage.setItem("poto-open-tab", tab);
+    showTab(tab);
+  }
+  if (loanId) {
+    sessionStorage.setItem("poto-open-loan", loanId);
+    highlightLoanFromNotification();
+  }
+}
+
+function applyNotificationDeepLink() {
+  const tab = sessionStorage.getItem("poto-open-tab") || new URLSearchParams(location.search).get("tab");
+  const loanId = sessionStorage.getItem("poto-open-loan") || new URLSearchParams(location.search).get("loan");
+  if (tab) {
+    sessionStorage.removeItem("poto-open-tab");
+    showTab(tab);
+  }
+  if (loanId) {
+    sessionStorage.setItem("poto-open-loan", loanId);
+    highlightLoanFromNotification();
+  }
+}
+
+function highlightLoanFromNotification() {
+  const loanId = sessionStorage.getItem("poto-open-loan") || new URLSearchParams(location.search).get("loan");
+  if (!loanId) return;
+  const card = document.getElementById(`loan-${loanId}`);
+  const fallback = document.getElementById("pretVotingList");
+  const target = card || fallback;
+  if (!target) return;
+  sessionStorage.removeItem("poto-open-loan");
+  target.classList.add("is-notif-target");
+  target.scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => target.classList.remove("is-notif-target"), 4000);
+}
+
+function hidePushBanner(persist) {
+  const banner = document.getElementById("pushBanner");
+  if (banner) banner.hidden = true;
+  if (persist) localStorage.setItem(PUSH_DISMISS_KEY, "1");
+}
+
+function showPushBanner() {
+  const banner = document.getElementById("pushBanner");
+  if (!banner || localStorage.getItem(PUSH_DISMISS_KEY) === "1") return;
+  if (loginModal?.classList.contains("open")) return;
+  if (Notification.permission !== "default") return;
+  banner.hidden = false;
+}
+
+async function subscribeToPush() {
+  if (!canUseWebPush()) return false;
+  const registration = await navigator.serviceWorker.ready;
+  const { publicKey } = await apiFetch("/api/push/public-key");
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(publicKey),
+  });
+  await apiFetch("/api/push/subscribe", {
+    method: "POST",
+    body: JSON.stringify(subscription.toJSON()),
+  });
+  hidePushBanner(true);
+  return true;
+}
+
+async function setupPushNotifications() {
+  if (!authState.loggedIn) return;
+  if (!canUseWebPush()) return;
+
+  const enableBtn = document.getElementById("pushEnableBtn");
+  const dismissBtn = document.getElementById("pushDismissBtn");
+  if (!pushListenersBound) {
+    pushListenersBound = true;
+    enableBtn?.addEventListener("click", async () => {
+      try {
+        const permission = await Notification.requestPermission();
+        if (permission !== "granted") return;
+        await subscribeToPush();
+      } catch (err) {
+        console.warn("Activation notifications impossible.", err);
+      }
+    });
+    dismissBtn?.addEventListener("click", () => hidePushBanner(true));
+  }
+
+  if (Notification.permission === "granted") {
+    try {
+      await subscribeToPush();
+    } catch (err) {
+      console.warn("Abonnement push impossible.", err);
+    }
+    return;
+  }
+
+  if (!pushSetupStarted) showPushBanner();
+  pushSetupStarted = true;
+}
+
+rememberNotificationDeepLink();
 
 function isPwaStandalone() {
   return window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
