@@ -59,16 +59,8 @@ const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["membres", "tournee", "prets", "evenements", "communication", "dettes", "amendes", "finance", "admin"];
+const TAB_IDS = ["membres", "tournee", "prets", "evenements", "dettes", "amendes", "finance", "communication", "admin"];
 const COMMUNICATION_KINDS = [
-  {
-    id: "rapport",
-    label: "Rapports de réunions",
-    singular: "rapport",
-    composerTitle: "Publier un rapport de réunion",
-    titlePlaceholder: "Ex : Réunion du 15 mars",
-    bodyPlaceholder: "Compte rendu : présents, décisions, suites à donner…",
-  },
   {
     id: "ordre-du-jour",
     label: "Ordre du jour",
@@ -76,6 +68,14 @@ const COMMUNICATION_KINDS = [
     composerTitle: "Publier l'ordre du jour",
     titlePlaceholder: "Ex : Réunion du 12 avril",
     bodyPlaceholder: "1. Accueil\n2. Point caisse\n3. …",
+  },
+  {
+    id: "rapport",
+    label: "Rapports de réunions",
+    singular: "rapport",
+    composerTitle: "Publier un rapport de réunion",
+    titlePlaceholder: "Ex : Réunion du 15 mars",
+    bodyPlaceholder: "Compte rendu : présents, décisions, suites à donner…",
   },
   {
     id: "communique",
@@ -148,7 +148,7 @@ const DEFAULT_TAB_PERMISSIONS = {
   prets: ["tresorier"],
   amendes: ["censeur", "tresorier"],
   evenements: ["tresorier"],
-  communication: ["president"],
+  communication: ["president", "vice-president"],
 };
 
 const DEFAULT_MEMBER_NAMES = [
@@ -354,7 +354,7 @@ let prets = [];
 let notifications = [];
 let evenements = [];
 let communicationPosts = [];
-let activeCommunicationSub = "rapport";
+let activeCommunicationSub = "ordre-du-jour";
 let editingCommunicationId = null;
 let autreArgent = [];
 let ancienneTourneeDettes = [];
@@ -2226,6 +2226,14 @@ function loadTabPermissions() {
         );
       }
     });
+
+    if (
+      Array.isArray(merged.communication) &&
+      merged.communication.length === 1 &&
+      merged.communication[0] === "president"
+    ) {
+      merged.communication = ["president", "vice-president"];
+    }
 
     return merged;
   } catch {
@@ -7463,7 +7471,7 @@ function saveCommunicationPosts() {
 function loadCommunicationSubtab() {
   const stored = localStorage.getItem(COMMUNICATION_SUBTAB_KEY);
   if (COMMUNICATION_KINDS.some((kind) => kind.id === stored)) return stored;
-  return "rapport";
+  return "ordre-du-jour";
 }
 
 function getCommunicationKind(kindId) {
@@ -7497,7 +7505,7 @@ function cancelEditCommunication() {
 }
 
 function showCommunicationSub(kindId) {
-  if (!COMMUNICATION_KINDS.some((kind) => kind.id === kindId)) kindId = "rapport";
+  if (!COMMUNICATION_KINDS.some((kind) => kind.id === kindId)) kindId = "ordre-du-jour";
   activeCommunicationSub = kindId;
   localStorage.setItem(COMMUNICATION_SUBTAB_KEY, kindId);
   cancelEditCommunication();
