@@ -4148,33 +4148,41 @@ function renderDebtDashboard(target, items, emptyMeta, chipBuilder) {
   `;
 }
 
-function renderAmendeTable(amendesList, showAllMembers = false) {
+function renderAmendeTable(amendesList) {
   if (!amendeBody) return;
+  const foot = document.getElementById("amendeTableFoot");
+  const total = amendesList.reduce((sum, amende) => sum + (Number(amende.amount) || 0), 0);
 
-  const showEdit = showAllMembers && canManageTab("amendes");
-  const total = amendesList.reduce((sum, amende) => sum + amende.amount, 0);
+  if (amendeRegularWrap) amendeRegularWrap.hidden = false;
 
-  if (amendeRegularWrap) {
-    amendeRegularWrap.hidden = amendesList.length === 0;
-  }
-
-  if (amendeRegularSummary) {
-    amendeRegularSummary.innerHTML = amendesList.length
-      ? `<span class="dette-group-total-count">${amendesList.length}</span>
-         <strong>${formatEuro(total)}</strong>`
-      : "";
-  }
-
-  if (amendesList.length === 0) {
-    amendeBody.innerHTML = "";
+  if (!amendesList.length) {
+    amendeBody.innerHTML = `<tr><td colspan="5" class="empty-cell">Aucune amende en cours.</td></tr>`;
+    if (foot) foot.innerHTML = "";
     return;
   }
 
   amendeBody.innerHTML = amendesList
-    .map((amende, index) =>
-      buildDetteCard(amende, { showMember: showAllMembers, showEdit, index })
-    )
+    .map((amende) => {
+      const repaid = Number(amende.repaidAmount) || 0;
+      const copy = getDetteCardCopy(amende);
+      return `
+        <tr id="amende-${escapeHtml(amende.id)}">
+          <td>${escapeHtml(formatFriendlyDate(amende.date))}</td>
+          <td>${escapeHtml(getAmendeTypeLabel(amende.type))}</td>
+          <td>${escapeHtml(copy.title && copy.title !== getAmendeTypeLabel(amende.type) ? copy.title : amende.note || "—")}</td>
+          <td class="num">${repaid > 0 ? formatEuro(repaid) : "—"}</td>
+          <td class="num">${formatEuro(amende.amount)}</td>
+        </tr>`;
+    })
     .join("");
+
+  if (foot) {
+    foot.innerHTML = `
+      <tr>
+        <td colspan="4">Total</td>
+        <td class="num">${formatEuro(total)}</td>
+      </tr>`;
+  }
 }
 
 function renderMesDettes() {
@@ -4210,21 +4218,18 @@ function renderMesAmendes() {
   const current = getCurrentMember();
   if (!current) return;
   const regularAmendes = getRegularAmendes(getAmendesForMember(current.id));
+  const total = regularAmendes.reduce((sum, amende) => sum + (Number(amende.amount) || 0), 0);
   if (amendeTitle) amendeTitle.textContent = "Mes amendes";
   if (amendeSubtitle) {
     amendeSubtitle.hidden = false;
-    amendeSubtitle.textContent = `Pour ${current.name} — consultation uniquement. Les remboursements se font dans Admin.`;
+    amendeSubtitle.textContent = `Pour ${current.name} — consultation uniquement.`;
   }
-  renderDebtDashboard(amendeSummary, regularAmendes, "Pas d'amende pour le moment.", (items) => {
-    const totals = { absence: 0, retard: 0, bavardage: 0, sanctions: 0 };
-    items.forEach((amende) => {
-      if (totals[amende.type] !== undefined) totals[amende.type] += amende.amount;
-    });
-    return AMENDE_TYPES.filter((type) => totals[type.id] > 0).map(
-      (type) => `<span class="dette-pill type-${type.id}">${escapeHtml(type.label)} · ${formatEuro(totals[type.id])}</span>`
-    );
-  });
-  renderAmendeTable(regularAmendes, false);
+  if (amendeSummary) {
+    amendeSummary.innerHTML = total > 0
+      ? `<span>Total à régler</span><strong>${formatEuro(total)}</strong>`
+      : `<span>Total à régler</span><strong>0 €</strong>`;
+  }
+  renderAmendeTable(regularAmendes);
 }
 
 function renderAmendes() {

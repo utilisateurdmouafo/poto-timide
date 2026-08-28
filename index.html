@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=pwa-4" />
+  <link rel="stylesheet" href="styles.css?v=pwa-5" />
 </head>
 <body>
   <div class="app" id="app">
@@ -271,18 +271,21 @@
             <h2 id="amendeTitle">Mes amendes</h2>
             <p class="panel-desc" id="amendeSubtitle">Absences, retards, bavardages et sanctions.</p>
           </div>
-          <div class="dette-dashboard" id="amendeSummary"></div>
-          <div class="dette-feed">
-            <section class="dette-group dette-group-amendes" id="amendeRegularWrap" hidden>
-              <div class="dette-group-head">
-                <div>
-                  <h3>Amendes</h3>
-                  <p class="dette-block-desc">Ce qui reste à régler.</p>
-                </div>
-                <div class="dette-group-total" id="amendeRegularSummary"></div>
-              </div>
-              <div class="dette-card-list" id="amendeBody"></div>
-            </section>
+          <div class="amende-excel-total" id="amendeSummary"></div>
+          <div class="table-wrap" id="amendeRegularWrap">
+            <table class="amende-excel-table">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Type</th>
+                  <th>Détail</th>
+                  <th class="num">Déjà versé</th>
+                  <th class="num">Reste à régler</th>
+                </tr>
+              </thead>
+              <tbody id="amendeBody"></tbody>
+              <tfoot id="amendeTableFoot"></tfoot>
+            </table>
           </div>
         </section>
       </div>
@@ -862,6 +865,6 @@
   </div>
 
   <script src="api-client.js?v=online-1"></script>
-  <script src="app.js?v=pwa-8"></script>
+  <script src="app.js?v=pwa-9"></script>
 </body>
 </html>
