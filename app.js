@@ -683,182 +683,254 @@ function renderFinanceDashboard() {
   }
 }
 
-function renderFinanceCotisations() {
-  const rows = financeData?.cotisations || [];
-  const totals = financeData?.cotisationMemberTotals || [];
-  const body = rows.length
-    ? rows
-        .map(
-          (row, i) => `
-        <tr style="--finance-row-i:${i}">
-          <td>${escapeHtml(row.yearA?.month || "—")}</td>
-          <td>${escapeHtml(row.yearA?.receivers || "—")}</td>
-          <td>${escapeHtml(row.yearA?.eaters || "—")}</td>
-          <td>${escapeHtml(row.yearB?.month || "—")}</td>
-          <td>${escapeHtml(String(row.yearB?.receivers ?? "—"))}</td>
-          <td>${escapeHtml(row.yearB?.eaters || "—")}</td>
-        </tr>`
-        )
-        .join("")
-    : `<tr><td colspan="6" class="finance-empty-cell">Aucune cotisation.</td></tr>`;
-
-  const totalsBody = totals.length
-    ? totals
-        .map(
-          (row) => `
-        <tr>
-          <td>${escapeHtml(row.name)}</td>
-          <td class="finance-td-amount">${formatEuro(row.amount || 0)}</td>
-        </tr>`
-        )
-        .join("")
-    : "";
-
+function buildLedgerDataRowHtml(row, rowIdPrefix) {
+  const repaid = Number(row.repaid) || 0;
+  const remaining = Number(row.remaining) || 0;
+  const original = Number(row.original) || remaining + repaid;
+  const dateText = row.dateLabel || formatFriendlyDate(row.date);
   return `
-    <div class="finance-section-head"><h3>Organisation des cotisations (tournées)</h3></div>
-    <div class="finance-table-wrap">
-      <table class="finance-table">
+    <tr id="${escapeHtml(rowIdPrefix)}-${escapeHtml(String(row.id))}" class="${row.settled ? "is-settled" : ""}">
+      <td class="amende-col-date" data-label="Date">${escapeHtml(dateText)}</td>
+      <td class="amende-col-type" data-label="Type">${escapeHtml(getAmendeTypeLabel(row.type))}</td>
+      <td class="amende-col-detail" data-label="Détail">${escapeHtml(row.detail || "—")}</td>
+      <td class="num amende-col-amount" data-label="Montant">${formatEuro(original)}</td>
+      <td class="num amende-col-paid ${repaid > 0 ? "num-paid" : ""}" data-label="Déjà versé">${repaid > 0 ? formatEuro(repaid) : "—"}</td>
+      <td class="num amende-col-remain num-remain ${remaining <= 0 ? "is-zero" : ""}" data-label="Reste">${formatEuro(remaining)}</td>
+      <td class="amende-col-status" data-label="Statut">
+        <span class="amende-chip ${row.settled ? "is-paid" : "is-open"}">${row.settled ? "Soldée" : "En cours"}</span>
+      </td>
+    </tr>`;
+}
+
+function buildLedgerFootHtml(rows) {
+  if (!rows.length) return "";
+  const remainingTotal = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
+  const repaidTotal = rows.reduce((sum, row) => sum + (Number(row.repaid) || 0), 0);
+  const originalTotal = rows.reduce((sum, row) => sum + (Number(row.original) || 0), 0);
+  return `
+    <tr>
+      <td colspan="3">Total</td>
+      <td class="num">${formatEuro(originalTotal)}</td>
+      <td class="num num-paid">${formatEuro(repaidTotal)}</td>
+      <td class="num num-remain">${formatEuro(remainingTotal)}</td>
+      <td></td>
+    </tr>`;
+}
+
+function buildLedgerHeroHtml({ total, openCount, noun, emptyMeta }) {
+  const plural = openCount > 1 ? "s" : "";
+  if (total > 0) {
+    return `
+      <div class="amende-hero is-due">
+        <div class="amende-hero-copy">
+          <p class="amende-hero-kicker">Total à régler</p>
+          <strong class="amende-hero-amount">${formatEuro(total)}</strong>
+          <p class="amende-hero-meta">${openCount} ${noun}${plural} en cours</p>
+        </div>
+      </div>`;
+  }
+  return `
+    <div class="amende-hero is-clear">
+      <span class="amende-hero-mark" aria-hidden="true">✓</span>
+      <div class="amende-hero-copy">
+        <p class="amende-hero-kicker">Tout est à jour</p>
+        <strong class="amende-hero-amount">0 €</strong>
+        <p class="amende-hero-meta">${escapeHtml(emptyMeta)}</p>
+      </div>
+    </div>`;
+}
+
+function buildLedgerTableHtml(rows, { emptyText, rowIdPrefix }) {
+  const body = rows.length
+    ? rows.map((row) => buildLedgerDataRowHtml(row, rowIdPrefix)).join("")
+    : `<tr class="amende-empty-row"><td colspan="7">${escapeHtml(emptyText)}</td></tr>`;
+  const foot = buildLedgerFootHtml(rows);
+  return `
+    <div class="amende-table-wrap">
+      <table class="amende-table">
         <thead>
           <tr>
-            <th colspan="3">Tournée A</th>
-            <th colspan="3">Tournée B</th>
-          </tr>
-          <tr>
-            <th>Mois</th><th>Reçoit</th><th>Bouffe</th>
-            <th>Mois</th><th>Reçoit</th><th>Bouffe</th>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Détail</th>
+            <th class="num">Montant</th>
+            <th class="num">Déjà versé</th>
+            <th class="num">Reste</th>
+            <th>Statut</th>
           </tr>
         </thead>
         <tbody>${body}</tbody>
+        <tfoot>${foot}</tfoot>
       </table>
-    </div>
-    ${
-      totals.length
-        ? `<div class="finance-section-head finance-section-head--sub"><h3>Totaux par membre</h3><span>Total général : ${formatEuro(financeData.cotisationTotal || 0)}</span></div>
-    <div class="finance-table-wrap finance-table-wrap--compact">
-      <table class="finance-table">
-        <thead><tr><th>Membre</th><th class="finance-th-amount">Montant</th></tr></thead>
-        <tbody>${totalsBody}</tbody>
-      </table>
-    </div>`
-        : ""
-    }`;
+    </div>`;
+}
+
+function buildLedgerSectionHtml({ title, noun, emptyMeta, emptyText, rows, rowIdPrefix }) {
+  const total = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
+  const openCount = rows.filter((row) => !row.settled).length;
+  return `
+    <section class="amende-ledger">
+      <h3 class="finance-ledger-title">${escapeHtml(title)}</h3>
+      ${buildLedgerHeroHtml({ total, openCount, noun, emptyMeta })}
+      ${buildLedgerTableHtml(rows, { emptyText, rowIdPrefix })}
+    </section>`;
+}
+
+function buildFinanceCotisationRows() {
+  return getSortedMembers()
+    .filter((member) => member.id !== "groupe")
+    .map((member) => {
+      const repaid = Math.round(getMemberCotisationAmount(member.id) * 100) / 100;
+      const original = FULL_TOURNEE_COTISATION;
+      const remaining = Math.max(0, Math.round((original - repaid) * 100) / 100);
+      return {
+        id: member.id,
+        dateLabel: `Tournée ${tourneeYear}`,
+        type: "cotisation",
+        detail: member.name,
+        original,
+        repaid,
+        remaining,
+        settled: remaining <= 0,
+      };
+    });
+}
+
+function buildFinanceAncienneTourneeRows() {
+  return [...ancienneTourneeDettes]
+    .map((entry) => {
+      const remaining = Math.round((Number(entry.amount) || 0) * 100) / 100;
+      const repaid = Math.round((Number(entry.repaidAmount) || 0) * 100) / 100;
+      const original = Math.round(
+        (Number(entry.originalAmount) || remaining + repaid) * 100
+      ) / 100;
+      const member = getMemberById(entry.memberId);
+      return {
+        id: entry.id,
+        date: entry.createdAt,
+        type: "ancienne-tournee",
+        detail: member?.name || "—",
+        original,
+        repaid,
+        remaining,
+        settled: remaining <= 0,
+        sortAt: entry.createdAt,
+      };
+    })
+    .sort((a, b) => {
+      if (a.settled !== b.settled) return a.settled ? 1 : -1;
+      return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+    });
+}
+
+function buildFinanceAmendeRows() {
+  return getRegularAmendes([...amendes])
+    .map((amende) => {
+      const remaining = Math.round((Number(amende.amount) || 0) * 100) / 100;
+      const repaid = getAmendeRepaidAmount(amende);
+      const original = Math.round(
+        (Number(amende.originalAmount) || remaining + repaid) * 100
+      ) / 100;
+      const member = getMemberById(amende.memberId);
+      const note = getAmendeDetailText(amende);
+      const detail = note && note !== "—"
+        ? `${member?.name || "—"} — ${note}`
+        : member?.name || "—";
+      return {
+        id: amende.id,
+        date: amende.date,
+        type: amende.type,
+        detail,
+        original,
+        repaid,
+        remaining,
+        settled: remaining <= 0,
+        sortAt: amende.settledAt || amende.date,
+      };
+    })
+    .sort((a, b) => {
+      if (a.settled !== b.settled) return a.settled ? 1 : -1;
+      return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+    });
+}
+
+function buildFinancePretRows() {
+  return prets
+    .filter((loan) => ["active", "defaulted", "completed"].includes(loan.status))
+    .map((loan) => {
+      const repaid = Math.round((Number(loan.totalRepaid) || 0) * 100) / 100;
+      const remaining = Math.round((getLoanBalance(loan) || 0) * 100) / 100;
+      const original = Math.round((Number(loan.amount) || 0) * 100) / 100;
+      const member = getMemberById(loan.borrowerId);
+      return {
+        id: loan.id,
+        date: loan.approvedAt || loan.createdAt,
+        type: "pret",
+        detail: member?.name || "—",
+        original,
+        repaid,
+        remaining,
+        settled: loan.status === "completed" || remaining <= 0,
+        sortAt: loan.approvedAt || loan.createdAt,
+      };
+    })
+    .sort((a, b) => {
+      if (a.settled !== b.settled) return a.settled ? 1 : -1;
+      return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+    });
+}
+
+function renderFinanceCotisations() {
+  return buildLedgerSectionHtml({
+    title: "Organisation des cotisations (tournées)",
+    noun: "cotisation",
+    emptyMeta: "Toutes les cotisations sont à jour",
+    emptyText: "Aucune cotisation pour le moment.",
+    rows: buildFinanceCotisationRows(),
+    rowIdPrefix: "finance-cotis",
+  });
 }
 
 function renderFinanceAncienneTournee() {
-  const membersRows = financeData?.ancienneTournee || [];
-  if (!membersRows.length) return `<p class="finance-empty">Ancienne tournée indisponible.</p>`;
-
-  const columnKeys = new Set();
-  membersRows.forEach((row) => {
-    Object.keys(row.columns || {}).forEach((key) => columnKeys.add(key));
+  return buildLedgerSectionHtml({
+    title: "Ancienne tournée",
+    noun: "dette",
+    emptyMeta: "Aucune dette d'ancienne tournée",
+    emptyText: "Aucune dette d'ancienne tournée.",
+    rows: buildFinanceAncienneTourneeRows(),
+    rowIdPrefix: "finance-ancienne",
   });
-  const cols = [...columnKeys];
-
-  const head = cols
-    .map((col) => `<th colspan="3">${escapeHtml(col)}</th>`)
-    .join("");
-  const subHead = cols.map(() => `<th>Payé</th><th>Dû</th><th>Reste</th>`).join("");
-
-  const body = membersRows
-    .map((row, i) => {
-      const fond = `<td>${row.fondPaid ?? "—"}</td><td>${row.fondDue ?? "—"}</td><td>${row.fondRest ?? "—"}</td>`;
-      const cells = cols
-        .map((col) => {
-          const cell = row.columns?.[col] || {};
-          return `<td>${cell.paid ?? "—"}</td><td>${cell.due ?? "—"}</td><td>${cell.rest ?? "—"}</td>`;
-        })
-        .join("");
-      return `<tr style="--finance-row-i:${i}"><td class="finance-td-person">${escapeHtml(row.name)}</td>${fond}${cells}</tr>`;
-    })
-    .join("");
-
-  return `
-    <div class="finance-section-head"><h3>Ancienne tournée — soldes par membre</h3></div>
-    <div class="finance-table-wrap finance-table-wrap--wide">
-      <table class="finance-table finance-table--matrix">
-        <thead>
-          <tr><th rowspan="2">Membre</th><th colspan="3">Fond caisse</th>${head}</tr>
-          <tr><th>Payé</th><th>Dû</th><th>Reste</th>${subHead}</tr>
-        </thead>
-        <tbody>${body}</tbody>
-      </table>
-    </div>`;
 }
 
 function renderFinanceAmendes() {
-  const block = financeData?.amendesHistorique;
-  if (!block?.rows?.length) return `<p class="finance-empty">Amendes historiques indisponibles.</p>`;
-
-  const headers = block.headers || [];
-  const head = headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("");
-  const body = block.rows
-    .map((row, i) => {
-      const cells = headers
-        .map((h) => {
-          const val = row.values?.[h];
-          return `<td>${val === undefined || val === null ? "—" : escapeHtml(String(val))}</td>`;
-        })
-        .join("");
-      return `<tr style="--finance-row-i:${i}"><td class="finance-td-person">${escapeHtml(row.name)}</td>${cells}</tr>`;
-    })
-    .join("");
-
-  return `
-    <div class="finance-section-head"><h3>Amendes historiques (grille Excel)</h3></div>
-    <div class="finance-table-wrap finance-table-wrap--wide">
-      <table class="finance-table finance-table--matrix">
-        <thead><tr><th>Membre</th>${head}</tr></thead>
-        <tbody>${body}</tbody>
-      </table>
-    </div>`;
+  return buildLedgerSectionHtml({
+    title: "Amendes",
+    noun: "amende",
+    emptyMeta: "Aucune amende à régler",
+    emptyText: "Aucune amende pour le moment.",
+    rows: buildFinanceAmendeRows(),
+    rowIdPrefix: "finance-amende",
+  });
 }
 
 function renderFinancePrets() {
-  const rows = financeData?.pretsHistorique || [];
-  const body = rows.length
-    ? rows
-        .map(
-          (row, i) => `
-        <tr style="--finance-row-i:${i}">
-          <td class="finance-td-person">${escapeHtml(row.name)}</td>
-          <td class="finance-td-amount">${formatEuro(row.amount || 0)}</td>
-          <td>${row.start ? formatDate(String(row.start).split("T")[0]) : "—"}</td>
-          <td>${row.end ? formatDate(String(row.end).split("T")[0]) : "—"}</td>
-          <td>${row.remis ?? "—"}</td>
-          <td>${escapeHtml(row.status || "—")}</td>
-          <td>${row.order ?? "—"}</td>
-          <td>${escapeHtml(row.nextBorrower || "—")}</td>
-        </tr>`
-        )
-        .join("")
-    : `<tr><td colspan="8" class="finance-empty-cell">Aucun prêt historique.</td></tr>`;
-
-  return `
-    <div class="finance-section-head"><h3>Prêts historiques</h3></div>
-    <div class="finance-table-wrap">
-      <table class="finance-table">
-        <thead>
-          <tr>
-            <th>Emprunteur</th><th class="finance-th-amount">Montant</th><th>Début</th><th>Fin</th>
-            <th>Remis</th><th>Statut</th><th>N°</th><th>Suivant</th>
-          </tr>
-        </thead>
-        <tbody>${body}</tbody>
-      </table>
-    </div>`;
+  return buildLedgerSectionHtml({
+    title: "Prêts",
+    noun: "prêt",
+    emptyMeta: "Aucun prêt en cours",
+    emptyText: "Aucun prêt pour le moment.",
+    rows: buildFinancePretRows(),
+    rowIdPrefix: "finance-pret",
+  });
 }
 
 function renderFinanceArchives() {
-  if (!financeData || financeData.cleared === true || financeData.source === "cleared") {
-    return `<p class="finance-empty">Aucun chiffre historique — archive réinitialisée.</p>`;
-  }
-  const parts = [
-    renderFinanceCotisations(),
-    renderFinanceAncienneTournee(),
-    renderFinanceAmendes(),
-    renderFinancePrets(),
-  ];
-  return `<div class="finance-archives-stack">${parts.join('<hr class="finance-archives-sep" />')}</div>`;
+  return `<div class="finance-archives-stack">
+    ${renderFinanceCotisations()}
+    ${renderFinanceAncienneTournee()}
+    ${renderFinanceAmendes()}
+    ${renderFinancePrets()}
+  </div>`;
 }
 
 function renderFinanceSubcontent() {
@@ -2291,6 +2363,8 @@ function getAmendeTypeLabel(typeId) {
   if (typeId === "dette") return "Dette événement";
   if (typeId === "evenement") return "Événement";
   if (typeId === "ancienne-tournee") return "Ancienne tournée";
+  if (typeId === "cotisation") return "Cotisation";
+  if (typeId === "pret") return "Prêt";
   return AMENDE_TYPES.find((t) => t.id === typeId)?.label || typeId;
 }
 
@@ -4292,9 +4366,6 @@ function renderLedgerHero(el, { total, openCount, noun, emptyMeta }) {
 
 function renderLedgerTable(rows, { body, foot, wrap, emptyText, rowIdPrefix }) {
   if (!body) return;
-  const remainingTotal = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
-  const repaidTotal = rows.reduce((sum, row) => sum + (Number(row.repaid) || 0), 0);
-  const originalTotal = rows.reduce((sum, row) => sum + (Number(row.original) || 0), 0);
 
   if (wrap) wrap.hidden = false;
 
@@ -4304,35 +4375,10 @@ function renderLedgerTable(rows, { body, foot, wrap, emptyText, rowIdPrefix }) {
     return;
   }
 
-  body.innerHTML = rows
-    .map((row) => {
-      const repaid = Number(row.repaid) || 0;
-      const remaining = Number(row.remaining) || 0;
-      const original = Number(row.original) || remaining + repaid;
-      return `
-        <tr id="${escapeHtml(rowIdPrefix)}-${escapeHtml(row.id)}" class="${row.settled ? "is-settled" : ""}">
-          <td class="amende-col-date" data-label="Date">${escapeHtml(formatFriendlyDate(row.date))}</td>
-          <td class="amende-col-type" data-label="Type">${escapeHtml(getAmendeTypeLabel(row.type))}</td>
-          <td class="amende-col-detail" data-label="Détail">${escapeHtml(row.detail || "—")}</td>
-          <td class="num amende-col-amount" data-label="Montant">${formatEuro(original)}</td>
-          <td class="num amende-col-paid ${repaid > 0 ? "num-paid" : ""}" data-label="Déjà versé">${repaid > 0 ? formatEuro(repaid) : "—"}</td>
-          <td class="num amende-col-remain num-remain ${remaining <= 0 ? "is-zero" : ""}" data-label="Reste">${formatEuro(remaining)}</td>
-          <td class="amende-col-status" data-label="Statut">
-            <span class="amende-chip ${row.settled ? "is-paid" : "is-open"}">${row.settled ? "Soldée" : "En cours"}</span>
-          </td>
-        </tr>`;
-    })
-    .join("");
+  body.innerHTML = rows.map((row) => buildLedgerDataRowHtml(row, rowIdPrefix)).join("");
 
   if (foot) {
-    foot.innerHTML = `
-      <tr>
-        <td colspan="3">Total</td>
-        <td class="num">${formatEuro(originalTotal)}</td>
-        <td class="num num-paid">${formatEuro(repaidTotal)}</td>
-        <td class="num num-remain">${formatEuro(remainingTotal)}</td>
-        <td></td>
-      </tr>`;
+    foot.innerHTML = buildLedgerFootHtml(rows);
   }
 }
 
