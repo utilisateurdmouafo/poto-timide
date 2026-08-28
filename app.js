@@ -5907,7 +5907,7 @@ function renderPretSummary() {
       <strong>${formatEuro(caisseBrute)}</strong>
       <span class="pret-summary-formula">Caisse disponible + événements (${formatEuro(evenementsTotal)})</span>
     </div>
-    <div class="pret-summary-card">
+    <div class="pret-summary-card pret-summary-out">
       <span class="pret-summary-label">Prêts sortis${activeLoans.length ? ` · ${activePretLabel}` : ""}</span>
       <strong class="pret-summary-amount">${formatEuro(loansOut)}</strong>
       <span class="pret-summary-formula">Capital encore dehors (prêt − remboursé)</span>

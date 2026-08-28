@@ -2055,6 +2055,17 @@ body::after {
   color: var(--primary);
 }
 
+.pret-summary-out {
+  border-color: rgba(225, 29, 72, 0.35);
+  background: var(--danger-light);
+}
+
+.pret-summary-out .pret-summary-amount,
+.pret-summary-out strong,
+.pret-summary-out .pret-active-detail-amount {
+  color: var(--danger);
+}
+
 .pret-summary-card strong {
   font-size: 0.9rem;
 }
