@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=pwa-3" />
+  <link rel="stylesheet" href="styles.css?v=pwa-4" />
 </head>
 <body>
   <div class="app" id="app">
@@ -65,6 +65,11 @@
           <button class="tab" data-tab="evenements">
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M4 10h16M8 3.6V7m8-3.4V7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
             Événements
+          </button>
+          <button class="tab" data-tab="dettes">
+            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            <span class="tab-label-full">Mes dettes</span>
+            <span class="tab-label-short">Dettes</span>
           </button>
           <button class="tab" data-tab="finance">
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19h16M7 16v-4m5 4V8m5 8v-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
@@ -213,6 +218,41 @@
         </section>
       </div>
 
+      <!-- ========== MES DETTES ET AMENDES ========== -->
+      <div class="tab-content" id="tab-dettes">
+        <section class="panel amende-panel">
+          <div class="amende-head">
+            <h2 id="amendeTitle">Mes dettes et amendes</h2>
+            <p class="panel-desc" id="amendeSubtitle">Un aperçu clair de ce que tu dois encore.</p>
+          </div>
+          <div class="dette-dashboard" id="amendeSummary"></div>
+
+          <div class="dette-feed">
+            <section class="dette-group dette-group-events" id="amendeDetteWrap" hidden>
+              <div class="dette-group-head">
+                <div>
+                  <h3>Événements</h3>
+                  <p class="dette-block-desc" id="amendeDetteSubtitle">Cotisations non réglées après un événement.</p>
+                </div>
+                <div class="dette-group-total" id="amendeDetteSummary"></div>
+              </div>
+              <div class="dette-card-list" id="amendeDetteBody"></div>
+            </section>
+
+            <section class="dette-group dette-group-amendes" id="amendeRegularWrap" hidden>
+              <div class="dette-group-head">
+                <div>
+                  <h3>Amendes</h3>
+                  <p class="dette-block-desc">Absences, retards, bavardages et sanctions.</p>
+                </div>
+                <div class="dette-group-total" id="amendeRegularSummary"></div>
+              </div>
+              <div class="dette-card-list" id="amendeBody"></div>
+            </section>
+          </div>
+        </section>
+      </div>
+
       <!-- ========== FINANCE (compte simple) ========== -->
       <div class="tab-content" id="tab-finance">
         <section class="panel finance-panel">
@@ -220,47 +260,11 @@
           <p class="panel-desc" id="financeSubtitle" hidden></p>
           <div class="finance-dashboard" id="financeDashboard"></div>
           <nav class="finance-subtabs" id="financeSubtabs" aria-label="Sous-onglets finance">
-            <button type="button" class="finance-subtab active" data-finance-sub="dettes-amendes">Mes dettes</button>
             <button type="button" class="finance-subtab" data-finance-sub="caisse" id="financeSubCaisse" hidden>Caisse</button>
-            <button type="button" class="finance-subtab" data-finance-sub="archives">Archives</button>
+            <button type="button" class="finance-subtab active" data-finance-sub="archives">Archives</button>
           </nav>
           <div class="finance-subcontent" id="financeSubcontent"></div>
         </section>
-
-        <!-- Live: dettes & amendes -->
-        <div id="financeDettesAmendes" class="finance-live-section" hidden>
-          <section class="panel amende-panel">
-            <div class="amende-head">
-              <h2 id="amendeTitle">Mes dettes et amendes</h2>
-              <p class="panel-desc" id="amendeSubtitle">Un aperçu clair de ce que tu dois encore.</p>
-            </div>
-            <div class="dette-dashboard" id="amendeSummary"></div>
-
-            <div class="dette-feed">
-              <section class="dette-group dette-group-events" id="amendeDetteWrap" hidden>
-                <div class="dette-group-head">
-                  <div>
-                    <h3>Événements</h3>
-                    <p class="dette-block-desc" id="amendeDetteSubtitle">Cotisations non réglées après un événement.</p>
-                  </div>
-                  <div class="dette-group-total" id="amendeDetteSummary"></div>
-                </div>
-                <div class="dette-card-list" id="amendeDetteBody"></div>
-              </section>
-
-              <section class="dette-group dette-group-amendes" id="amendeRegularWrap" hidden>
-                <div class="dette-group-head">
-                  <div>
-                    <h3>Amendes</h3>
-                    <p class="dette-block-desc">Absences, retards, bavardages et sanctions.</p>
-                  </div>
-                  <div class="dette-group-total" id="amendeRegularSummary"></div>
-                </div>
-                <div class="dette-card-list" id="amendeBody"></div>
-              </section>
-            </div>
-          </section>
-        </div>
 
         <!-- Caisse pour Financier (non-admin) uniquement dans Finance -->
         <div id="financeCaisse" class="finance-live-section" hidden>
@@ -838,6 +842,6 @@
   </div>
 
   <script src="api-client.js?v=online-1"></script>
-  <script src="app.js?v=pwa-4"></script>
+  <script src="app.js?v=pwa-5"></script>
 </body>
 </html>

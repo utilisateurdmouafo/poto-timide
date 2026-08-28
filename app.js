@@ -57,8 +57,8 @@ const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["membres", "tournee", "prets", "evenements", "finance", "ancienne-tournee", "admin"];
-const FINANCE_SUBTABS = ["dettes-amendes", "caisse", "archives"];
+const TAB_IDS = ["membres", "tournee", "prets", "evenements", "dettes", "finance", "ancienne-tournee", "admin"];
+const FINANCE_SUBTABS = ["caisse", "archives"];
 const FINANCE_LIVE_DETTE_SUB = "dettes-amendes";
 const FINANCE_CAISSE_SUB = "caisse";
 const FINANCE_ARCHIVES_SUB = "archives";
@@ -314,7 +314,7 @@ let ancienneTourneeDettes = [];
 let fondCaisse = DEFAULT_FOND_CAISSE;
 let fondCaisseAnnuel = { years: {} };
 let financeData = null;
-let activeFinanceSub = FINANCE_LIVE_DETTE_SUB;
+let activeFinanceSub = FINANCE_ARCHIVES_SUB;
 let activeAdminSub = "membres";
 let activeGestionSub = "membres"; // alias
 let editingAmendeId = null;
@@ -560,13 +560,16 @@ function getFinanceSubtab() {
     stored === "amendes" ||
     stored === "prets" ||
     stored === "amendes-live" ||
-    stored === "dettes"
+    stored === "dettes" ||
+    stored === FINANCE_LIVE_DETTE_SUB
   ) {
-    if (stored === "amendes-live" || stored === "dettes") return FINANCE_LIVE_DETTE_SUB;
     return FINANCE_ARCHIVES_SUB;
   }
-  if (stored === FINANCE_CAISSE_SUB && !canAccessCaisse()) return FINANCE_LIVE_DETTE_SUB;
-  return FINANCE_SUBTABS.includes(stored) ? stored : FINANCE_LIVE_DETTE_SUB;
+  if (stored === FINANCE_LIVE_DETTE_SUB || stored === "amendes-live" || stored === "dettes") {
+    return FINANCE_ARCHIVES_SUB;
+  }
+  if (stored === FINANCE_CAISSE_SUB && !canAccessCaisse()) return FINANCE_ARCHIVES_SUB;
+  return FINANCE_SUBTABS.includes(stored) ? stored : FINANCE_ARCHIVES_SUB;
 }
 
 function isFinanceDettesAmendesSub(subId = activeFinanceSub) {
@@ -578,8 +581,12 @@ function isFinanceCaisseSub(subId = activeFinanceSub) {
 }
 
 function showFinanceSub(subId) {
-  if (!FINANCE_SUBTABS.includes(subId)) subId = FINANCE_LIVE_DETTE_SUB;
-  if (subId === FINANCE_CAISSE_SUB && !canAccessCaisse()) subId = FINANCE_LIVE_DETTE_SUB;
+  if (subId === FINANCE_LIVE_DETTE_SUB) {
+    showTab("dettes");
+    return;
+  }
+  if (!FINANCE_SUBTABS.includes(subId)) subId = FINANCE_ARCHIVES_SUB;
+  if (subId === FINANCE_CAISSE_SUB && !canAccessCaisse()) subId = FINANCE_ARCHIVES_SUB;
   activeFinanceSub = subId;
   localStorage.setItem(FINANCE_SUBTAB_KEY, subId);
   financeSubtabs?.querySelectorAll(".finance-subtab").forEach((btn) => {
@@ -851,19 +858,11 @@ function renderFinanceArchives() {
 }
 
 function renderFinanceSubcontent() {
-  const showLiveDettes = isFinanceDettesAmendesSub();
   const showCaisse = isFinanceCaisseSub() && canAccessCaisse();
-  const showArchives = activeFinanceSub === FINANCE_ARCHIVES_SUB;
+  const showArchives = !showCaisse;
 
-  if (financeDettesAmendes) financeDettesAmendes.hidden = !showLiveDettes;
   if (financeCaisse) financeCaisse.hidden = !showCaisse;
   if (financeSubcontent) financeSubcontent.hidden = !showArchives;
-
-  if (showLiveDettes) {
-    if (financeSubcontent) financeSubcontent.innerHTML = "";
-    renderAmendes();
-    return;
-  }
 
   if (showCaisse) {
     if (financeSubcontent) financeSubcontent.innerHTML = "";
@@ -880,8 +879,9 @@ function renderFinance() {
   activeFinanceSub = getFinanceSubtab();
   // Fond de caisse : uniquement Admin → Caisse
   if (financeSubCaisse) financeSubCaisse.hidden = true;
-  if (activeFinanceSub === FINANCE_CAISSE_SUB) {
-    activeFinanceSub = FINANCE_LIVE_DETTE_SUB;
+  if (financeSubtabs) financeSubtabs.hidden = true;
+  if (activeFinanceSub === FINANCE_CAISSE_SUB || activeFinanceSub === FINANCE_LIVE_DETTE_SUB) {
+    activeFinanceSub = FINANCE_ARCHIVES_SUB;
   }
   renderFinanceDashboard();
   financeSubtabs?.querySelectorAll(".finance-subtab").forEach((btn) => {
@@ -3553,10 +3553,8 @@ function renderTourneeTable() {
 
 function resolveLegacyTab(tabId) {
   if (!tabId) return null;
-  if (tabId === "amendes" || tabId === "dettes-amendes") {
-    activeFinanceSub = FINANCE_LIVE_DETTE_SUB;
-    localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_LIVE_DETTE_SUB);
-    return "finance";
+  if (tabId === "amendes" || tabId === "dettes-amendes" || tabId === "dettes") {
+    return "dettes";
   }
   if (tabId === "autre-argent" || tabId === "caisse") {
     activeFinanceSub = FINANCE_CAISSE_SUB;
@@ -3603,7 +3601,7 @@ function showTab(tabId) {
   if (!TAB_IDS.includes(tabId)) tabId = "membres";
   if (tabId === "admin" && !canAccessAdminTab()) tabId = "membres";
   if (tabId === "finance" && activeFinanceSub === FINANCE_CAISSE_SUB && !canAccessCaisse()) {
-    activeFinanceSub = FINANCE_LIVE_DETTE_SUB;
+    activeFinanceSub = FINANCE_ARCHIVES_SUB;
   }
 
   tabs.forEach((tab) => {
@@ -3641,12 +3639,16 @@ function showTab(tabId) {
     renderEvenements();
   }
 
+  if (tabId === "dettes") {
+    reloadFromStorage();
+    renderAmendes();
+  }
+
   if (tabId === "finance") {
     reloadFromStorage();
-    // Admin en vue simple : forcer Mes dettes (pas la caisse)
     if (isGroupAdmin() && activeFinanceSub === FINANCE_CAISSE_SUB) {
-      activeFinanceSub = FINANCE_LIVE_DETTE_SUB;
-      localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_LIVE_DETTE_SUB);
+      activeFinanceSub = FINANCE_ARCHIVES_SUB;
+      localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_ARCHIVES_SUB);
     }
     renderFinance();
   }
@@ -6583,7 +6585,7 @@ function buildEvenementMemberCard(evt, current) {
                    <strong>${formatEuro(share)}</strong>
                    <span class="evenement-status evenement-debt">Dette</span>
                  </div>
-                 <p class="evenement-debt-note">Voir le détail dans Mes dettes et amendes → Dettes événements.</p>`
+                 <p class="evenement-debt-note">Voir le détail dans l'onglet Mes dettes.</p>`
               : `<p class="evenement-contribution-label">Votre cotisation</p>
                  <div class="evenement-contribution-amount">
                    <strong>${formatEuro(share)}</strong>
@@ -7860,6 +7862,9 @@ async function initApp() {
     renderFondCaisseAnnuel();
     if (document.getElementById("tab-prets")?.classList.contains("active")) {
       renderPrets();
+    }
+    if (document.getElementById("tab-dettes")?.classList.contains("active")) {
+      renderAmendes();
     }
     if (document.getElementById("tab-admin")?.classList.contains("active")) {
       if (activeAdminSub === "ancienne-tournee") renderAncienneTourneeDettesAdmin();
