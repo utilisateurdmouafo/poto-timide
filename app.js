@@ -688,26 +688,33 @@ function renderFinanceDashboard() {
   }
 }
 
-function buildLedgerDataRowHtml(row, rowIdPrefix) {
+function buildLedgerDataRowHtml(row, rowIdPrefix, hasActions) {
   const repaid = Number(row.repaid) || 0;
   const remaining = Number(row.remaining) || 0;
   const original = Number(row.original) || remaining + repaid;
   const dateText = row.dateLabel || formatFriendlyDate(row.date);
+  const statusLabel = row.statusLabel || (row.settled ? "Soldée" : "En cours");
+  const chipClass = row.chipClass || (row.settled ? "is-paid" : "is-open");
+  const rowId = row.domId || `${rowIdPrefix}-${row.id}`;
+  const extraRow = row.extraRow
+    ? `<tr class="amende-detail-row"><td colspan="${hasActions ? 8 : 7}">${row.extraRow}</td></tr>`
+    : "";
   return `
-    <tr id="${escapeHtml(rowIdPrefix)}-${escapeHtml(String(row.id))}" class="${row.settled ? "is-settled" : ""}">
+    <tr id="${escapeHtml(String(rowId))}" class="${row.settled ? "is-settled" : ""} ${row.rowClass || ""}">
       <td class="amende-col-date" data-label="Date">${escapeHtml(dateText)}</td>
-      <td class="amende-col-type" data-label="Type">${escapeHtml(getAmendeTypeLabel(row.type))}</td>
+      <td class="amende-col-type" data-label="Type">${escapeHtml(row.typeLabel || getAmendeTypeLabel(row.type))}</td>
       <td class="amende-col-detail" data-label="Détail">${escapeHtml(row.detail || "—")}</td>
       <td class="num amende-col-amount" data-label="Montant">${formatEuro(original)}</td>
       <td class="num amende-col-paid ${repaid > 0 ? "num-paid" : ""}" data-label="Déjà versé">${repaid > 0 ? formatEuro(repaid) : "—"}</td>
       <td class="num amende-col-remain num-remain ${remaining <= 0 ? "is-zero" : ""}" data-label="Reste">${formatEuro(remaining)}</td>
       <td class="amende-col-status" data-label="Statut">
-        <span class="amende-chip ${row.settled ? "is-paid" : "is-open"}">${row.settled ? "Soldée" : "En cours"}</span>
+        <span class="amende-chip ${chipClass}">${escapeHtml(statusLabel)}</span>
       </td>
-    </tr>`;
+      ${hasActions ? `<td class="amende-col-actions" data-label="Actions">${row.actions || "—"}</td>` : ""}
+    </tr>${extraRow}`;
 }
 
-function buildLedgerFootHtml(rows) {
+function buildLedgerFootHtml(rows, hasActions) {
   if (!rows.length) return "";
   const remainingTotal = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
   const repaidTotal = rows.reduce((sum, row) => sum + (Number(row.repaid) || 0), 0);
@@ -718,7 +725,7 @@ function buildLedgerFootHtml(rows) {
       <td class="num">${formatEuro(originalTotal)}</td>
       <td class="num num-paid">${formatEuro(repaidTotal)}</td>
       <td class="num num-remain">${formatEuro(remainingTotal)}</td>
-      <td></td>
+      <td${hasActions ? ' colspan="2"' : ""}></td>
     </tr>`;
 }
 
@@ -745,14 +752,16 @@ function buildLedgerHeroHtml({ total, openCount, noun, emptyMeta }) {
     </div>`;
 }
 
-function buildLedgerTableHtml(rows, { emptyText, rowIdPrefix }) {
+function buildLedgerTableHtml(rows, { emptyText, rowIdPrefix, hasActions }) {
+  const withActions = hasActions || rows.some((row) => row.actions || row.extraRow);
+  const colCount = withActions ? 8 : 7;
   const body = rows.length
-    ? rows.map((row) => buildLedgerDataRowHtml(row, rowIdPrefix)).join("")
-    : `<tr class="amende-empty-row"><td colspan="7">${escapeHtml(emptyText)}</td></tr>`;
-  const foot = buildLedgerFootHtml(rows);
+    ? rows.map((row) => buildLedgerDataRowHtml(row, rowIdPrefix, withActions)).join("")
+    : `<tr class="amende-empty-row"><td colspan="${colCount}">${escapeHtml(emptyText)}</td></tr>`;
+  const foot = buildLedgerFootHtml(rows, withActions);
   return `
     <div class="amende-table-wrap">
-      <table class="amende-table">
+      <table class="amende-table${withActions ? " amende-table-admin" : ""}">
         <thead>
           <tr>
             <th>Date</th>
@@ -762,6 +771,7 @@ function buildLedgerTableHtml(rows, { emptyText, rowIdPrefix }) {
             <th class="num">Déjà versé</th>
             <th class="num">Reste</th>
             <th>Statut</th>
+            ${withActions ? "<th>Actions</th>" : ""}
           </tr>
         </thead>
         <tbody>${body}</tbody>
@@ -770,15 +780,20 @@ function buildLedgerTableHtml(rows, { emptyText, rowIdPrefix }) {
     </div>`;
 }
 
-function buildLedgerSectionHtml({ title, noun, emptyMeta, emptyText, rows, rowIdPrefix }) {
+function buildLedgerSectionHtml({ title, noun, emptyMeta, emptyText, rows, rowIdPrefix, hideTitle }) {
   const total = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
   const openCount = rows.filter((row) => !row.settled).length;
   return `
-    <section class="amende-ledger">
-      <h3 class="finance-ledger-title">${escapeHtml(title)}</h3>
+    <div class="amende-ledger">
+      ${title && !hideTitle ? `<h3 class="finance-ledger-title">${escapeHtml(title)}</h3>` : ""}
       ${buildLedgerHeroHtml({ total, openCount, noun, emptyMeta })}
       ${buildLedgerTableHtml(rows, { emptyText, rowIdPrefix })}
-    </section>`;
+    </div>`;
+}
+
+function renderLedgerInto(container, options) {
+  if (!container) return;
+  container.innerHTML = buildLedgerSectionHtml(options);
 }
 
 function buildFinanceAncienneTourneeRows() {
@@ -2103,58 +2118,55 @@ function renderFondCaisseAnnuel() {
     return;
   }
 
-  fondCaisseAnnuelList.innerHTML = getSortedMembers()
-    .map((member) => {
-      const paid = getFondCaisseAnnuelPaid(selectedYear, member.id);
-      const due = getFondCaisseAnnuelDue(selectedYear, member.id);
-      const solded = due <= 0;
-      const history = yearData?.payments?.[member.id]?.history || [];
-      const versementCount = history.length || (paid > 0 ? 1 : 0);
-      const historyHtml = history.length
-        ? `<div class="fond-caisse-annuel-history">${history
-            .map(
-              (item) => `
-            <span class="fond-caisse-annuel-chip">
-              ${formatEuro(item.amount)} · ${formatFriendlyDate(item.createdAt)}
-              <button type="button" class="fond-caisse-annuel-undo" data-year="${selectedYear}" data-member-id="${escapeHtml(member.id)}" data-payment-id="${escapeHtml(item.id)}" title="Annuler ce versement">Annuler</button>
-            </span>`
-            )
-            .join("")}</div>`
-        : "";
-      const hint = solded
-        ? `soldé${versementCount > 1 ? ` · ${versementCount} versements` : ""}`
-        : paid > 0
-          ? `déjà ${formatEuro(paid)}${versementCount > 1 ? ` · ${versementCount} versements` : " · 1 versement"} · reste ${formatEuro(due)}`
-          : `à verser · ${formatEuro(amountPerMember)} · plusieurs fois possible`;
-      return `
-        <article class="ancienne-tournee-row fond-caisse-annuel-row${solded ? " is-paid" : ""}">
-          <div class="fond-caisse-annuel-main">
-            <span class="ancienne-tournee-row-poto">${escapeHtml(member.name)}</span>
-            <span class="ancienne-tournee-repaid-hint">${escapeHtml(hint)}</span>
-            ${historyHtml}
+  const rows = getSortedMembers().map((member) => {
+    const paid = getFondCaisseAnnuelPaid(selectedYear, member.id);
+    const due = getFondCaisseAnnuelDue(selectedYear, member.id);
+    const solded = due <= 0;
+    const history = yearData?.payments?.[member.id]?.history || [];
+    const historyHtml = history.length
+      ? `<div class="fond-caisse-annuel-history">${history
+          .map(
+            (item) => `
+          <span class="fond-caisse-annuel-chip">
+            ${formatEuro(item.amount)} · ${formatFriendlyDate(item.createdAt)}
+            <button type="button" class="fond-caisse-annuel-undo" data-year="${selectedYear}" data-member-id="${escapeHtml(member.id)}" data-payment-id="${escapeHtml(item.id)}" title="Annuler ce versement">Annuler</button>
+          </span>`
+          )
+          .join("")}</div>`
+      : "";
+    const actions = solded
+      ? `<div class="amende-admin-actions">
+          ${historyHtml}
+          <button type="button" class="btn-secondary fond-caisse-annuel-undo" data-year="${selectedYear}" data-member-id="${escapeHtml(member.id)}" title="Annuler le dernier versement">Annuler le dernier</button>
+        </div>`
+      : `<div class="amende-admin-actions">
+          ${historyHtml}
+          <div class="pret-repay-form">
+            <input type="number" min="0.5" step="0.5" max="${due}" placeholder="${due}" class="fond-caisse-annuel-pay-input" data-member-id="${escapeHtml(member.id)}" data-year="${selectedYear}" inputmode="decimal" aria-label="Montant de ce versement pour ${escapeHtml(member.name)}, reste ${due} euros" />
+            <button type="button" class="btn-primary btn-fond-caisse-annuel-pay" data-member-id="${escapeHtml(member.id)}" data-year="${selectedYear}">Verser</button>
           </div>
-          <span class="ancienne-tournee-row-amount">
-            <strong>${solded ? formatEuro(paid) : formatEuro(due)}</strong>
-            <span class="ancienne-tournee-repaid-hint">${solded ? "versé" : "reste"}</span>
-          </span>
-          ${
-            solded
-              ? `<div class="ancienne-tournee-repay-controls">
-                  <span class="fond-caisse-annuel-done">OK</span>
-                  <button type="button" class="btn-secondary fond-caisse-annuel-undo" data-year="${selectedYear}" data-member-id="${escapeHtml(member.id)}" title="Annuler le dernier versement">Annuler le dernier</button>
-                </div>`
-              : `<div class="ancienne-tournee-repay-controls">
-                  <label class="ancienne-tournee-repay-field">
-                    <input type="number" min="0.5" step="0.5" max="${due}" placeholder="${due}" class="fond-caisse-annuel-pay-input" data-member-id="${escapeHtml(member.id)}" data-year="${selectedYear}" inputmode="decimal" aria-label="Montant de ce versement pour ${escapeHtml(member.name)}, reste ${due} euros" />
-                    <span aria-hidden="true">€</span>
-                  </label>
-                  <button type="button" class="btn-primary btn-fond-caisse-annuel-pay" data-member-id="${escapeHtml(member.id)}" data-year="${selectedYear}">Verser</button>
-                </div>`
-          }
-        </article>
-      `;
-    })
-    .join("");
+        </div>`;
+    return {
+      id: member.id,
+      dateLabel: String(selectedYear),
+      type: "cotisation",
+      typeLabel: "Fond de caisse",
+      detail: member.name,
+      original: amountPerMember,
+      repaid: paid,
+      remaining: due,
+      settled: solded,
+      actions,
+    };
+  });
+
+  renderLedgerInto(fondCaisseAnnuelList, {
+    noun: "poto",
+    emptyMeta: "Tout le monde a versé",
+    emptyText: "Aucun poto.",
+    rowIdPrefix: "fond-annuel",
+    rows,
+  });
 }
 
 function loadTabPermissions() {
@@ -4035,35 +4047,47 @@ function renderAncienneTourneeDettesAdmin() {
   }
   if (!body) return;
 
-  const openEntries = ancienneTourneeDettes.filter((entry) => (Number(entry.amount) || 0) > 0);
-  const total = openEntries.reduce((sum, entry) => sum + (Number(entry.amount) || 0), 0);
-  if (totalEl) totalEl.textContent = formatEuro(total);
-
-  if (!openEntries.length) {
-    body.innerHTML = `<tr><td colspan="4" class="empty-cell">Aucune dette enregistrée.</td></tr>`;
-    return;
-  }
-
-  body.innerHTML = [...openEntries]
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  const rows = [...ancienneTourneeDettes]
     .map((entry) => {
+      const remaining = Math.round((Number(entry.amount) || 0) * 100) / 100;
+      const repaid = Math.round((Number(entry.repaidAmount) || 0) * 100) / 100;
+      const original = Math.round((Number(entry.originalAmount) || remaining + repaid) * 100) / 100;
       const member = getMemberById(entry.memberId);
-      return `
-        <tr id="admin-ancienne-${escapeHtml(entry.id)}">
-          <td>${formatDate(String(entry.createdAt).split("T")[0])}</td>
-          <td>${escapeHtml(member?.name || "—")}</td>
-          <td class="ancienne-tournee-amount-cell">${formatAncienneTourneeAmountHtml(entry)}</td>
-          <td>
-            <div class="ancienne-tournee-actions">
+      return {
+        id: entry.id,
+        domId: `admin-ancienne-${entry.id}`,
+        date: entry.createdAt,
+        type: "ancienne-tournee",
+        detail: member?.name || "—",
+        original,
+        repaid,
+        remaining,
+        settled: remaining <= 0,
+        actions: remaining > 0
+          ? `<div class="amende-admin-actions">
               <button type="button" class="btn-secondary btn-ancienne-tournee-add" data-member-id="${escapeHtml(entry.memberId)}">Ajouter</button>
               <button type="button" class="btn-secondary btn-ancienne-tournee-delete" data-id="${escapeHtml(entry.id)}">Supprimer dette</button>
               ${buildAncienneTourneeRepayControls(entry)}
-            </div>
-          </td>
-        </tr>
-      `;
+            </div>`
+          : "",
+        sortAt: entry.createdAt,
+      };
     })
-    .join("");
+    .sort((a, b) => {
+      if (a.settled !== b.settled) return a.settled ? 1 : -1;
+      return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+    });
+
+  const total = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
+  if (totalEl) totalEl.textContent = formatEuro(total);
+
+  renderLedgerInto(body, {
+    noun: "dette",
+    emptyMeta: "Aucune dette enregistrée",
+    emptyText: "Aucune dette enregistrée.",
+    rowIdPrefix: "admin-ancienne",
+    rows,
+  });
 }
 
 function getOpenEvenementDebtsForMember(memberId) {
@@ -4399,10 +4423,10 @@ function renderLedgerTable(rows, { body, foot, wrap, emptyText, rowIdPrefix }) {
     return;
   }
 
-  body.innerHTML = rows.map((row) => buildLedgerDataRowHtml(row, rowIdPrefix)).join("");
+  body.innerHTML = rows.map((row) => buildLedgerDataRowHtml(row, rowIdPrefix, false)).join("");
 
   if (foot) {
-    foot.innerHTML = buildLedgerFootHtml(rows);
+    foot.innerHTML = buildLedgerFootHtml(rows, false);
   }
 }
 
@@ -4818,63 +4842,75 @@ function renderAmendesAdminHistory() {
   const openEl = document.getElementById("amendeHistoryOpen");
   const paidEl = document.getElementById("amendeHistoryPaid");
   const panel = document.getElementById("amendeHistoryPanel");
-  if (!openEl || !paidEl) return;
+  if (!openEl) return;
 
   const canSee = hasRoleTabAccess("amendes");
   if (panel) panel.hidden = !canSee;
   if (!canSee) {
     openEl.innerHTML = "";
-    paidEl.innerHTML = "";
+    if (paidEl) paidEl.innerHTML = "";
     return;
   }
 
-  const openList = amendes
-    .filter((amende) => (Number(amende.amount) || 0) > 0)
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
-  const paidList = [...amendesCaisse].sort(
-    (a, b) => new Date(b.paidAt || 0) - new Date(a.paidAt || 0)
-  );
+  const openRows = amendes
+    .filter((amende) => (Number(amende.amount) || 0) > 0 || getAmendeRepaidAmount(amende) > 0)
+    .map((amende) => {
+      const remaining = Math.round((Number(amende.amount) || 0) * 100) / 100;
+      const repaid = getAmendeRepaidAmount(amende);
+      const original = Math.round((Number(amende.originalAmount) || remaining + repaid) * 100) / 100;
+      const member = getMemberById(amende.memberId);
+      const note = getAmendeDetailText(amende);
+      return {
+        id: amende.id,
+        domId: `admin-amende-${amende.id}`,
+        date: amende.date,
+        type: amende.type,
+        detail: note && note !== "—" ? `${member?.name || "—"} — ${note}` : member?.name || "—",
+        original,
+        repaid,
+        remaining,
+        settled: remaining <= 0,
+        actions: remaining > 0
+          ? buildAmendeActionControls(amende, { showEdit: true })
+          : "",
+        sortAt: amende.settledAt || amende.date,
+      };
+    });
 
-  openEl.innerHTML = openList.length
-    ? openList
-        .map((amende) => {
-          const member = getMemberById(amende.memberId);
-          const repaid = getAmendeRepaidAmount(amende);
-          return `
-            <article class="ancienne-tournee-row amende-history-row" id="admin-amende-${escapeHtml(amende.id)}">
-              <span class="ancienne-tournee-row-date">${formatFriendlyDate(amende.date)}</span>
-              <span class="ancienne-tournee-row-poto">${escapeHtml(member?.name || "—")}</span>
-              ${getAmendeTypeBadge(amende.type)}
-              <span class="amende-history-note">${escapeHtml(amende.note || "—")}</span>
-              <strong class="ancienne-tournee-row-amount">${formatEuro(amende.amount)}</strong>
-              ${repaid > 0 ? `<span class="amende-repaid-hint">Déjà versé ${formatEuro(repaid)}</span>` : ""}
-              ${buildAmendeActionControls(amende, { showEdit: true })}
-            </article>
-          `;
-        })
-        .join("")
-    : `<p class="empty-cell">Aucune amende en cours.</p>`;
+  const paidRows = [...amendesCaisse]
+    .filter((entry) => !openRows.some((row) => row.id === entry.sourceAmendeId))
+    .map((entry) => {
+      const member = getMemberById(entry.memberId);
+      const amount = Number(entry.amount) || 0;
+      return {
+        id: entry.id,
+        date: entry.paidAt,
+        type: entry.type || "sanctions",
+        detail: entry.note ? `${member?.name || "—"} — ${entry.note}` : member?.name || "—",
+        original: amount,
+        repaid: amount,
+        remaining: 0,
+        settled: true,
+        statusLabel: "Encaissée",
+        chipClass: "is-paid",
+        actions: `<button type="button" class="btn-secondary btn-amende-undo" data-id="${entry.id}">Annuler</button>`,
+        sortAt: entry.paidAt,
+      };
+    });
 
-  paidEl.innerHTML = paidList.length
-    ? paidList
-        .map((entry) => {
-          const member = getMemberById(entry.memberId);
-          return `
-            <article class="ancienne-tournee-row amende-history-row is-paid">
-              <span class="ancienne-tournee-row-date">${formatFriendlyDate(entry.paidAt)}</span>
-              <span class="ancienne-tournee-row-poto">${escapeHtml(member?.name || "—")}</span>
-              ${getAmendeTypeBadge(entry.type)}
-              <span class="amende-history-note">${escapeHtml(entry.note || "—")}</span>
-              <strong class="ancienne-tournee-row-amount">${formatEuro(entry.amount)}</strong>
-              <div class="ancienne-tournee-repay-controls amende-history-actions">
-                <span class="fond-caisse-annuel-done">Encaissée</span>
-                <button type="button" class="btn-secondary btn-amende-undo" data-id="${entry.id}">Annuler</button>
-              </div>
-            </article>
-          `;
-        })
-        .join("")
-    : `<p class="empty-cell">Aucun encaissement pour le moment.</p>`;
+  const rows = [...openRows, ...paidRows].sort((a, b) => {
+    if (a.settled !== b.settled) return a.settled ? 1 : -1;
+    return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+  });
+
+  renderLedgerInto(openEl, {
+    noun: "amende",
+    emptyMeta: "Aucune amende en cours",
+    emptyText: "Aucune amende pour le moment.",
+    rowIdPrefix: "admin-amende",
+    rows,
+  });
+  if (paidEl) paidEl.innerHTML = "";
 }
 
 function loadPrets() {
@@ -6075,16 +6111,24 @@ function renderPrets() {
   const activeLoans = prets.filter((loan) => ["active", "defaulted", "completed", "rejected"].includes(loan.status));
 
   if (pretVotingList) {
-    pretVotingList.innerHTML = votingLoans.length
-      ? votingLoans.map((loan) => buildLoanCard(loan, "voting")).join("")
-      : `<p class="pret-empty">Aucune demande en vote.</p>`;
+    renderLedgerInto(pretVotingList, {
+      noun: "demande",
+      emptyMeta: "Aucune demande en vote",
+      emptyText: "Aucune demande en vote.",
+      rowIdPrefix: "loan",
+      rows: votingLoans.map((loan) => loanToLedgerRow(loan, "voting")),
+    });
   }
 
   if (financierPretPanel && pretFinancierList) {
     financierPretPanel.hidden = !canDecidePrets();
-    pretFinancierList.innerHTML = awaitingLoans.length
-      ? awaitingLoans.map((loan) => buildLoanCard(loan, "financier")).join("")
-      : `<p class="pret-empty">Aucune demande en attente.</p>`;
+    renderLedgerInto(pretFinancierList, {
+      noun: "demande",
+      emptyMeta: "Aucune demande en attente",
+      emptyText: "Aucune demande en attente.",
+      rowIdPrefix: "loan",
+      rows: awaitingLoans.map((loan) => loanToLedgerRow(loan, "financier")),
+    });
   }
 
   if (pretActiveList) {
@@ -6097,16 +6141,23 @@ function renderPrets() {
       pretActiveTitle.textContent = canDecidePrets() ? "Prêts en cours et historique" : "Mes prêts";
     }
 
-    pretActiveList.innerHTML = visibleActive.length
-      ? visibleActive
-          .map((loan) => {
-            if (loan.status === "active" || loan.status === "defaulted") {
-              return buildLoanCard(loan, "active");
-            }
-            return buildLoanCard(loan, "history");
-          })
-          .join("")
-      : `<p class="pret-empty">Aucun prêt pour le moment.</p>`;
+    renderLedgerInto(pretActiveList, {
+      noun: "prêt",
+      emptyMeta: "Aucun prêt en cours",
+      emptyText: "Aucun prêt pour le moment.",
+      rowIdPrefix: "loan",
+      rows: visibleActive
+        .map((loan) =>
+          loanToLedgerRow(
+            loan,
+            loan.status === "active" || loan.status === "defaulted" ? "history" : "history"
+          )
+        )
+        .sort((a, b) => {
+          if (a.settled !== b.settled) return a.settled ? 1 : -1;
+          return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+        }),
+    });
   }
 
   highlightLoanFromNotification();
@@ -6134,12 +6185,77 @@ function buildAdminPretActionsHtml(loan) {
               <input type="number" class="pret-repay-input" data-loan-id="${loan.id}" min="0.5" step="0.5" max="${balance}" placeholder="Montant" inputmode="decimal" aria-label="Montant remboursé, reste ${formatEuro(balance)}" />
               <button type="button" class="btn-primary btn-pret-repay" data-loan-id="${loan.id}">Valider</button>
             </div>`
-          : ""
+          : isOpen && balance > 0
+            ? buildFinancierPayInline()
+            : ""
       }
       ${buildLoanRepaymentsBlock(loan)}
       ${buildFinancierActions(loan)}
     </div>
   `;
+}
+
+function buildPretVoteActionsHtml(loan, mode) {
+  const current = getCurrentMember();
+  const stats = getVoteStats(loan);
+  const canVote = current && current.id !== loan.borrowerId;
+  const myVote = current ? loan.votes[current.id] : null;
+  if (mode === "voting") {
+    return `
+      <div class="amende-admin-actions">
+        <p class="pret-vote-inline">${stats.yesCount} oui · ${stats.noCount} non · ${stats.pendingCount} en attente · ${formatRemainingTime(loan.deadlineAt)}</p>
+        ${
+          canVote && !myVote
+            ? `<div class="pret-vote-actions">
+                <button type="button" class="btn-pret-yes" data-loan-id="${loan.id}" data-vote="yes">Voter Oui</button>
+                <button type="button" class="btn-pret-no" data-loan-id="${loan.id}" data-vote="no">Voter Non</button>
+              </div>`
+            : myVote
+              ? `<p class="pret-my-vote">Votre vote : <strong>${myVote === "yes" ? "Oui" : "Non"}</strong></p>`
+              : ""
+        }
+        ${buildFinancierActions(loan)}
+      </div>`;
+  }
+  return `
+    <div class="amende-admin-actions">
+      <p class="pret-vote-inline">${stats.yesCount} oui · ${stats.noCount} non${loan.autoApprovedByTimeout ? " · délai dépassé" : ""}</p>
+      ${buildFinancierActions(loan)}
+    </div>`;
+}
+
+function loanToLedgerRow(loan, mode) {
+  const repaid = Math.round((Number(loan.totalRepaid) || 0) * 100) / 100;
+  const isRejected = loan.status === "rejected";
+  const remaining = mode === "voting" || mode === "financier" || isRejected
+    ? mode === "voting" || mode === "financier"
+      ? Math.round((Number(loan.amount) || 0) * 100) / 100
+      : 0
+    : Math.round((getLoanBalance(loan) || 0) * 100) / 100;
+  const original = Math.round((Number(loan.amount) || 0) * 100) / 100;
+  const member = getMemberById(loan.borrowerId);
+  const note = String(loan.note || "").trim();
+  const settled = mode === "history" && (isRejected || loan.status === "completed" || remaining <= 0);
+  let actions = "";
+  if (mode === "voting" || mode === "financier") actions = buildPretVoteActionsHtml(loan, mode);
+  else actions = buildAdminPretActionsHtml(loan);
+  const chipClass =
+    loan.status === "rejected" ? "is-rejected" : settled ? "is-paid" : "is-open";
+  return {
+    id: loan.id,
+    domId: `loan-${loan.id}`,
+    date: loan.approvedAt || loan.createdAt,
+    type: "pret",
+    detail: note ? `${member?.name || "—"} — ${note}` : member?.name || "—",
+    original,
+    repaid: mode === "voting" || mode === "financier" ? 0 : repaid,
+    remaining,
+    settled,
+    statusLabel: getPretStatusLabel(loan.status),
+    chipClass,
+    actions,
+    sortAt: loan.approvedAt || loan.createdAt,
+  };
 }
 
 function buildAdminPretLedgerRows() {
@@ -6269,15 +6385,23 @@ function renderAdminPrets() {
   }
 
   if (votingEl) {
-    votingEl.innerHTML = votingLoans.length
-      ? votingLoans.map((loan) => buildLoanCard(loan, "voting")).join("")
-      : `<p class="pret-empty">Aucune demande en vote.</p>`;
+    renderLedgerInto(votingEl, {
+      noun: "demande",
+      emptyMeta: "Aucune demande en vote",
+      emptyText: "Aucune demande en vote.",
+      rowIdPrefix: "loan",
+      rows: votingLoans.map((loan) => loanToLedgerRow(loan, "voting")),
+    });
   }
 
   if (awaitEl) {
-    awaitEl.innerHTML = awaitingLoans.length
-      ? awaitingLoans.map((loan) => buildLoanCard(loan, "financier")).join("")
-      : `<p class="pret-empty">Aucune demande en attente de validation.</p>`;
+    renderLedgerInto(awaitEl, {
+      noun: "demande",
+      emptyMeta: "Aucune demande en attente",
+      emptyText: "Aucune demande en attente de validation.",
+      rowIdPrefix: "loan",
+      rows: awaitingLoans.map((loan) => loanToLedgerRow(loan, "financier")),
+    });
   }
 
   renderAdminPretLedger();
@@ -7083,21 +7207,142 @@ function buildEvenementClosedChip(evt) {
   `;
 }
 
+function buildMemberEvenementLedgerRows(current) {
+  return evenements
+    .filter((evt) => !isEvenementClosed(evt))
+    .map((evt) => {
+      const share = getEvenementShare(evt);
+      const isBen = isEvenementBeneficiary(evt, current.id);
+      const convertedToDebt =
+        isEvenementReimbursed(evt) && Boolean(evt.payments?.[current.id]?.convertedToDebt);
+      const paid = isEvenementPaid(evt, current.id);
+      const paidAmount = getEvenementPaidAmount(evt, current.id);
+      if (isBen) {
+        return {
+          id: evt.id,
+          domId: `evenement-${evt.id}`,
+          date: evt.createdAt,
+          type: evt.type || "evenement",
+          typeLabel: getEvenementTypeLabel(evt.type) || "Événement",
+          detail: evt.title || "Événement",
+          original: 0,
+          repaid: 0,
+          remaining: 0,
+          settled: true,
+          statusLabel: "Exempt",
+          chipClass: "is-paid",
+        };
+      }
+      if (convertedToDebt) {
+        return {
+          id: evt.id,
+          domId: `evenement-${evt.id}`,
+          date: evt.createdAt,
+          type: "dette",
+          detail: evt.title || "Événement",
+          original: share,
+          repaid: 0,
+          remaining: share,
+          settled: false,
+          statusLabel: "Dette",
+          chipClass: "is-open",
+          actions: `<p class="evenement-debt-note">Voir Mes dettes.</p>${buildFinancierPayInline()}`,
+        };
+      }
+      return {
+        id: evt.id,
+        domId: `evenement-${evt.id}`,
+        date: evt.createdAt,
+        type: evt.type || "evenement",
+        typeLabel: getEvenementTypeLabel(evt.type) || "Événement",
+        detail: evt.title || "Événement",
+        original: share,
+        repaid: paid ? paidAmount : 0,
+        remaining: paid ? 0 : share,
+        settled: paid,
+        statusLabel: paid ? "Payé" : "À payer",
+        chipClass: paid ? "is-paid" : "is-open",
+        actions: paid ? "" : buildFinancierPayInline(),
+      };
+    });
+}
+
+function buildAdminEvenementLedgerRows() {
+  const canManage = canManageEvenements();
+  const current = getCurrentMember();
+  return evenements
+    .filter((evt) => !isEvenementClosed(evt))
+    .map((evt) => {
+      const share = getEvenementShare(evt);
+      const collected = getEvenementCollectedAmount(evt);
+      const expected = Number(evt.totalAmount) || 0;
+      const remaining = Math.max(0, Math.round((expected - collected) * 100) / 100);
+      const reimbursed = isEvenementReimbursed(evt);
+      const beneficiary = getMemberById(getEvenementBeneficiaryId(evt));
+      const actions = `
+        <div class="amende-admin-actions">
+          ${
+            canManage && !reimbursed
+              ? `<button type="button" class="btn-primary btn-evenement-reimburse" data-event-id="${evt.id}">Rembourser au poto</button>`
+              : ""
+          }
+          ${
+            canManage && reimbursed && !isEvenementClosed(evt)
+              ? `<button type="button" class="btn-secondary btn-evenement-close" data-event-id="${evt.id}">Clôturer</button>`
+              : ""
+          }
+          ${
+            canManage
+              ? `<button type="button" class="btn-pret-delete btn-evenement-delete" data-event-id="${evt.id}">Supprimer</button>`
+              : ""
+          }
+        </div>`;
+      return {
+        id: evt.id,
+        domId: `admin-evenement-${evt.id}`,
+        date: evt.createdAt,
+        type: evt.type || "evenement",
+        typeLabel: getEvenementTypeLabel(evt.type) || "Événement",
+        detail: `${evt.title || "Événement"}${beneficiary ? ` — ${beneficiary.name}` : ""}`,
+        original: expected,
+        repaid: collected,
+        remaining: reimbursed ? 0 : remaining,
+        settled: reimbursed || remaining <= 0,
+        statusLabel: reimbursed ? "Remboursé au poto" : remaining <= 0 ? "Collecté" : "En cours",
+        chipClass: reimbursed || remaining <= 0 ? "is-paid" : "is-open",
+        actions,
+        extraRow: buildEvenementManagerCard(evt, current)
+          .replace(/id="admin-evenement-[^"]+"/, "")
+          .replace(/class="evenement-card"/, 'class="evenement-card evenement-card-embedded"'),
+      };
+    });
+}
+
 function renderEvenementListInto(listEl, { manage = false } = {}) {
   if (!listEl) return;
+  const current = getCurrentMember();
+  if (!current) return;
 
   if (evenements.length === 0) {
-    listEl.innerHTML = `<p class="pret-empty">Aucun événement pour le moment.</p>`;
+    renderLedgerInto(listEl, {
+      noun: "événement",
+      emptyMeta: "Aucun événement",
+      emptyText: "Aucun événement pour le moment.",
+      rowIdPrefix: manage ? "admin-evenement" : "evenement",
+      rows: [],
+    });
     return;
   }
 
-  const activeEvents = evenements.filter((evt) => !isEvenementClosed(evt));
   const closedEvents = evenements.filter((evt) => isEvenementClosed(evt));
-
-  const activeHtml = activeEvents.length
-    ? activeEvents.map((evt) => buildEvenementCard(evt, { manage })).join("")
-    : `<p class="pret-empty evenement-empty-active">Aucun événement en cours.</p>`;
-
+  const rows = manage ? buildAdminEvenementLedgerRows() : buildMemberEvenementLedgerRows(current);
+  const ledger = buildLedgerSectionHtml({
+    noun: manage ? "événement" : "cotisation",
+    emptyMeta: manage ? "Aucun événement en cours" : "Rien à payer",
+    emptyText: "Aucun événement en cours.",
+    rowIdPrefix: manage ? "admin-evenement" : "evenement",
+    rows,
+  });
   const closedHtml = closedEvents.length
     ? `
       <aside class="evenement-closed-aside" aria-label="Événements clôturés">
@@ -7109,12 +7354,7 @@ function renderEvenementListInto(listEl, { manage = false } = {}) {
     `
     : "";
 
-  listEl.innerHTML = `
-    <div class="evenement-layout${closedEvents.length ? " evenement-layout-has-closed" : ""}">
-      <div class="evenement-list-active">${activeHtml}</div>
-      ${closedHtml}
-    </div>
-  `;
+  listEl.innerHTML = `${ledger}${closedHtml}`;
 }
 
 function renderEvenements() {
@@ -7132,13 +7372,8 @@ function renderEvenements() {
   }
 
   if (evenementMemberSummary) {
-    if (evenements.length > 0) {
-      evenementMemberSummary.hidden = false;
-      evenementMemberSummary.innerHTML = buildEvenementMemberSummary(current);
-    } else {
-      evenementMemberSummary.hidden = true;
-      evenementMemberSummary.innerHTML = "";
-    }
+    evenementMemberSummary.hidden = true;
+    evenementMemberSummary.innerHTML = "";
   }
 
   if (resetClosedEvenementsBtn) {
@@ -7340,32 +7575,35 @@ function renderAutreArgent() {
 
   if (!autreArgentList) return;
 
-  autreArgentList.innerHTML = autreArgent.length
-    ? [...autreArgent]
-        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-        .map((entry) => {
-          const member = getMemberById(entry.memberId);
-          const isWithdraw = isAutreArgentRetrait(entry);
-          const typeLabel = isWithdraw ? "Retrait" : "Don ou aide";
-          return `
-            <tr class="${isWithdraw ? "autre-argent-retrait" : "autre-argent-entree"}">
-              <td>${formatDate(entry.createdAt.split("T")[0])}</td>
-              <td><span class="autre-argent-type ${isWithdraw ? "is-out" : "is-in"}">${escapeHtml(typeLabel)}</span></td>
-              <td>${escapeHtml(member?.name || "Le groupe")}</td>
-              <td>${entry.note ? escapeHtml(entry.note) : isWithdraw ? "Sortie" : "Don ou aide"}</td>
-              <td><strong>${isWithdraw ? "− " : "+ "}${formatEuro(Math.abs(getEntryAmount(entry)))}</strong></td>
-              <td>
-                <button type="button" class="btn-secondary btn-autre-argent-delete" data-id="${escapeHtml(entry.id)}">Supprimer</button>
-              </td>
-            </tr>
-          `;
-        })
-        .join("")
-    : `
-      <tr>
-        <td colspan="6" class="empty-cell">Aucun mouvement pour le moment.</td>
-      </tr>
-    `;
+  const rows = [...autreArgent]
+    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+    .map((entry) => {
+      const member = getMemberById(entry.memberId);
+      const isWithdraw = isAutreArgentRetrait(entry);
+      const amount = Math.abs(getEntryAmount(entry));
+      return {
+        id: entry.id,
+        date: entry.createdAt,
+        typeLabel: isWithdraw ? "Retrait" : "Don ou aide",
+        type: isWithdraw ? "dette" : "cotisation",
+        detail: `${member?.name || "Le groupe"}${entry.note ? ` — ${entry.note}` : ""}`,
+        original: amount,
+        repaid: isWithdraw ? 0 : amount,
+        remaining: isWithdraw ? amount : 0,
+        settled: !isWithdraw,
+        statusLabel: isWithdraw ? "Sortie" : "Entrée",
+        chipClass: isWithdraw ? "is-rejected" : "is-paid",
+        actions: `<button type="button" class="btn-secondary btn-autre-argent-delete" data-id="${escapeHtml(entry.id)}">Supprimer</button>`,
+      };
+    });
+
+  renderLedgerInto(autreArgentList, {
+    noun: "sortie",
+    emptyMeta: "Aucun mouvement",
+    emptyText: "Aucun mouvement pour le moment.",
+    rowIdPrefix: "autre-argent",
+    rows,
+  });
 }
 
 async function assignRole(memberId, roleId) {
@@ -7831,8 +8069,11 @@ fondCaisseAnnuelList?.addEventListener("click", (e) => {
   }
   const btn = e.target.closest(".btn-fond-caisse-annuel-pay");
   if (!btn) return;
-  const row = btn.closest(".fond-caisse-annuel-row");
-  const input = row?.querySelector(".fond-caisse-annuel-pay-input");
+  const input =
+    btn.closest("tr, .amende-admin-actions")?.querySelector(".fond-caisse-annuel-pay-input") ||
+    document.querySelector(
+      `.fond-caisse-annuel-pay-input[data-member-id="${btn.dataset.memberId}"][data-year="${btn.dataset.year}"]`
+    );
   payFondCaisseAnnuel(btn.dataset.year, btn.dataset.memberId, input?.value);
 });
 

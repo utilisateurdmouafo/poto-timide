@@ -15,7 +15,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;1,9..144,500;1,9..144,600&family=Outfit:wght@400;500;600;700&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=pwa-21" />
+  <link rel="stylesheet" href="styles.css?v=pwa-22" />
 </head>
 <body>
   <div class="app" id="app">
@@ -506,19 +506,7 @@
                     <p class="panel-desc">Total : <strong id="ancienneTourneeTotal">0 €</strong></p>
                   </div>
                 </div>
-                <div class="table-wrap">
-                  <table class="cotisation-table autre-argent-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Poto</th>
-                        <th>Montant</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody id="ancienneTourneeBody"></tbody>
-                  </table>
-                </div>
+                <div id="ancienneTourneeBody"></div>
               </section>
             </div>
 
@@ -637,21 +625,7 @@
                   </div>
                 </div>
                 <p class="save-msg" id="autreArgentSaveMsg" hidden></p>
-                <div class="table-wrap">
-                  <table class="cotisation-table autre-argent-table">
-                    <thead>
-                      <tr>
-                        <th>Date</th>
-                        <th>Type</th>
-                        <th>Poto</th>
-                        <th>Motif</th>
-                        <th>Montant</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody id="autreArgentList"></tbody>
-                  </table>
-                </div>
+                <div id="autreArgentList"></div>
               </section>
             </div>
 
@@ -737,10 +711,8 @@
                     <p class="panel-desc">Toutes les amendes saisies : en cours et déjà encaissées. Tu peux modifier, rembourser, supprimer ou annuler un encaissement.</p>
                   </div>
                 </div>
-                <h3 class="amende-history-title">En cours</h3>
-                <div id="amendeHistoryOpen" class="amende-history-list"></div>
-                <h3 class="amende-history-title">Encaissées</h3>
-                <div id="amendeHistoryPaid" class="amende-history-list"></div>
+                <div id="amendeHistoryOpen"></div>
+                <div id="amendeHistoryPaid" hidden></div>
               </section>
             </div>
 
@@ -880,6 +852,6 @@
   </div>
 
   <script src="api-client.js?v=online-2"></script>
-  <script src="app.js?v=pwa-21"></script>
+  <script src="app.js?v=pwa-22"></script>
 </body>
 </html>
