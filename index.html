@@ -68,8 +68,11 @@
           </button>
           <button class="tab" data-tab="dettes">
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-            <span class="tab-label-full">Mes dettes & amendes</span>
-            <span class="tab-label-short">Dettes & amendes</span>
+            Mes dettes
+          </button>
+          <button class="tab" data-tab="amendes">
+            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.2" stroke="currentColor" stroke-width="1.7"/><path d="M12 8v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="15.6" r="0.9" fill="currentColor"/></svg>
+            Mes amendes
           </button>
           <button class="tab" data-tab="finance">
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19h16M7 16v-4m5 4V8m5 8v-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
@@ -218,15 +221,14 @@
         </section>
       </div>
 
-      <!-- ========== MES DETTES ET AMENDES ========== -->
+      <!-- ========== MES DETTES ========== -->
       <div class="tab-content" id="tab-dettes">
         <section class="panel amende-panel">
           <div class="amende-head">
-            <h2 id="amendeTitle">Mes dettes et amendes</h2>
-            <p class="panel-desc" id="amendeSubtitle">Un aperçu clair de ce que tu dois encore.</p>
+            <h2 id="detteTitle">Mes dettes</h2>
+            <p class="panel-desc" id="detteSubtitle">Cotisations d'événements encore ouvertes.</p>
           </div>
-          <div class="dette-dashboard" id="amendeSummary"></div>
-
+          <div class="dette-dashboard" id="detteSummary"></div>
           <div class="dette-feed">
             <section class="dette-group dette-group-events" id="amendeDetteWrap" hidden>
               <div class="dette-group-head">
@@ -238,12 +240,24 @@
               </div>
               <div class="dette-card-list" id="amendeDetteBody"></div>
             </section>
+          </div>
+        </section>
+      </div>
 
+      <!-- ========== MES AMENDES ========== -->
+      <div class="tab-content" id="tab-amendes">
+        <section class="panel amende-panel">
+          <div class="amende-head">
+            <h2 id="amendeTitle">Mes amendes</h2>
+            <p class="panel-desc" id="amendeSubtitle">Absences, retards, bavardages et sanctions.</p>
+          </div>
+          <div class="dette-dashboard" id="amendeSummary"></div>
+          <div class="dette-feed">
             <section class="dette-group dette-group-amendes" id="amendeRegularWrap" hidden>
               <div class="dette-group-head">
                 <div>
                   <h3>Amendes</h3>
-                  <p class="dette-block-desc">Absences, retards, bavardages et sanctions.</p>
+                  <p class="dette-block-desc">Ce qui reste à régler.</p>
                 </div>
                 <div class="dette-group-total" id="amendeRegularSummary"></div>
               </div>
@@ -842,6 +856,6 @@
   </div>
 
   <script src="api-client.js?v=online-1"></script>
-  <script src="app.js?v=pwa-6"></script>
+  <script src="app.js?v=pwa-7"></script>
 </body>
 </html>

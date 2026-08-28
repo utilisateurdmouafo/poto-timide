@@ -57,7 +57,7 @@ const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["membres", "tournee", "prets", "evenements", "dettes", "finance", "ancienne-tournee", "admin"];
+const TAB_IDS = ["membres", "tournee", "prets", "evenements", "dettes", "amendes", "finance", "ancienne-tournee", "admin"];
 const FINANCE_SUBTABS = ["caisse", "archives"];
 const FINANCE_LIVE_DETTE_SUB = "dettes-amendes";
 const FINANCE_CAISSE_SUB = "caisse";
@@ -198,6 +198,9 @@ const amendeRegularWrap = document.getElementById("amendeRegularWrap");
 const amendeRegularSummary = document.getElementById("amendeRegularSummary");
 const amendeTitle = document.getElementById("amendeTitle");
 const amendeSubtitle = document.getElementById("amendeSubtitle");
+const detteTitle = document.getElementById("detteTitle");
+const detteSubtitle = document.getElementById("detteSubtitle");
+const detteSummary = document.getElementById("detteSummary");
 const amendeFormTitle = document.getElementById("amendeFormTitle");
 const amendeSubmitBtn = document.getElementById("amendeSubmitBtn");
 const amendeCancelBtn = document.getElementById("amendeCancelBtn");
@@ -3553,9 +3556,8 @@ function renderTourneeTable() {
 
 function resolveLegacyTab(tabId) {
   if (!tabId) return null;
-  if (tabId === "amendes" || tabId === "dettes-amendes" || tabId === "dettes") {
-    return "dettes";
-  }
+  if (tabId === "dettes-amendes") return "dettes";
+  if (tabId === "amendes" || tabId === "dettes") return tabId;
   if (tabId === "autre-argent" || tabId === "caisse") {
     activeFinanceSub = FINANCE_CAISSE_SUB;
     localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_CAISSE_SUB);
@@ -3641,7 +3643,12 @@ function showTab(tabId) {
 
   if (tabId === "dettes") {
     reloadFromStorage();
-    renderAmendes();
+    renderMesDettes();
+  }
+
+  if (tabId === "amendes") {
+    reloadFromStorage();
+    renderMesAmendes();
   }
 
   if (tabId === "finance") {
@@ -4075,56 +4082,31 @@ async function repayAncienneTourneeDette(entryId, amountValue) {
   );
 }
 
-function renderDebtDashboard(regularAmendes, detteAmendes) {
-  if (!amendeSummary) return;
+function renderDebtDashboard(target, items, emptyMeta, chipBuilder) {
+  if (!target) return;
+  const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+  const lineCount = items.length;
 
-  const detteTotal = detteAmendes.reduce((sum, amende) => sum + amende.amount, 0);
-  const amendesTotal = regularAmendes.reduce((sum, amende) => sum + amende.amount, 0);
-  const grandTotal = detteTotal + amendesTotal;
-  const lineCount = detteAmendes.length + regularAmendes.length;
-
-  const totals = { absence: 0, retard: 0, bavardage: 0, sanctions: 0 };
-  const counts = { absence: 0, retard: 0, bavardage: 0, sanctions: 0 };
-
-  regularAmendes.forEach((amende) => {
-    if (totals[amende.type] !== undefined) {
-      totals[amende.type] += amende.amount;
-      counts[amende.type] += 1;
-    }
-  });
-
-  if (grandTotal <= 0 && lineCount === 0) {
-    amendeSummary.innerHTML = `
+  if (total <= 0 && lineCount === 0) {
+    target.innerHTML = `
       <div class="dette-status dette-status--clear">
         <span class="dette-status-mark" aria-hidden="true">✓</span>
         <div class="dette-status-copy">
           <p class="dette-status-kicker">Tout est à jour</p>
           <strong class="dette-status-title">Rien à régler</strong>
-          <p class="dette-status-meta">Pas de dette ni d'amende pour le moment.</p>
+          <p class="dette-status-meta">${escapeHtml(emptyMeta)}</p>
         </div>
       </div>
     `;
     return;
   }
 
-  const chips = [];
-  if (detteAmendes.length > 0) {
-    chips.push(
-      `<span class="dette-pill type-dette">Événements · ${formatEuro(detteTotal)}</span>`
-    );
-  }
-  AMENDE_TYPES.forEach((type) => {
-    if (counts[type.id] === 0) return;
-    chips.push(
-      `<span class="dette-pill type-${type.id}">${escapeHtml(type.label)} · ${formatEuro(totals[type.id])}</span>`
-    );
-  });
-
-  amendeSummary.innerHTML = `
+  const chips = typeof chipBuilder === "function" ? chipBuilder(items) : [];
+  target.innerHTML = `
     <div class="dette-status dette-status--due">
       <div class="dette-status-copy">
         <p class="dette-status-kicker">À régler</p>
-        <strong class="dette-status-amount">${formatEuro(grandTotal)}</strong>
+        <strong class="dette-status-amount">${formatEuro(total)}</strong>
         <p class="dette-status-meta">${lineCount} ligne${lineCount > 1 ? "s" : ""} en cours</p>
       </div>
       ${chips.length ? `<div class="dette-pills">${chips.join("")}</div>` : ""}
@@ -4161,50 +4143,46 @@ function renderAmendeTable(amendesList, showAllMembers = false) {
     .join("");
 }
 
-function renderAmendes() {
+function renderMesDettes() {
   const current = getCurrentMember();
   if (!current) return;
-
-  // Vue compte simple (admin inclus hors Admin) = uniquement ses dettes
-  const canManage = canManageTab("amendes") && !isSimpleAccountView();
-
-  if (canManage) {
-    amendeTitle.textContent = "Dettes et amendes du groupe";
-    if (amendeSubtitle) {
-      amendeSubtitle.hidden = false;
-      amendeSubtitle.textContent = "Vue d'ensemble — ce qui reste ouvert pour chaque poto.";
-    }
-    const allAmendes = getAllAmendes().sort((a, b) => {
-      const nameA = getMemberById(a.memberId)?.name || "";
-      const nameB = getMemberById(b.memberId)?.name || "";
-      const cmp = nameA.localeCompare(nameB, "fr", { sensitivity: "base" });
-      if (cmp !== 0) return cmp;
-      return new Date(b.date) - new Date(a.date);
-    });
-    const regularAmendes = getRegularAmendes(allAmendes);
-    const detteAmendes = getDetteAmendes().sort((a, b) => {
-      const nameA = getMemberById(a.memberId)?.name || "";
-      const nameB = getMemberById(b.memberId)?.name || "";
-      const cmp = nameA.localeCompare(nameB, "fr", { sensitivity: "base" });
-      if (cmp !== 0) return cmp;
-      return new Date(b.date) - new Date(a.date);
-    });
-    renderDebtDashboard(regularAmendes, detteAmendes);
-    renderDetteBanner(detteAmendes, true);
-    renderAmendeTable(regularAmendes, true);
-  } else {
-    amendeTitle.textContent = "Mes dettes et amendes";
-    if (amendeSubtitle) {
-      amendeSubtitle.hidden = false;
-      amendeSubtitle.textContent = `Pour ${current.name} — consultation uniquement. Les remboursements se font dans Admin.`;
-    }
-    const memberAmendes = getAmendesForMember(current.id);
-    const regularAmendes = getRegularAmendes(memberAmendes);
-    const detteAmendes = memberAmendes.filter((amende) => isDetteAmende(amende));
-    renderDebtDashboard(regularAmendes, detteAmendes);
-    renderDetteBanner(detteAmendes, false);
-    renderAmendeTable(regularAmendes, false);
+  const detteAmendes = getAmendesForMember(current.id).filter((amende) => isDetteAmende(amende));
+  if (detteTitle) detteTitle.textContent = "Mes dettes";
+  if (detteSubtitle) {
+    detteSubtitle.hidden = false;
+    detteSubtitle.textContent = `Pour ${current.name} — consultation uniquement. Les remboursements se font dans Admin.`;
   }
+  renderDebtDashboard(detteSummary, detteAmendes, "Pas de dette d'événement pour le moment.", (items) => {
+    const total = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+    return items.length ? [`<span class="dette-pill type-dette">Événements · ${formatEuro(total)}</span>`] : [];
+  });
+  renderDetteBanner(detteAmendes, false);
+}
+
+function renderMesAmendes() {
+  const current = getCurrentMember();
+  if (!current) return;
+  const regularAmendes = getRegularAmendes(getAmendesForMember(current.id));
+  if (amendeTitle) amendeTitle.textContent = "Mes amendes";
+  if (amendeSubtitle) {
+    amendeSubtitle.hidden = false;
+    amendeSubtitle.textContent = `Pour ${current.name} — consultation uniquement. Les remboursements se font dans Admin.`;
+  }
+  renderDebtDashboard(amendeSummary, regularAmendes, "Pas d'amende pour le moment.", (items) => {
+    const totals = { absence: 0, retard: 0, bavardage: 0, sanctions: 0 };
+    items.forEach((amende) => {
+      if (totals[amende.type] !== undefined) totals[amende.type] += amende.amount;
+    });
+    return AMENDE_TYPES.filter((type) => totals[type.id] > 0).map(
+      (type) => `<span class="dette-pill type-${type.id}">${escapeHtml(type.label)} · ${formatEuro(totals[type.id])}</span>`
+    );
+  });
+  renderAmendeTable(regularAmendes, false);
+}
+
+function renderAmendes() {
+  renderMesDettes();
+  renderMesAmendes();
 }
 
 function parseAmendeAmount(amount) {
@@ -6585,7 +6563,7 @@ function buildEvenementMemberCard(evt, current) {
                    <strong>${formatEuro(share)}</strong>
                    <span class="evenement-status evenement-debt">Dette</span>
                  </div>
-                 <p class="evenement-debt-note">Voir le détail dans l'onglet Mes dettes & amendes.</p>`
+                 <p class="evenement-debt-note">Voir le détail dans l'onglet Mes dettes.</p>`
               : `<p class="evenement-contribution-label">Votre cotisation</p>
                  <div class="evenement-contribution-amount">
                    <strong>${formatEuro(share)}</strong>
@@ -7864,7 +7842,10 @@ async function initApp() {
       renderPrets();
     }
     if (document.getElementById("tab-dettes")?.classList.contains("active")) {
-      renderAmendes();
+      renderMesDettes();
+    }
+    if (document.getElementById("tab-amendes")?.classList.contains("active")) {
+      renderMesAmendes();
     }
     if (document.getElementById("tab-admin")?.classList.contains("active")) {
       if (activeAdminSub === "ancienne-tournee") renderAncienneTourneeDettesAdmin();
