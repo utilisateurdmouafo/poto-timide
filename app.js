@@ -781,26 +781,6 @@ function buildLedgerSectionHtml({ title, noun, emptyMeta, emptyText, rows, rowId
     </section>`;
 }
 
-function buildFinanceCotisationRows() {
-  return getSortedMembers()
-    .filter((member) => member.id !== "groupe")
-    .map((member) => {
-      const repaid = Math.round(getMemberCotisationAmount(member.id) * 100) / 100;
-      const original = FULL_TOURNEE_COTISATION;
-      const remaining = Math.max(0, Math.round((original - repaid) * 100) / 100);
-      return {
-        id: member.id,
-        dateLabel: `Tournée ${tourneeYear}`,
-        type: "cotisation",
-        detail: member.name,
-        original,
-        repaid,
-        remaining,
-        settled: remaining <= 0,
-      };
-    });
-}
-
 function buildFinanceAncienneTourneeRows() {
   return [...ancienneTourneeDettes]
     .map((entry) => {
@@ -885,17 +865,6 @@ function buildFinancePretRows() {
     });
 }
 
-function renderFinanceCotisations() {
-  return buildLedgerSectionHtml({
-    title: "Organisation des cotisations (tournées)",
-    noun: "cotisation",
-    emptyMeta: "Toutes les cotisations sont à jour",
-    emptyText: "Aucune cotisation pour le moment.",
-    rows: buildFinanceCotisationRows(),
-    rowIdPrefix: "finance-cotis",
-  });
-}
-
 function renderFinanceAncienneTournee() {
   return buildLedgerSectionHtml({
     title: "Ancienne tournée",
@@ -931,7 +900,6 @@ function renderFinancePrets() {
 
 function renderFinanceArchives() {
   return `<div class="finance-archives-stack">
-    ${renderFinanceCotisations()}
     ${renderFinanceAncienneTournee()}
     ${renderFinanceAmendes()}
     ${renderFinancePrets()}
