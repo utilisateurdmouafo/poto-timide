@@ -4528,8 +4528,10 @@ body::after {
     min-width: 0;
   }
 
-  .pret-date-cell {
+  .pret-date-cell-btn,
+  .amende-col-date .pret-request-date-input {
     width: 100%;
+    max-width: none;
   }
 
   .member-right,
@@ -5749,37 +5751,35 @@ textarea {
   align-items: center;
 }
 
-.pret-date-cell {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  min-height: 1.35em;
+.pret-date-cell-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
   cursor: pointer;
-}
-
-.pret-date-cell-text {
-  pointer-events: none;
+  text-align: left;
   white-space: nowrap;
 }
 
-.pret-date-cell:hover .pret-date-cell-text,
-.pret-date-cell:focus-within .pret-date-cell-text {
+.pret-date-cell-btn:hover,
+.pret-date-cell-btn:focus-visible {
   text-decoration: underline;
   text-underline-offset: 0.16em;
 }
 
 .amende-col-date .pret-request-date-input {
-  position: absolute;
-  inset: 0;
-  opacity: 0;
-  width: 100%;
-  height: 100%;
-  min-width: 0;
-  max-width: none;
+  font: inherit;
+  color: inherit;
+  border: 1px solid rgba(32, 56, 82, 0.22);
+  border-radius: 6px;
+  padding: 0.12rem 0.3rem;
+  background: #fff;
+  width: 9.8rem;
+  max-width: 100%;
   margin: 0;
-  padding: 0;
-  border: 0;
-  cursor: pointer;
 }
 
 .amende-table-admin .pret-repay-input {

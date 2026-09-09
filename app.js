@@ -5308,25 +5308,60 @@ function getLoanRequestDate(loan) {
   return loan?.createdAt || loan?.approvedAt || "";
 }
 
+let loanDateEditingId = null;
+let loanDateSaving = false;
+let loanDateIgnoreBlurUntil = 0;
+
+function isLoanDateEditing() {
+  return Boolean(loanDateEditingId);
+}
+
+function stopLoanDateEdit() {
+  loanDateEditingId = null;
+}
+
+function startLoanDateEdit(loanId) {
+  if (!loanId || !canManagePretsActions()) return;
+  loanDateEditingId = loanId;
+  renderAdminPretLedger(true);
+  const input = [...document.querySelectorAll(".pret-request-date-input")].find(
+    (el) => el.dataset.loanId === loanId
+  );
+  if (!input) return;
+  loanDateIgnoreBlurUntil = Date.now() + 500;
+  input.focus();
+  if (typeof input.showPicker === "function") {
+    try {
+      input.showPicker();
+    } catch {
+      /* picker déjà ouvert ou non supporté */
+    }
+  }
+}
+
 async function updateLoanRequestDate(loanId, ymd) {
   if (!canManagePretsActions()) {
     alert("Seul le Financier ou un administrateur peut modifier la date de demande.");
-    return;
+    return false;
   }
 
   const loan = getLoanById(loanId);
-  if (!loan) return;
+  if (!loan) return false;
 
   const nextCreated = combineDateWithTime(ymd, loan.createdAt);
   if (!nextCreated) {
     alert("Date invalide.");
-    return;
+    return false;
   }
-  if (toDateInputValue(getLoanRequestDate(loan)) === ymd) return;
+  if (toDateInputValue(getLoanRequestDate(loan)) === ymd) {
+    stopLoanDateEdit();
+    renderAdminPretLedger(true);
+    return true;
+  }
 
   loan.createdAt = nextCreated;
   loan.updatedAt = new Date().toISOString();
-  savePrets();
+  savePrets(false);
   try {
     localStorage.setItem("poto-timide-data-revision", JSON.stringify(Date.now()));
   } catch {
@@ -5341,8 +5376,16 @@ async function updateLoanRequestDate(loanId, ymd) {
       console.warn("Synchronisation de la date de prêt :", err);
     }
   }
+
+  stopLoanDateEdit();
+  renderPrets();
+  renderMesDettes();
+  if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
   showPretSaveMessage(`Date de demande mise à jour : ${formatFriendlyDate(ymd)}.`);
+  return true;
 }
+
+window.potoIsLoanDateEditing = isLoanDateEditing;
 
 const pendingPushMessages = [];
 
@@ -6356,15 +6399,14 @@ function renderPrets() {
 }
 
 function buildAdminRequestDateCell(loan) {
-  const label = formatFriendlyDate(getLoanRequestDate(loan));
+  const requestDate = getLoanRequestDate(loan);
+  const label = formatFriendlyDate(requestDate);
   if (!canManagePretsActions() || !loan) return escapeHtml(label);
-  const value = toDateInputValue(getLoanRequestDate(loan));
-  return `
-    <label class="pret-date-cell">
-      <span class="pret-date-cell-text">${escapeHtml(label)}</span>
-      <input type="date" class="pret-request-date-input" data-loan-id="${escapeHtml(loan.id)}" value="${escapeHtml(value)}" aria-label="Modifier la date de demande" />
-    </label>
-  `;
+  if (loanDateEditingId === loan.id) {
+    const value = toDateInputValue(requestDate);
+    return `<input type="date" class="pret-request-date-input" data-loan-id="${escapeHtml(loan.id)}" value="${escapeHtml(value)}" aria-label="Modifier la date de demande" />`;
+  }
+  return `<button type="button" class="pret-date-cell-btn" data-loan-id="${escapeHtml(loan.id)}">${escapeHtml(label)}</button>`;
 }
 
 function buildAdminPretActionsHtml(loan) {
@@ -6488,7 +6530,9 @@ function buildAdminPretLedgerRows() {
     });
 }
 
-function renderAdminPretLedger() {
+function renderAdminPretLedger(force = false) {
+  if (isLoanDateEditing() && !force) return;
+
   const body = document.getElementById("adminPretActiveList");
   const foot = document.getElementById("adminPretTableFoot");
   const hero = document.getElementById("adminPretHero");
@@ -6549,6 +6593,7 @@ function renderAdminPretLedger() {
 
 function renderAdminPrets() {
   if (!hasRoleTabAccess("prets")) return;
+  if (isLoanDateEditing()) return;
 
   processLoanStatusUpdates();
 
@@ -8600,26 +8645,40 @@ async function handlePretActionClick(e) {
 
 function handlePretRequestDateChange(e) {
   const input = e.target.closest(".pret-request-date-input");
-  if (!input) return;
-  updateLoanRequestDate(input.dataset.loanId, input.value);
+  if (!input || !input.value) return;
+  loanDateSaving = true;
+  Promise.resolve(updateLoanRequestDate(input.dataset.loanId, input.value)).finally(() => {
+    loanDateSaving = false;
+  });
 }
 
 function handlePretRequestDateClick(e) {
+  const btn = e.target.closest(".pret-date-cell-btn");
+  if (!btn) return;
+  e.preventDefault();
+  startLoanDateEdit(btn.dataset.loanId);
+}
+
+function handlePretRequestDateFocusOut(e) {
   const input = e.target.closest(".pret-request-date-input");
-  if (!input || typeof input.showPicker !== "function") return;
-  try {
-    input.showPicker();
-  } catch {
-    /* picker déjà ouvert ou non supporté */
-  }
+  if (!input) return;
+  const loanId = input.dataset.loanId;
+  const wait = Math.max(80, loanDateIgnoreBlurUntil - Date.now());
+  setTimeout(() => {
+    if (loanDateSaving) return;
+    if (loanDateEditingId !== loanId) return;
+    if (document.activeElement?.classList?.contains("pret-request-date-input")) return;
+    stopLoanDateEdit();
+    renderAdminPretLedger(true);
+  }, wait);
 }
 
 document.getElementById("tab-prets")?.addEventListener("click", handlePretActionClick);
 document.getElementById("tab-admin")?.addEventListener("click", handlePretActionClick);
 document.getElementById("tab-prets")?.addEventListener("change", handlePretRequestDateChange);
 document.getElementById("tab-admin")?.addEventListener("change", handlePretRequestDateChange);
-document.getElementById("tab-prets")?.addEventListener("click", handlePretRequestDateClick);
 document.getElementById("tab-admin")?.addEventListener("click", handlePretRequestDateClick);
+document.getElementById("tab-admin")?.addEventListener("focusout", handlePretRequestDateFocusOut);
 
 adminForm?.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -8982,6 +9041,7 @@ async function initApp() {
   }
 
   window.potoOnServerDataPulled = () => {
+    if (typeof window.potoIsLoanDateEditing === "function" && window.potoIsLoanDateEditing()) return;
     reloadFromStorage();
     updatePretTabBadge();
     renderCommunication();

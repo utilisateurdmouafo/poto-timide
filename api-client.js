@@ -264,6 +264,7 @@ async function loadDataFromServer() {
 
 async function pullSharedUpdatesFromServer() {
   if (!authState.loggedIn || hasPendingEdits() || syncing) return false;
+  if (typeof window.potoIsLoanDateEditing === "function" && window.potoIsLoanDateEditing()) return false;
 
   try {
     const serverData = await apiFetch("/api/data");
