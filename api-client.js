@@ -211,6 +211,7 @@ function mergeLoansPreferringNewer(existing, incoming) {
 function writeServerDataToLocal(serverData) {
   Object.entries(serverData || {}).forEach(([key, value]) => {
     if (!API_SYNC_KEYS.has(key)) return;
+    if (Object.prototype.hasOwnProperty.call(pendingSyncPayload, key)) return;
     try {
       if (key === "poto-timide-communication" || key === "poto-timide-notifications") {
         const raw = localStorage.getItem(key);

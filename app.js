@@ -1017,7 +1017,10 @@ function saveAutreArgent(shouldRender = true) {
 function loadRoles() {
   try {
     const data = localStorage.getItem(ROLES_KEY);
-    return data ? JSON.parse(data) : {};
+    const raw = data ? JSON.parse(data) : {};
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    const { updatedAt, ...rolesOnly } = raw;
+    return rolesOnly;
   } catch {
     return {};
   }
@@ -2260,6 +2263,7 @@ function loadTabPermissions() {
 }
 
 function saveTabPermissionsData() {
+  tabPermissions = { ...tabPermissions, updatedAt: new Date().toISOString() };
   localStorage.setItem(TAB_PERMISSIONS_KEY, JSON.stringify(tabPermissions));
 }
 
@@ -2559,7 +2563,7 @@ function saveMembers() {
 }
 
 function saveRoles() {
-  localStorage.setItem(ROLES_KEY, JSON.stringify(roles));
+  localStorage.setItem(ROLES_KEY, JSON.stringify({ ...roles, updatedAt: new Date().toISOString() }));
   render();
 }
 
@@ -3418,7 +3422,7 @@ function renderTabPermissionsPanel() {
   }).join("");
 }
 
-function saveTabPermissionsFromUI() {
+async function saveTabPermissionsFromUI() {
   if (!requireGroupAdmin("configurer les accès aux onglets")) return;
 
   const nextPermissions = {};
@@ -3437,9 +3441,26 @@ function saveTabPermissionsFromUI() {
   tabPermissions = nextPermissions;
   saveTabPermissionsData();
 
-  tabPermissionsMsg.textContent = "Accès aux onglets enregistrés.";
-  tabPermissionsMsg.className = "save-msg save-msg-success";
-  tabPermissionsMsg.hidden = false;
+  if (tabPermissionsMsg) {
+    tabPermissionsMsg.textContent = "Enregistrement des accès…";
+    tabPermissionsMsg.className = "save-msg";
+    tabPermissionsMsg.hidden = false;
+  }
+
+  const flushed = typeof potoFlushSync === "function" ? await potoFlushSync() : true;
+  if (!flushed) {
+    if (tabPermissionsMsg) {
+      tabPermissionsMsg.textContent = "Accès enregistrés ici, mais pas encore sur le serveur. Réessaie.";
+      tabPermissionsMsg.className = "save-msg save-msg-error";
+    }
+    return;
+  }
+
+  if (tabPermissionsMsg) {
+    tabPermissionsMsg.textContent = "Accès aux onglets enregistrés.";
+    tabPermissionsMsg.className = "save-msg save-msg-success";
+    tabPermissionsMsg.hidden = false;
+  }
 
   updateSessionUI();
   updateAdminSubtabVisibility();
@@ -9234,6 +9255,7 @@ async function initApp() {
       if (activeAdminSub === "ancienne-tournee") renderAncienneTourneeDettesAdmin();
       if (activeAdminSub === "communication") renderCommunication();
       if (activeAdminSub === "prets") renderAdminPrets();
+      if (activeAdminSub === "acces") renderTabPermissionsPanel();
       if (activeAdminSub === "caisse") {
         renderFondCaissePanel();
         renderAutreArgent();

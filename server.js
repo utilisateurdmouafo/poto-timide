@@ -321,10 +321,23 @@ function mergeById(existing, incoming) {
   return [...map.values()].sort((a, b) => itemTimestamp(b) - itemTimestamp(a));
 }
 
+function objectUpdatedAt(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return 0;
+  const time = new Date(value.updatedAt || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
+const VERSIONED_OBJECT_KEYS = new Set(["poto-timide-tab-permissions", "poto-timide-roles"]);
+
 async function persistStorageValue(key, value) {
   try {
     if (MERGE_BY_ID_KEYS.has(key)) {
       value = mergeById(await getData(key), value);
+    } else if (VERSIONED_OBJECT_KEYS.has(key)) {
+      const existing = await getData(key);
+      if (existing && objectUpdatedAt(existing) > objectUpdatedAt(value)) {
+        return existing;
+      }
     }
     await setData(key, value);
     return value;
