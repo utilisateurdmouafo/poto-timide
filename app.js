@@ -1674,6 +1674,11 @@ function setFondCaisseAmount(amount) {
 
   fondCaisse = parsed;
   saveFondCaisse();
+  notifyAllMembers(
+    "financier_fond",
+    `${getActorLabel()} a modifié le fond de caisse de départ : ${formatEuro(fondCaisse)}.`,
+    { tab: "finance", title: "Fond de caisse" }
+  );
   syncFondCaisseInputs();
   showFondCaisseSaveMessage(
     `Fond de caisse de départ enregistré : ${formatEuro(fondCaisse)}. Caisse brute : ${formatEuro(getCaisseBrute())}.`
@@ -1768,6 +1773,11 @@ function saveFinancierAccountFromForm() {
     bank: String(document.getElementById("financierAccountBank")?.value || "").trim(),
   };
   saveFinancierAccount();
+  notifyAllMembers(
+    "financier_account",
+    `${getActorLabel()} a mis à jour le compte bancaire du Financier.`,
+    { tab: "finance", title: "Compte Financier" }
+  );
   const msg = document.getElementById("financierAccountSaveMsg");
   if (msg) {
     msg.textContent = "Compte bancaire enregistré.";
@@ -2055,6 +2065,11 @@ async function payFondCaisseAnnuel(year, memberId, amountValue) {
   });
 
   saveFondCaisseAnnuel();
+  notifyAllMembers(
+    "financier_fond",
+    `${getActorLabel()} a encaissé ${formatEuro(payAmount)} de fond de caisse ${year} pour ${member.name}.`,
+    { tab: "finance", title: "Fond de caisse" }
+  );
   renderAutreArgent();
   renderFinanceDashboard();
 
@@ -5541,15 +5556,39 @@ async function flushPushMessages() {
 }
 
 function addNotification(memberId, type, loanId, message) {
+  const now = new Date().toISOString();
   notifications.unshift({
     id: generateId(),
     memberId,
     type,
-    loanId,
+    loanId: loanId || "",
     message,
     read: false,
-    createdAt: new Date().toISOString(),
+    createdAt: now,
+    updatedAt: now,
   });
+}
+
+function getActorLabel() {
+  return getCurrentMember()?.name || "Le Financier";
+}
+
+function notifyAllMembers(type, message, extras = {}) {
+  const { loanId = "", tab = "prets", title = "Poto Timide" } = extras;
+  getSortedMembers().forEach((member) => {
+    addNotification(member.id, type, loanId, message);
+    queuePushMessage(member.id, {
+      title,
+      body: message,
+      tab,
+      loanId,
+      tag: `${type}-${loanId || generateId()}`,
+    });
+  });
+  saveNotifications(false);
+  if (typeof window.flushPotoServerSync === "function") {
+    window.flushPotoServerSync();
+  }
 }
 
 function upsertLoanNotification(memberId, loanId, type, message) {
@@ -5635,32 +5674,11 @@ function notifyAllMembersOnLoanInitiated(loan) {
   const borrower = getMemberById(loan.borrowerId);
   const borrowerName = borrower?.name || "Un membre";
   const amountLabel = formatEuro(loan.amount);
-
-  getSortedMembers().forEach((member) => {
-    if (member.id === loan.borrowerId) {
-      upsertLoanNotification(
-        member.id,
-        loan.id,
-        "loan_pending",
-        `Demande en cours — votre prêt de ${amountLabel} est en vote.`
-      );
-      return;
-    }
-
-    addNotification(
-      member.id,
-      "loan_vote",
-      loan.id,
-      `${borrowerName} demande un prêt de ${amountLabel}. Votez Oui ou Non sous 24 h.`
-    );
-    queuePushMessage(member.id, {
-      title: "Nouveau prêt à voter",
-      body: `${borrowerName} demande un prêt de ${amountLabel}. Votez Oui ou Non sous 24 h.`,
-      tab: "prets",
-      loanId: loan.id,
-      tag: `loan-vote-${loan.id}`,
-    });
-  });
+  notifyAllMembers(
+    "loan_initiated",
+    `${borrowerName} a initié un prêt de ${amountLabel}. Votez Oui ou Non sous 24 h.`,
+    { loanId: loan.id, tab: "prets", title: "Nouveau prêt" }
+  );
 }
 
 function notifyFinancierForLoan(loan) {
@@ -5824,7 +5842,6 @@ function initiatePret(amount, note) {
 
   prets.unshift(loan);
   notifyAllMembersOnLoanInitiated(loan);
-  saveNotifications(false);
   savePrets();
   pretForm.reset();
 }
@@ -5884,7 +5901,13 @@ function financierDecidePret(loanId, decision) {
     updateLoanNotificationsOnDecision(loan, "rejected");
   }
 
-  saveNotifications(false);
+  const actor = getActorLabel();
+  const action = decision === "approved" ? "accordé" : "refusé";
+  notifyAllMembers(
+    decision === "approved" ? "loan_approved" : "loan_rejected",
+    `${actor} a ${action} le prêt de ${borrower?.name || "un membre"} (${formatEuro(loan.amount)}).`,
+    { loanId: loan.id, tab: "prets", title: decision === "approved" ? "Prêt accordé" : "Prêt refusé" }
+  );
   savePrets();
 }
 
@@ -5944,9 +5967,19 @@ function recordRepayment(loanId, amount) {
   });
   syncLoanRepaidFromHistory(loan);
 
+  const actor = getActorLabel();
+  const borrower = getMemberById(loan.borrowerId);
+  notifyAllMembers(
+    "financier_repay",
+    `${actor} a enregistré un remboursement de ${formatEuro(parsedAmount)} pour ${borrower?.name || "un membre"} (prêt ${formatEuro(loan.amount)}).`,
+    { loanId: loan.id, tab: "prets", title: "Remboursement" }
+  );
   if (loan.status === "completed") {
-    notifyBorrower(loan, "loan_completed", `Votre prêt de ${formatEuro(loan.amount)} est entièrement remboursé.`);
-    saveNotifications(false);
+    notifyAllMembers(
+      "loan_completed",
+      `Le prêt de ${borrower?.name || "un membre"} (${formatEuro(loan.amount)}) est entièrement remboursé.`,
+      { loanId: loan.id, tab: "prets", title: "Prêt remboursé" }
+    );
   }
 
   savePrets();
@@ -6046,16 +6079,11 @@ async function deletePret(loanId) {
   prets = prets.filter((item) => item.id !== loanId);
   notifications = notifications.filter((notif) => notif.loanId !== loanId);
 
-  if (borrower) {
-    addNotification(
-      borrower.id,
-      "loan_deleted",
-      loanId,
-      `Votre demande de prêt de ${formatEuro(loan.amount)} a été supprimée par le Financier.`
-    );
-  }
-
-  saveNotifications(false);
+  notifyAllMembers(
+    "loan_deleted",
+    `${getActorLabel()} a supprimé le prêt de ${borrowerName} (${formatEuro(loan.amount)}).`,
+    { loanId, tab: "prets", title: "Prêt supprimé" }
+  );
   savePrets();
   if (typeof window.flushPotoServerSync === "function") {
     window.flushPotoServerSync();
@@ -6063,27 +6091,13 @@ async function deletePret(loanId) {
 }
 
 function isPretNotification(notif) {
-  return Boolean(notif.loanId) || (notif.type && notif.type.startsWith("loan_"));
+  if (!notif || notif.deletedAt) return false;
+  const type = String(notif.type || "");
+  return Boolean(notif.loanId) || type.startsWith("loan_") || type.startsWith("financier_");
 }
 
 function isPersonalNotificationFor(notif, memberId) {
-  if (!notif || notif.memberId !== memberId) return false;
-  if (!isPretNotification(notif)) return false;
-
-  if (notif.type === "loan_vote") return true;
-  if (notif.type === "loan_financier") return true;
-
-  if (
-    notif.type === "loan_pending" ||
-    notif.type === "loan_approved" ||
-    notif.type === "loan_rejected" ||
-    notif.type === "loan_deleted"
-  ) {
-    const loan = notif.loanId ? getLoanById(notif.loanId) : null;
-    if (loan) return loan.borrowerId === memberId;
-    return true;
-  }
-
+  if (!notif || notif.memberId !== memberId || notif.deletedAt) return false;
   return true;
 }
 
@@ -6117,8 +6131,11 @@ function deleteOwnNotification(notificationId) {
     return;
   }
 
-  notifications = notifications.filter((item) => item.id !== notificationId);
+  const now = new Date().toISOString();
+  notif.deletedAt = now;
+  notif.updatedAt = now;
   saveNotifications(false);
+  if (typeof window.flushPotoServerSync === "function") window.flushPotoServerSync();
   renderPretNotifications();
 }
 
@@ -6130,8 +6147,15 @@ async function deleteAllOwnNotifications() {
   if (!mine.length) return;
   if (!(await appConfirm(`Supprimer tes ${mine.length} notification${mine.length > 1 ? "s" : ""} ?`))) return;
 
-  notifications = notifications.filter((item) => item.memberId !== current.id);
+  const now = new Date().toISOString();
+  notifications.forEach((item) => {
+    if (item.memberId === current.id && !item.deletedAt) {
+      item.deletedAt = now;
+      item.updatedAt = now;
+    }
+  });
   saveNotifications(false);
+  if (typeof window.flushPotoServerSync === "function") window.flushPotoServerSync();
   renderPretNotifications();
 }
 
@@ -8063,6 +8087,11 @@ function addAutreArgent(memberId, amount, note, motif) {
   });
 
   saveAutreArgent();
+  notifyAllMembers(
+    "financier_caisse",
+    `${getActorLabel()} a ajouté ${formatEuro(parsedAmount)} à la caisse (don ou aide de ${member.name}).`,
+    { tab: "finance", title: "Caisse" }
+  );
   if (autreArgentForm) autreArgentForm.reset();
   showAutreArgentSaveMessage(
     `${formatEuro(parsedAmount)} de ${member.name} ajouté à la caisse disponible.`
@@ -8106,6 +8135,11 @@ function withdrawAutreArgent(memberId, amount, note, motif) {
   });
 
   saveAutreArgent();
+  notifyAllMembers(
+    "financier_caisse",
+    `${getActorLabel()} a retiré ${formatEuro(parsedAmount)} de la caisse (${member.name} — ${motifLabel}).`,
+    { tab: "finance", title: "Caisse" }
+  );
   if (autreArgentForm) autreArgentForm.reset();
   showAutreArgentSaveMessage(
     `${formatEuro(parsedAmount)} retiré de la caisse disponible (${member.name} — ${motifLabel}).`

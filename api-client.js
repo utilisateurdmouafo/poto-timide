@@ -212,7 +212,7 @@ function writeServerDataToLocal(serverData) {
   Object.entries(serverData || {}).forEach(([key, value]) => {
     if (!API_SYNC_KEYS.has(key)) return;
     try {
-      if (key === "poto-timide-communication") {
+      if (key === "poto-timide-communication" || key === "poto-timide-notifications") {
         const raw = localStorage.getItem(key);
         const local = raw ? JSON.parse(raw) : [];
         value = mergeById(Array.isArray(local) ? local : [], Array.isArray(value) ? value : []);

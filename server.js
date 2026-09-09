@@ -299,7 +299,7 @@ async function setData(key, value) {
   backupDatabase().catch(() => {});
 }
 
-const MERGE_BY_ID_KEYS = new Set(["poto-timide-communication"]);
+const MERGE_BY_ID_KEYS = new Set(["poto-timide-communication", "poto-timide-notifications"]);
 
 function itemTimestamp(item) {
   const raw = item?.updatedAt || item?.deletedAt || item?.createdAt || 0;
