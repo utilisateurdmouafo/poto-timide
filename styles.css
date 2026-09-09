@@ -6153,3 +6153,269 @@ textarea {
 .backup-key-row.is-missing strong {
   color: var(--danger);
 }
+
+/* Smartphone : tailles compactes, lisibles, légères */
+@media (max-width: 767px) {
+  :root {
+    --font-body: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-display: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-brand: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --page-pad: 0.7rem;
+    --radius: 14px;
+    --shadow-card: 0 4px 14px rgba(14, 165, 233, 0.08);
+    --shadow-soft: 0 1px 6px rgba(15, 23, 42, 0.04);
+  }
+
+  html,
+  body {
+    overflow-x: clip;
+  }
+
+  body {
+    font-size: 0.95rem;
+    line-height: 1.45;
+    background: #e8f4fc;
+  }
+
+  button,
+  a,
+  .tab,
+  .gestion-subtab,
+  .finance-subtab,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: rgba(2, 132, 199, 0.18);
+  }
+
+  .panel,
+  .modal,
+  .modal-overlay,
+  .communication-composer,
+  .amende-hero {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .tab-content.active,
+  .gestion-subpanel.is-active {
+    animation: none;
+  }
+
+  .app {
+    padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    top: 0;
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .header-brand-row {
+    padding-top: 0.35rem;
+    padding-bottom: 0.1rem;
+    column-gap: 0.4rem;
+  }
+
+  .brand-name,
+  .topbar .brand-name {
+    font-size: 1.12rem;
+    font-style: normal;
+    font-weight: 700;
+  }
+
+  .topbar .tab,
+  .tab {
+    min-height: 40px;
+    padding: 0.42rem 0.72rem;
+    font-size: 0.8rem;
+    border-radius: 999px;
+  }
+
+  .panel {
+    padding: 0.7rem 0.75rem;
+    border-radius: 14px;
+    overflow: visible;
+  }
+
+  .panel h2 {
+    font-size: 1.05rem;
+    font-style: normal;
+    margin-bottom: 0.35rem;
+  }
+
+  .panel-desc,
+  .pret-summary-formula,
+  .pret-due-dates,
+  .pret-loan-date,
+  .pret-loan-note {
+    font-size: 0.78rem;
+    line-height: 1.4;
+    white-space: normal;
+  }
+
+  .tab-content {
+    gap: 0.7rem;
+  }
+
+  .pret-summary,
+  .finance-dashboard {
+    gap: 0.4rem;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .pret-summary-card,
+  .finance-stat {
+    padding: 0.55rem 0.65rem;
+    border-radius: 12px;
+  }
+
+  .pret-summary-label,
+  .finance-stat-label {
+    font-size: 0.64rem;
+  }
+
+  .pret-summary-amount,
+  .pret-summary-card strong,
+  .finance-stat strong {
+    font-size: 1.05rem;
+  }
+
+  .amende-hero {
+    padding: 0.75rem 0.8rem;
+    gap: 0.65rem;
+    border-radius: 14px;
+  }
+
+  .amende-hero-amount,
+  .amende-hero-copy strong {
+    font-size: 1.35rem;
+  }
+
+  .amende-hero-meta,
+  .amende-hero-kicker {
+    font-size: 0.72rem;
+  }
+
+  .amende-table tbody tr {
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 0.32rem 0.5rem;
+    margin-bottom: 0.55rem;
+    padding: 0.7rem 0.75rem;
+    border-radius: 14px;
+    box-shadow: none;
+  }
+
+  .amende-table tbody td[data-label]::before {
+    font-size: 0.6rem;
+    margin-bottom: 0.06rem;
+  }
+
+  .amende-col-date .pret-request-date-input,
+  .pret-date-cell-btn {
+    width: 100%;
+    max-width: 100%;
+    font-size: 0.92rem;
+  }
+
+  .amende-admin-actions {
+    gap: 0.4rem;
+    width: 100%;
+  }
+
+  .amende-admin-actions .pret-repay-form,
+  .amende-admin-actions .btn-primary,
+  .amende-admin-actions .btn-secondary,
+  .amende-admin-actions .btn-pret-delete {
+    width: 100%;
+  }
+
+  .pret-repay-form {
+    gap: 0.35rem;
+  }
+
+  .gestion-subtabs,
+  .finance-subtabs {
+    gap: 0.25rem;
+    padding-bottom: 0.35rem;
+  }
+
+  .gestion-subtab,
+  .finance-subtab {
+    min-height: 38px;
+    padding: 0.38rem 0.7rem;
+    font-size: 0.78rem;
+  }
+
+  .modal-hero {
+    padding: 1.15rem 1rem 0.45rem;
+  }
+
+  .modal-hero h3,
+  .brand-name-modal {
+    font-size: 1.2rem;
+    font-style: normal;
+  }
+
+  .modal form {
+    padding: 0.7rem 1rem 1.1rem;
+    gap: 0.7rem;
+  }
+
+  .communication-body-field textarea {
+    min-height: 8rem;
+    font-size: 16px;
+  }
+
+  .communication-card,
+  .communication-composer {
+    padding: 0.75rem 0.8rem;
+  }
+
+  .member-item,
+  .admin-item,
+  .pret-loan-card {
+    padding: 0.6rem 0.7rem;
+  }
+
+  .install-banner {
+    padding: 0.7rem 0.75rem;
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 430px) {
+  .pret-summary,
+  .finance-dashboard,
+  .dette-dashboard-chips {
+    grid-template-columns: 1fr;
+  }
+
+  .pret-summary-formula,
+  .finance-stat-note {
+    display: none;
+  }
+
+  .amende-table tbody tr {
+    grid-template-columns: 1fr 1fr 1fr;
+  }
+
+  .amende-col-date {
+    grid-column: 1 / 3;
+  }
+
+  .amende-col-status {
+    grid-column: 3;
+  }
+
+  .tab,
+  .topbar .tab {
+    padding: 0.4rem 0.62rem;
+    font-size: 0.76rem;
+  }
+
+  .panel h2 {
+    font-size: 0.98rem;
+  }
+}
