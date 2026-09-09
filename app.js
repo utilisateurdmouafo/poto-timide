@@ -5294,14 +5294,35 @@ function getLoanBalance(loan) {
   return base + (loan.interestAmount || 0);
 }
 
+function addMonthsYmd(ymd, months) {
+  const [year, month, day] = String(ymd || "").split("-").map(Number);
+  if (!year || !month || !day) return "";
+  const date = new Date(year, month - 1, day, 12, 0, 0);
+  date.setMonth(date.getMonth() + months);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
 function getLoanDueDates(loan) {
-  if (!loan.approvedAt) return null;
-  const approved = new Date(loan.approvedAt);
-  const month1 = new Date(approved);
-  month1.setMonth(month1.getMonth() + 1);
-  const month2 = new Date(approved);
-  month2.setMonth(month2.getMonth() + 2);
-  return { month1, month2 };
+  const base = toDateInputValue(getLoanRequestDate(loan));
+  if (!base) return null;
+  const month1Ymd = addMonthsYmd(base, 1);
+  const month2Ymd = addMonthsYmd(base, 2);
+  if (!month1Ymd || !month2Ymd) return null;
+  return {
+    month1: new Date(`${month1Ymd}T12:00:00`),
+    month2: new Date(`${month2Ymd}T12:00:00`),
+    month1Ymd,
+    month2Ymd,
+  };
+}
+
+function formatLoanDueDatesLabel(loan) {
+  const dueDates = getLoanDueDates(loan);
+  if (!dueDates) return "";
+  return `Échéance 80 % : ${formatDate(`${dueDates.month1Ymd}T12:00:00`)} · Solde : ${formatDate(`${dueDates.month2Ymd}T12:00:00`)}`;
 }
 
 function getLoanRequestDate(loan) {
@@ -5360,7 +5381,22 @@ async function updateLoanRequestDate(loanId, ymd) {
   }
 
   loan.createdAt = nextCreated;
+  if (loan.approvedAt) loan.approvedAt = combineDateWithTime(ymd, loan.approvedAt) || loan.approvedAt;
+  if (loan.financierDecidedAt) {
+    loan.financierDecidedAt = combineDateWithTime(ymd, loan.financierDecidedAt) || loan.financierDecidedAt;
+  }
   loan.updatedAt = new Date().toISOString();
+  if (loan.status === "active" || loan.status === "defaulted" || loan.status === "completed") {
+    const dueDates = getLoanDueDates(loan);
+    const dueLabel = dueDates ? formatDate(`${dueDates.month1Ymd}T12:00:00`) : "—";
+    upsertLoanNotification(
+      loan.borrowerId,
+      loan.id,
+      "loan_approved",
+      `Prêt accordé — ${formatEuro(loan.amount)}. Remboursez 80 % avant le ${dueLabel}.`
+    );
+    saveNotifications(false);
+  }
   savePrets(false);
   try {
     localStorage.setItem("poto-timide-data-revision", JSON.stringify(Date.now()));
@@ -6276,7 +6312,7 @@ function buildLoanCard(loan, mode) {
       </div>
       ${
         dueDates
-          ? `<p class="pret-due-dates">Échéance 80 % : ${formatDate(dueDates.month1.toISOString().split("T")[0])} · Solde : ${formatDate(dueDates.month2.toISOString().split("T")[0])}</p>`
+          ? `<p class="pret-due-dates">${escapeHtml(formatLoanDueDatesLabel(loan))}</p>`
           : ""
       }
       ${
@@ -6417,7 +6453,7 @@ function buildAdminPretActionsHtml(loan) {
     <div class="amende-admin-actions">
       ${
         dueDates && isOpen
-          ? `<p class="pret-due-dates">Échéance 80 % : ${formatDate(dueDates.month1.toISOString().split("T")[0])} · Solde : ${formatDate(dueDates.month2.toISOString().split("T")[0])}</p>`
+          ? `<p class="pret-due-dates">${escapeHtml(formatLoanDueDatesLabel(loan))}</p>`
           : ""
       }
       ${
