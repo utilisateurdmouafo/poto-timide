@@ -3125,28 +3125,41 @@ function fitTablesToScreen(scope) {
   if (typeof isUserEditingForm === "function" && isUserEditingForm()) return;
   if (typeof isLoanDateEditing === "function" && isLoanDateEditing()) return;
   const root = scope && scope.querySelectorAll ? scope : document;
-  root.querySelectorAll(".amende-table-wrap, .table-wrap").forEach((wrap) => {
+  root.querySelectorAll(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap").forEach((wrap) => {
     const table = wrap.querySelector("table");
     if (!table) return;
 
+    const prevTransform = table.style.transform;
+    const prevWidth = table.style.width;
+    const prevMinWidth = table.style.minWidth;
+    const prevHeight = wrap.style.height;
+
+    table.style.transform = "";
+    wrap.style.height = "";
     table.style.width = "max-content";
+    table.style.minWidth = "0";
+
     const avail = wrap.clientWidth;
-    if (!avail) return;
-    const need = table.scrollWidth || table.offsetWidth;
-    const scale = need > avail + 1 ? avail / need : 1;
-    const nextTransform = scale < 0.999 ? `scale(${scale})` : "";
-    const nextHeight = scale < 0.999 ? `${Math.round(table.scrollHeight * scale)}px` : "";
-    if (!nextTransform) {
-      if (table.style.transform || table.style.width || wrap.style.height) {
-        table.style.transform = "";
-        table.style.width = "";
-        wrap.style.height = "";
-      }
+    if (!avail) {
+      table.style.transform = prevTransform;
+      table.style.width = prevWidth;
+      table.style.minWidth = prevMinWidth;
+      wrap.style.height = prevHeight;
       return;
     }
-    if (table.style.transform === nextTransform && wrap.style.height === nextHeight) return;
+
+    const need = Math.max(table.scrollWidth, table.offsetWidth);
+    const shouldScale = need > avail + 1;
+    const scale = shouldScale ? avail / need : 1;
+    const nextTransform = shouldScale ? `scale(${scale})` : "";
+    const nextWidth = shouldScale ? "max-content" : "100%";
+    const nextMinWidth = shouldScale ? "0" : "100%";
+    const nextHeight = shouldScale ? `${Math.round(table.scrollHeight * scale)}px` : "";
+
     table.style.transformOrigin = "left top";
     table.style.transform = nextTransform;
+    table.style.width = nextWidth;
+    table.style.minWidth = nextMinWidth;
     wrap.style.height = nextHeight;
   });
 }

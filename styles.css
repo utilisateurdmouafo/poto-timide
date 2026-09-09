@@ -643,7 +643,8 @@ body::after {
 }
 
 .tournee-unified-table {
-  min-width: 720px;
+  width: 100%;
+  min-width: 100%;
 }
 
 .tournee-planning-table .tournee-num-cell {
@@ -733,7 +734,8 @@ body::after {
 }
 
 .tournee-amounts-table {
-  max-width: 28rem;
+  width: 100%;
+  min-width: 100%;
 }
 
 .tournee-unified-table tfoot td:last-child {
@@ -4146,7 +4148,8 @@ body::after {
 }
 
 .finance-table-wrap--wide .finance-table {
-  min-width: 720px;
+  min-width: 100%;
+  width: 100%;
 }
 
 .finance-table {
@@ -4575,7 +4578,8 @@ body::after {
   .dette-table,
   .finance-table,
   .permissions-table {
-    min-width: 520px;
+    min-width: 100%;
+    width: 100%;
   }
 
   .finance-dashboard {
@@ -4601,7 +4605,8 @@ body::after {
   }
 
   .tournee-unified-table {
-    min-width: 640px;
+    min-width: 100%;
+    width: 100%;
   }
 
   .tournee-month-select,
@@ -4613,7 +4618,8 @@ body::after {
   }
 
   .evenement-table {
-    min-width: 620px;
+    min-width: 100%;
+    width: 100%;
   }
 
   .evenement-pay-input {
@@ -4746,8 +4752,25 @@ textarea {
 
 .table-wrap,
 .dette-table-wrap,
-.finance-table-wrap {
+.finance-table-wrap,
+.amende-table-wrap {
   width: 100%;
+  max-width: 100%;
+}
+
+.table-wrap table,
+.dette-table-wrap table,
+.finance-table-wrap table,
+.amende-table-wrap table {
+  width: 100%;
+  min-width: 100%;
+}
+
+.tournee-planning-table th:nth-child(3),
+.tournee-planning-table td:nth-child(3),
+.tournee-planning-table th:nth-child(4),
+.tournee-planning-table td:nth-child(4) {
+  width: 42%;
 }
 
 .tournee-order-readout,
@@ -4804,12 +4827,13 @@ textarea {
   .permissions-table,
   .evenement-table,
   .autre-argent-table {
-    min-width: 28rem;
+    min-width: 100%;
+    width: 100%;
     font-size: 0.74rem;
   }
 
   .tournee-planning-table {
-    min-width: 32rem;
+    min-width: 100%;
   }
 
   .ancienne-tournee-actions {
@@ -5347,7 +5371,8 @@ textarea {
   }
 
   .permissions-table {
-    min-width: 40rem;
+    min-width: 100%;
+    width: 100%;
   }
 
   .permissions-table input[type="checkbox"] {
@@ -5646,7 +5671,8 @@ textarea {
 
 .amende-table {
   width: 100%;
-  min-width: 36rem;
+  min-width: 100%;
+  table-layout: auto;
   border-collapse: collapse;
   font-size: 0.9rem;
 }
@@ -5895,6 +5921,7 @@ textarea {
 
 .amende-col-detail {
   min-width: 7rem;
+  width: 100%;
 }
 
 @media (max-width: 900px) {
@@ -5916,8 +5943,8 @@ textarea {
   }
 
   .amende-table {
-    min-width: 0;
-    width: max-content;
+    min-width: 100%;
+    width: 100%;
     max-width: none;
     table-layout: auto;
     border-collapse: collapse;
@@ -5950,7 +5977,6 @@ textarea {
 
   .amende-col-date,
   .amende-col-type,
-  .amende-col-detail,
   .amende-col-status,
   .amende-col-actions,
   .amende-col-amount,
@@ -5958,6 +5984,16 @@ textarea {
   .amende-col-remain {
     grid-area: auto;
     width: auto;
+    min-width: 0;
+    border-top: 0;
+    text-align: inherit;
+    font-size: inherit;
+    padding-top: 0.32em;
+  }
+
+  .amende-col-detail {
+    grid-area: auto;
+    width: 100%;
     min-width: 0;
     border-top: 0;
     text-align: inherit;
@@ -6016,7 +6052,8 @@ textarea {
   }
 
   .table-wrap table {
-    width: max-content;
+    width: 100%;
+    min-width: 100%;
     max-width: none;
     transform-origin: left top;
   }
