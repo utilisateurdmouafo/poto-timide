@@ -103,7 +103,6 @@ const LOAN_INTEREST_RATE = 0.1;
 const REPAYMENT_MONTH1_RATIO = 0.8;
 const PENDING_VOTE_STATUSES = ["voting", "awaiting_financier"];
 const BORROWER_ACTIVE_STATUSES = ["voting", "awaiting_financier", "active", "defaulted"];
-const GRANTED_LOAN_STATUSES = ["active", "defaulted", "completed"];
 
 const ROLES = [
   { id: "president", label: "Président", short: "Président" },
@@ -3112,10 +3111,6 @@ function combineDateWithTime(ymd, previousIso) {
   return next;
 }
 
-function isGrantedLoan(loan) {
-  return Boolean(loan && GRANTED_LOAN_STATUSES.includes(loan.status));
-}
-
 function getRoleLabel(roleId) {
   return ROLES.find((r) => r.id === roleId)?.label || roleId;
 }
@@ -5294,7 +5289,7 @@ function updateLoanRequestDate(loanId, ymd) {
   }
 
   const loan = getLoanById(loanId);
-  if (!loan || !isGrantedLoan(loan)) return;
+  if (!loan) return;
 
   const nextIso = combineDateWithTime(ymd, loan.createdAt);
   if (!nextIso) {
@@ -6325,13 +6320,14 @@ function renderPrets() {
   }
 }
 
-function buildLoanRequestDateEditor(loan) {
-  if (!canManagePretsActions() || !isGrantedLoan(loan)) return "";
+function buildAdminRequestDateCell(loan) {
+  const label = formatFriendlyDate(loan?.createdAt);
+  if (!canManagePretsActions() || !loan) return escapeHtml(label);
   const value = toDateInputValue(loan.createdAt);
   return `
-    <label class="pret-request-date-label">
-      Date de demande
-      <input type="date" class="pret-request-date-input" data-loan-id="${escapeHtml(loan.id)}" value="${escapeHtml(value)}" aria-label="Date de demande du prêt" />
+    <label class="pret-date-cell">
+      <span class="pret-date-cell-text">${escapeHtml(label)}</span>
+      <input type="date" class="pret-request-date-input" data-loan-id="${escapeHtml(loan.id)}" value="${escapeHtml(value)}" aria-label="Modifier la date de demande" />
     </label>
   `;
 }
@@ -6342,7 +6338,6 @@ function buildAdminPretActionsHtml(loan) {
   const isOpen = loan.status === "active" || loan.status === "defaulted";
   return `
     <div class="amende-admin-actions">
-      ${buildLoanRequestDateEditor(loan)}
       ${
         dueDates && isOpen
           ? `<p class="pret-due-dates">Échéance 80 % : ${formatDate(dueDates.month1.toISOString().split("T")[0])} · Solde : ${formatDate(dueDates.month2.toISOString().split("T")[0])}</p>`
@@ -6488,7 +6483,7 @@ function renderAdminPretLedger() {
         row.loan.status === "rejected" ? "is-rejected" : row.settled ? "is-paid" : "is-open";
       return `
         <tr id="loan-${escapeHtml(row.id)}" class="${row.settled ? "is-settled" : ""}">
-          <td class="amende-col-date" data-label="Date de demande">${escapeHtml(formatFriendlyDate(row.date))}</td>
+          <td class="amende-col-date" data-label="Date de demande">${buildAdminRequestDateCell(row.loan)}</td>
           <td class="amende-col-type" data-label="Type">${escapeHtml(getAmendeTypeLabel(row.type))}</td>
           <td class="amende-col-detail" data-label="Détail">${escapeHtml(row.detail || "—")}</td>
           <td class="num amende-col-amount" data-label="Montant">${formatEuro(row.original)}</td>
@@ -8574,10 +8569,22 @@ function handlePretRequestDateChange(e) {
   updateLoanRequestDate(input.dataset.loanId, input.value);
 }
 
+function handlePretRequestDateClick(e) {
+  const input = e.target.closest(".pret-request-date-input");
+  if (!input || typeof input.showPicker !== "function") return;
+  try {
+    input.showPicker();
+  } catch {
+    /* picker déjà ouvert ou non supporté */
+  }
+}
+
 document.getElementById("tab-prets")?.addEventListener("click", handlePretActionClick);
 document.getElementById("tab-admin")?.addEventListener("click", handlePretActionClick);
 document.getElementById("tab-prets")?.addEventListener("change", handlePretRequestDateChange);
 document.getElementById("tab-admin")?.addEventListener("change", handlePretRequestDateChange);
+document.getElementById("tab-prets")?.addEventListener("click", handlePretRequestDateClick);
+document.getElementById("tab-admin")?.addEventListener("click", handlePretRequestDateClick);
 
 adminForm?.addEventListener("submit", (e) => {
   e.preventDefault();
