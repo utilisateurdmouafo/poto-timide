@@ -3107,6 +3107,7 @@ function formatAdaptiveDate(dateStr) {
 }
 
 function fitTablesToScreen(scope) {
+  if (typeof isUserEditingForm === "function" && isUserEditingForm()) return;
   if (typeof isLoanDateEditing === "function" && isLoanDateEditing()) return;
   const root = scope && scope.querySelectorAll ? scope : document;
   root.querySelectorAll(".amende-table-wrap").forEach((wrap) => {
@@ -5388,6 +5389,22 @@ function isLoanDateEditing() {
   return Boolean(loanDateEditingId);
 }
 
+function isUserEditingForm() {
+  if (isLoanDateEditing()) return true;
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = (el.tagName || "").toUpperCase();
+  if (tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (tag === "INPUT") {
+    const type = (el.type || "").toLowerCase();
+    if (type === "button" || type === "submit" || type === "checkbox" || type === "radio" || type === "hidden") {
+      return false;
+    }
+    return true;
+  }
+  return Boolean(el.isContentEditable);
+}
+
 function stopLoanDateEdit() {
   loanDateEditingId = null;
 }
@@ -5473,6 +5490,7 @@ async function updateLoanRequestDate(loanId, ymd) {
 }
 
 window.potoIsLoanDateEditing = isLoanDateEditing;
+window.potoIsUserEditingForm = isUserEditingForm;
 
 const pendingPushMessages = [];
 
@@ -6415,6 +6433,7 @@ function getPretStatusLabel(status) {
 function renderPrets() {
   const current = getCurrentMember();
   if (!current) return;
+  if (isUserEditingForm()) return;
   refreshFinancierPayBoxes();
 
   processLoanStatusUpdates();
@@ -6681,7 +6700,7 @@ function renderAdminPretLedger(force = false) {
 
 function renderAdminPrets() {
   if (!hasRoleTabAccess("prets")) return;
-  if (isLoanDateEditing()) return;
+  if (isUserEditingForm()) return;
 
   processLoanStatusUpdates();
 
@@ -9143,6 +9162,7 @@ async function initApp() {
   }
 
   window.potoOnServerDataPulled = () => {
+    if (typeof window.potoIsUserEditingForm === "function" && window.potoIsUserEditingForm()) return;
     if (typeof window.potoIsLoanDateEditing === "function" && window.potoIsLoanDateEditing()) return;
     reloadFromStorage();
     updatePretTabBadge();
