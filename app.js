@@ -738,7 +738,7 @@ function buildLedgerDataRowHtml(row, rowIdPrefix, hasActions) {
   const repaid = Number(row.repaid) || 0;
   const remaining = Number(row.remaining) || 0;
   const original = Number(row.original) || remaining + repaid;
-  const dateText = row.dateLabel || formatFriendlyDate(row.date);
+  const dateText = row.dateLabel || formatAdaptiveDate(row.date);
   const statusLabel = row.statusLabel || (row.settled ? "Soldée" : "En cours");
   const chipClass = row.chipClass || (row.settled ? "is-paid" : "is-open");
   const rowId = row.domId || `${rowIdPrefix}-${row.id}`;
@@ -814,7 +814,7 @@ function buildLedgerTableHtml(rows, { emptyText, rowIdPrefix, hasActions }) {
             <th>Type</th>
             <th>Détail</th>
             <th class="num">Montant</th>
-            <th class="num">Déjà versé</th>
+            <th class="num"><span class="th-full">Déjà versé</span><span class="th-short">Versé</span></th>
             <th class="num">Reste</th>
             <th>Statut</th>
             ${withActions ? "<th>Actions</th>" : ""}
@@ -840,6 +840,7 @@ function buildLedgerSectionHtml({ title, noun, emptyMeta, emptyText, rows, rowId
 function renderLedgerInto(container, options) {
   if (!container) return;
   container.innerHTML = buildLedgerSectionHtml(options);
+  scheduleFitTables();
 }
 
 function buildFinanceAncienneTourneeRows() {
@@ -3091,6 +3092,55 @@ function formatFriendlyDate(dateStr) {
   return formatDate(String(dateStr).split("T")[0]);
 }
 
+function formatCompactDate(dateStr) {
+  const date = new Date(String(dateStr || "").split("T")[0] + "T12:00:00");
+  if (Number.isNaN(date.getTime())) return formatFriendlyDate(dateStr);
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const yy = String(date.getFullYear()).slice(-2);
+  return `${dd}/${mm}/${yy}`;
+}
+
+function formatAdaptiveDate(dateStr) {
+  if (typeof window !== "undefined" && window.innerWidth <= 900) return formatCompactDate(dateStr);
+  return formatFriendlyDate(dateStr);
+}
+
+function fitTablesToScreen(scope) {
+  if (typeof isLoanDateEditing === "function" && isLoanDateEditing()) return;
+  const root = scope && scope.querySelectorAll ? scope : document;
+  root.querySelectorAll(".amende-table-wrap").forEach((wrap) => {
+    const table = wrap.querySelector("table.amende-table");
+    if (!table) return;
+    table.style.transform = "none";
+    table.style.width = "";
+    table.style.fontSize = "";
+    wrap.style.height = "";
+    if (window.innerWidth > 900) return;
+
+    table.style.width = "max-content";
+    const avail = wrap.clientWidth;
+    if (!avail) return;
+    const need = Math.max(table.scrollWidth, table.offsetWidth);
+    if (need <= avail + 1) {
+      table.style.width = "100%";
+      return;
+    }
+    const scale = Math.min(1, avail / need);
+    table.style.transformOrigin = "left top";
+    table.style.transform = `scale(${scale})`;
+    wrap.style.height = `${Math.ceil(table.scrollHeight * scale)}px`;
+  });
+}
+
+let fitTablesTimer = 0;
+function scheduleFitTables() {
+  clearTimeout(fitTablesTimer);
+  fitTablesTimer = setTimeout(() => {
+    requestAnimationFrame(() => fitTablesToScreen());
+  }, 40);
+}
+
 function toDateInputValue(iso) {
   const raw = String(iso || "");
   if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
@@ -4553,6 +4603,7 @@ function renderLedgerTable(rows, { body, foot, wrap, emptyText, rowIdPrefix }) {
   if (foot) {
     foot.innerHTML = buildLedgerFootHtml(rows, false);
   }
+  scheduleFitTables();
 }
 
 function buildMesDettesRows(memberId) {
@@ -6436,7 +6487,7 @@ function renderPrets() {
 
 function buildAdminRequestDateCell(loan) {
   const requestDate = getLoanRequestDate(loan);
-  const label = formatFriendlyDate(requestDate);
+  const label = formatAdaptiveDate(requestDate);
   if (!canManagePretsActions() || !loan) return escapeHtml(label);
   if (loanDateEditingId === loan.id) {
     const value = toDateInputValue(requestDate);
@@ -6625,6 +6676,7 @@ function renderAdminPretLedger(force = false) {
         <td colspan="2"></td>
       </tr>`;
   }
+  scheduleFitTables();
 }
 
 function renderAdminPrets() {
@@ -8716,6 +8768,9 @@ document.getElementById("tab-admin")?.addEventListener("change", handlePretReque
 document.getElementById("tab-admin")?.addEventListener("click", handlePretRequestDateClick);
 document.getElementById("tab-admin")?.addEventListener("focusout", handlePretRequestDateFocusOut);
 
+window.addEventListener("resize", scheduleFitTables);
+window.addEventListener("orientationchange", scheduleFitTables);
+
 adminForm?.addEventListener("submit", (e) => {
   e.preventDefault();
   assignAdmin(adminMemberSelect?.value);
@@ -9103,6 +9158,7 @@ async function initApp() {
         renderAutreArgent();
       }
     }
+    scheduleFitTables();
   };
 
   appReady = true;

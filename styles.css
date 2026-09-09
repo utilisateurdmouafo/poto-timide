@@ -5674,6 +5674,10 @@ textarea {
   white-space: nowrap;
 }
 
+.th-short {
+  display: none;
+}
+
 .amende-table tbody tr:last-child td {
   border-bottom: none;
 }
@@ -5834,149 +5838,132 @@ textarea {
   min-width: 7rem;
 }
 
-@media (max-width: 720px) {
+@media (max-width: 900px) {
   .amende-table-wrap {
-    overflow: visible;
-    border: 0;
-    border-radius: 0;
-    background: transparent;
-    box-shadow: none;
+    overflow: hidden;
+    width: 100%;
+    border-radius: 12px;
+  }
+
+  .amende-table,
+  .amende-table thead,
+  .amende-table tbody,
+  .amende-table tfoot,
+  .amende-table tr,
+  .amende-table th,
+  .amende-table td {
+    display: revert;
+    width: auto;
   }
 
   .amende-table {
     min-width: 0;
+    width: max-content;
+    max-width: none;
+    table-layout: auto;
+    border-collapse: collapse;
+    font-size: 13px;
+    transform-origin: left top;
   }
 
   .amende-table thead,
   .amende-table tfoot {
-    display: none;
+    display: table-header-group;
   }
 
-  .amende-table,
-  .amende-table tbody,
-  .amende-table tbody tr,
-  .amende-table tbody td {
-    display: block;
-    width: 100%;
+  .amende-table tfoot {
+    display: table-footer-group;
   }
 
-  .amende-table tbody tr {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-areas:
-      "date date status"
-      "type type type"
-      "detail detail detail"
-      "amount paid remain"
-      "actions actions actions";
-    gap: 0.4rem 0.55rem;
-    margin-bottom: 0.7rem;
-    padding: 0.85rem 0.9rem 0.8rem;
-    background: #fff;
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    box-shadow: var(--shadow-soft);
-  }
-
-  .amende-table tbody tr:hover td {
-    background: transparent;
-  }
-
-  .amende-table tbody td {
-    padding: 0;
-    border: 0;
-    white-space: normal;
-    min-width: 0;
+  .amende-table th,
+  .amende-table td {
+    padding: 0.32em 0.38em;
+    white-space: nowrap;
+    vertical-align: middle;
+    font-size: inherit;
+    line-height: 1.25;
+    border-bottom: 1px solid rgba(14, 165, 233, 0.12);
   }
 
   .amende-table tbody td[data-label]::before {
-    content: attr(data-label);
-    display: block;
-    margin-bottom: 0.12rem;
-    font-size: 0.62rem;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    color: var(--text-muted);
-  }
-
-  .amende-col-date {
-    grid-area: date;
-    font-weight: 700;
-    font-size: 0.95rem;
-    align-self: center;
-  }
-
-  .amende-col-date[data-label]::before {
     display: none;
   }
 
-  .amende-col-status {
-    grid-area: status;
-    justify-self: end;
-    align-self: center;
-  }
-
-  .amende-col-status[data-label]::before,
-  .amende-col-actions[data-label]::before {
-    display: none;
-  }
-
-  .amende-col-type {
-    grid-area: type;
-  }
-
-  .amende-col-detail {
-    grid-area: detail;
-    font-weight: 700;
-    color: var(--text);
-    padding-bottom: 0.15rem;
-  }
-
-  .amende-col-amount {
-    grid-area: amount;
-  }
-
-  .amende-col-paid {
-    grid-area: paid;
-  }
-
-  .amende-col-remain {
-    grid-area: remain;
-  }
-
+  .amende-col-date,
+  .amende-col-type,
+  .amende-col-detail,
+  .amende-col-status,
+  .amende-col-actions,
   .amende-col-amount,
   .amende-col-paid,
   .amende-col-remain {
-    text-align: left;
-    padding-top: 0.5rem;
-    border-top: 1px solid rgba(14, 165, 233, 0.14);
-  }
-
-  .amende-col-actions {
-    grid-area: actions;
+    grid-area: auto;
+    width: auto;
     min-width: 0;
-    padding-top: 0.15rem;
+    border-top: 0;
+    text-align: inherit;
+    font-size: inherit;
+    padding-top: 0.32em;
   }
 
-  .amende-col-actions .btn-secondary,
-  .amende-col-actions .btn-primary,
-  .amende-col-actions .btn-delete,
-  .amende-col-actions .btn-autre-argent-delete {
-    width: 100%;
+  .amende-table .num {
+    text-align: right;
+  }
+
+  .amende-chip {
+    font-size: 0.85em;
+    padding: 0.12em 0.4em;
+  }
+
+  .amende-table .btn-primary,
+  .amende-table .btn-secondary,
+  .amende-table .btn-delete,
+  .amende-table .btn-autre-argent-delete,
+  .amende-table .btn-pret-delete,
+  .amende-table .pret-date-cell-btn {
+    width: auto !important;
+    min-height: 0 !important;
+    min-width: 0;
+    padding: 0.18em 0.45em;
+    font-size: 0.85em;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .amende-table .pret-request-date-input {
+    width: auto !important;
+    max-width: 8.5em;
+    min-height: 0;
+    padding: 0.1em 0.2em;
+    font-size: inherit;
+  }
+
+  .amende-admin-actions {
+    flex-direction: row;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 0.3em;
+    width: auto;
+  }
+
+  .amende-table .pret-due-dates,
+  .amende-table .pret-repay-form,
+  .amende-table .pret-repay-history {
+    display: none;
   }
 
   .amende-table tbody tr.amende-detail-row {
-    display: block;
-    padding: 0.55rem 0.7rem 0.85rem;
+    display: none;
   }
 
-  .amende-empty-row {
-    display: block;
-    padding: 1rem;
-    background: #fff;
-    border: 1px dashed var(--border);
-    border-radius: 16px;
+  .th-full {
+    display: none;
+  }
+
+  .th-short {
+    display: inline;
   }
 }
 
@@ -6442,5 +6429,24 @@ textarea {
 
   .panel h2 {
     font-size: 0.98rem;
+  }
+}
+
+@media (max-width: 900px) {
+  .amende-table-wrap .amende-table td .btn-primary,
+  .amende-table-wrap .amende-table td .btn-secondary,
+  .amende-table-wrap .amende-table td .btn-delete,
+  .amende-table-wrap .amende-table td .btn-autre-argent-delete,
+  .amende-table-wrap .amende-table td .btn-pret-delete,
+  .amende-table-wrap .amende-table .pret-date-cell-btn,
+  .amende-table-wrap .amende-table .pret-request-date-input {
+    width: auto !important;
+    max-width: none;
+    min-height: 0 !important;
+  }
+
+  .amende-table-wrap .amende-admin-actions {
+    width: auto;
+    flex-wrap: nowrap;
   }
 }
