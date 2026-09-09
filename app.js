@@ -3110,18 +3110,9 @@ function fitTablesToScreen(scope) {
   if (typeof isUserEditingForm === "function" && isUserEditingForm()) return;
   if (typeof isLoanDateEditing === "function" && isLoanDateEditing()) return;
   const root = scope && scope.querySelectorAll ? scope : document;
-  root.querySelectorAll(".amende-table-wrap").forEach((wrap) => {
-    const table = wrap.querySelector("table.amende-table");
+  root.querySelectorAll(".amende-table-wrap, .table-wrap").forEach((wrap) => {
+    const table = wrap.querySelector("table");
     if (!table) return;
-
-    if (window.innerWidth > 900) {
-      if (table.style.transform || table.style.width || wrap.style.height) {
-        table.style.transform = "";
-        table.style.width = "";
-        wrap.style.height = "";
-      }
-      return;
-    }
 
     table.style.width = "max-content";
     const avail = wrap.clientWidth;
@@ -3130,6 +3121,14 @@ function fitTablesToScreen(scope) {
     const scale = need > avail + 1 ? avail / need : 1;
     const nextTransform = scale < 0.999 ? `scale(${scale})` : "";
     const nextHeight = scale < 0.999 ? `${Math.round(table.scrollHeight * scale)}px` : "";
+    if (!nextTransform) {
+      if (table.style.transform || table.style.width || wrap.style.height) {
+        table.style.transform = "";
+        table.style.width = "";
+        wrap.style.height = "";
+      }
+      return;
+    }
     if (table.style.transform === nextTransform && wrap.style.height === nextHeight) return;
     table.style.transformOrigin = "left top";
     table.style.transform = nextTransform;
@@ -3921,6 +3920,7 @@ function renderTourneeTable() {
   if (cotisationsBlock) cotisationsBlock.hidden = !canEdit;
   if (canEdit) fillTourneeCotisationsTable();
   refreshFinancierPayBoxes();
+  scheduleFitTables();
 }
 
 function resolveLegacyTab(tabId) {
@@ -5371,9 +5371,16 @@ function getLoanDueDates(loan) {
   };
 }
 
-function formatLoanDueDatesLabel(loan) {
+function formatLoanDueDatesLabel(loan, compact = false) {
   const dueDates = getLoanDueDates(loan);
   if (!dueDates) return "";
+  if (compact) {
+    const short = (ymd) => {
+      const parts = String(ymd).split("-");
+      return parts.length === 3 ? `${parts[2]}/${parts[1]}` : ymd;
+    };
+    return `80% ${short(dueDates.month1Ymd)} · Solde ${short(dueDates.month2Ymd)}`;
+  }
   return `Échéance 80 % : ${formatDate(`${dueDates.month1Ymd}T12:00:00`)} · Solde : ${formatDate(`${dueDates.month2Ymd}T12:00:00`)}`;
 }
 
@@ -6523,7 +6530,7 @@ function buildAdminPretActionsHtml(loan) {
     <div class="amende-admin-actions">
       ${
         dueDates && isOpen
-          ? `<p class="pret-due-dates">${escapeHtml(formatLoanDueDatesLabel(loan))}</p>`
+          ? `<p class="pret-due-dates">${escapeHtml(formatLoanDueDatesLabel(loan, true))}</p>`
           : ""
       }
       ${
@@ -7739,6 +7746,7 @@ function renderEvenements() {
   renderEvenementListInto(evenementList, { manage: false });
   renderEvenementListInto(document.getElementById("evenementAdminList"), { manage: canManage });
   refreshFinancierPayBoxes();
+  scheduleFitTables();
 }
 
 function loadCommunicationPosts() {

@@ -5737,22 +5737,42 @@ textarea {
 }
 
 .amende-col-actions {
-  min-width: 11rem;
-  white-space: normal;
+  min-width: 0;
+  white-space: nowrap;
 }
 
 .amende-admin-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.45rem;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+}
+
+.amende-admin-actions .pret-due-dates {
+  margin: 0;
+  white-space: nowrap;
+  font-size: 0.75rem;
 }
 
 .amende-table-admin .pret-repay-form {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  flex-wrap: nowrap;
+  gap: 0.3rem;
   align-items: center;
+  margin: 0;
+  width: auto;
+}
+
+.amende-table-admin .pret-repay-input {
+  width: 5rem;
+  min-height: 2rem;
+  padding: 0.25rem 0.4rem;
+}
+
+.amende-table .pret-repay-history {
+  display: none;
 }
 
 .pret-date-cell-btn {
@@ -5948,10 +5968,31 @@ textarea {
     width: auto;
   }
 
-  .amende-table .pret-due-dates,
-  .amende-table .pret-repay-form,
   .amende-table .pret-repay-history {
     display: none;
+  }
+
+  .table-wrap {
+    overflow: hidden;
+  }
+
+  .table-wrap table {
+    width: max-content;
+    max-width: none;
+    transform-origin: left top;
+  }
+
+  .table-wrap th,
+  .table-wrap td {
+    white-space: nowrap;
+    padding: 0.32em 0.4em;
+    vertical-align: middle;
+  }
+
+  .evenement-pay-actions,
+  .dette-td-actions {
+    flex-wrap: nowrap;
+    min-width: 0;
   }
 
   .amende-table tbody tr.amende-detail-row {
