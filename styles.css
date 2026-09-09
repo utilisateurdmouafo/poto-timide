@@ -4528,6 +4528,12 @@ body::after {
     min-width: 0;
   }
 
+  .pret-request-date-label,
+  .pret-request-date-input {
+    width: 100%;
+    max-width: none;
+  }
+
   .member-right,
   .admin-item .btn-delete {
     width: 100%;
@@ -5743,6 +5749,33 @@ textarea {
   flex-wrap: wrap;
   gap: 0.35rem;
   align-items: center;
+}
+
+.pret-request-date-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.22rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.pret-request-date-input {
+  font-family: inherit;
+  font-size: 0.85rem;
+  padding: 0.38rem 0.5rem;
+  border: 1px solid rgba(32, 56, 82, 0.16);
+  border-radius: 8px;
+  background: #fff;
+  color: inherit;
+  min-width: 9.5rem;
+}
+
+.amende-table-admin .pret-request-date-input {
+  width: 100%;
+  min-width: 0;
+  max-width: 11rem;
 }
 
 .amende-table-admin .pret-repay-input {

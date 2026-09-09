@@ -94,10 +94,32 @@ const OWNER_NAME = process.env.POTO_OWNER_NAME || ADMIN_NAME;
 fs.mkdirSync(DATA_DIR, { recursive: true });
 
 class SqliteSessionStore extends SessionStore {
+  constructor() {
+    super();
+    this.cache = new Map();
+  }
+
   get(sid, callback) {
-    db.get("SELECT sess FROM sessions WHERE sid = ? AND expired > ?", [sid, Date.now()])
+    const cached = this.cache.get(sid);
+    if (cached && cached.expired > Date.now()) {
+      try {
+        return callback(null, JSON.parse(cached.sess));
+      } catch (err) {
+        this.cache.delete(sid);
+      }
+    }
+
+    db.get("SELECT sess, expired FROM sessions WHERE sid = ? AND expired > ?", [sid, Date.now()])
       .then((row) => {
-        if (!row) return callback(null, null);
+        if (!row) {
+          this.cache.delete(sid);
+          return callback(null, null);
+        }
+        const expired = Number(row.expired);
+        this.cache.set(sid, {
+          sess: row.sess,
+          expired: Number.isFinite(expired) ? expired : Date.now() + 7 * 24 * 60 * 60 * 1000,
+        });
         return callback(null, JSON.parse(row.sess));
       })
       .catch((err) => callback(err));
@@ -105,15 +127,18 @@ class SqliteSessionStore extends SessionStore {
 
   set(sid, sess, callback) {
     const maxAge = sess?.cookie?.maxAge || 7 * 24 * 60 * 60 * 1000;
+    const payload = JSON.stringify(sess);
+    const expired = Date.now() + maxAge;
+    this.cache.set(sid, { sess: payload, expired });
+    callback?.(null);
     db.run(
       "INSERT INTO sessions (sid, sess, expired) VALUES (?, ?, ?) ON CONFLICT(sid) DO UPDATE SET sess = excluded.sess, expired = excluded.expired",
-      [sid, JSON.stringify(sess), Date.now() + maxAge]
-    )
-      .then(() => callback?.(null))
-      .catch((err) => callback?.(err));
+      [sid, payload, expired]
+    ).catch((err) => console.warn("Session non persistée :", err.message));
   }
 
   destroy(sid, callback) {
+    this.cache.delete(sid);
     db.run("DELETE FROM sessions WHERE sid = ?", [sid])
       .then(() => callback?.(null))
       .catch((err) => callback?.(err));
@@ -219,21 +244,58 @@ async function restoreFromBackupIfNeeded() {
   }
 }
 
-async function getData(key) {
-  const row = await db.get("SELECT value FROM app_data WHERE key = ?", [key]);
-  if (!row) return null;
+const dataCache = new Map();
+let dataCacheHydrated = false;
+
+function parseCachedValue(raw) {
+  if (raw == null) return null;
   try {
-    return JSON.parse(row.value);
+    return JSON.parse(raw);
   } catch {
     return null;
   }
 }
 
+async function hydrateDataCache() {
+  const rows = await db.all("SELECT key, value FROM app_data");
+  dataCache.clear();
+  for (const row of rows) {
+    dataCache.set(row.key, row.value);
+  }
+  dataCacheHydrated = true;
+}
+
+async function getAllStoredData() {
+  if (!dataCacheHydrated) await hydrateDataCache();
+  const data = {};
+  for (const key of STORAGE_KEYS) {
+    if (!dataCache.has(key)) continue;
+    const value = parseCachedValue(dataCache.get(key));
+    if (value !== null) data[key] = value;
+  }
+  return data;
+}
+
+async function getData(key) {
+  if (dataCache.has(key)) return parseCachedValue(dataCache.get(key));
+  if (dataCacheHydrated) return null;
+
+  const row = await db.get("SELECT value FROM app_data WHERE key = ?", [key]);
+  if (!row) {
+    dataCache.set(key, null);
+    return null;
+  }
+  dataCache.set(key, row.value);
+  return parseCachedValue(row.value);
+}
+
 async function setData(key, value) {
+  const encoded = JSON.stringify(value);
   await db.run(
     "INSERT INTO app_data (key, value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
-    [key, JSON.stringify(value)]
+    [key, encoded]
   );
+  dataCache.set(key, encoded);
   backupDatabase().catch(() => {});
 }
 
@@ -871,14 +933,19 @@ function createApp() {
         return res.status(401).json({ error: "Identifiant ou mot de passe incorrect" });
       }
 
-      const member = await findMemberById(user.id);
+      const members = (await getData(MEMBERS_KEY)) || [];
+      const member = members.find((m) => m.id === user.id) || null;
       if (!member) {
         return res.status(401).json({ error: "Membre introuvable" });
       }
 
+      const ownerId = findOwnerInMembers(members)?.id || getOwnerFallbackMember()?.id || null;
+      const adminIds = (await getData(ADMIN_IDS_KEY)) || [];
       req.session.userId = user.id;
       req.session.memberName = member.name;
-      req.session.isAdmin = await isAdminId(user.id);
+      req.session.isAdmin = Boolean(
+        (ownerId && user.id === ownerId) || (Array.isArray(adminIds) && adminIds.includes(user.id))
+      );
       req.session.mustChangePassword = Boolean(user.must_change_password);
       req.session.lastSeen = Date.now();
 
@@ -1136,16 +1203,7 @@ function createApp() {
 
   app.get("/api/data", requireAuth, async (req, res) => {
     try {
-      const data = {};
-      for (const key of STORAGE_KEYS) {
-        try {
-          const value = await getData(key);
-          if (value !== null) data[key] = value;
-        } catch (err) {
-          console.warn("Lecture clé impossible :", key, err.message);
-        }
-      }
-      res.json(data);
+      res.json(await getAllStoredData());
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Erreur serveur" });
@@ -1316,6 +1374,7 @@ function createApp() {
 async function main() {
   await db.init();
   await seedDatabase();
+  await hydrateDataCache();
   await push.ensureVapidKeys();
 
   const app = createApp();

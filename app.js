@@ -103,6 +103,7 @@ const LOAN_INTEREST_RATE = 0.1;
 const REPAYMENT_MONTH1_RATIO = 0.8;
 const PENDING_VOTE_STATUSES = ["voting", "awaiting_financier"];
 const BORROWER_ACTIVE_STATUSES = ["voting", "awaiting_financier", "active", "defaulted"];
+const GRANTED_LOAN_STATUSES = ["active", "defaulted", "completed"];
 
 const ROLES = [
   { id: "president", label: "Président", short: "Président" },
@@ -2797,57 +2798,72 @@ function setupLoginForm() {
 }
 
 async function loginMember(name, password) {
+  if (loginForm?.dataset.busy === "1") return false;
+
+  const submitBtn = loginForm?.querySelector('button[type="submit"]');
+  const submitLabel = submitBtn?.textContent;
   loginError.hidden = true;
-  try {
-    await apiLogin(name.trim(), password);
-  } catch (err) {
-    loginError.textContent = err.message || "Identifiant ou mot de passe incorrect.";
-    loginError.hidden = false;
-    return false;
+  if (loginForm) loginForm.dataset.busy = "1";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Connexion…";
   }
 
   try {
-    await loadDataFromServer();
-  } catch (err) {
-    console.warn("Chargement des données après connexion :", err);
-  }
-
-  try {
-    if (typeof potoPullSharedUpdates === "function") await potoPullSharedUpdates();
-    reloadFromStorage();
-    if (typeof potoStartPeriodicSync === "function") potoStartPeriodicSync();
-    startOnlinePolling();
-    ensureDefaultAdmin();
-    if (authState.member) {
-      authState.member.isAdmin = isMemberAdmin(authState.member.id);
+    try {
+      await apiLogin(name.trim(), password);
+    } catch (err) {
+      loginError.textContent = err.message || "Identifiant ou mot de passe incorrect.";
+      loginError.hidden = false;
+      return false;
     }
 
     loginModal.classList.remove("open");
-
     if (authState.mustChangePassword) {
       openChangePasswordModal();
     } else {
       appEl.classList.remove("app-blurred");
     }
+    updateSessionUI();
 
-    updateSessionUI();
-    render();
-    maybeShowInstallBanner();
-    pushSetupStarted = false;
-    setupPushNotifications();
-    applyNotificationDeepLink();
-  } catch (err) {
-    console.warn("Affichage après connexion :", err);
-    loginModal.classList.remove("open");
-    appEl.classList.remove("app-blurred");
-    updateSessionUI();
     try {
+      await loadDataFromServer();
+    } catch (err) {
+      console.warn("Chargement des données après connexion :", err);
+    }
+
+    try {
+      reloadFromStorage();
+      if (typeof potoStartPeriodicSync === "function") potoStartPeriodicSync();
+      startOnlinePolling();
+      ensureDefaultAdmin();
+      if (authState.member) {
+        authState.member.isAdmin = isMemberAdmin(authState.member.id);
+      }
+      updateSessionUI();
       render();
-    } catch (renderErr) {
-      console.warn("Rendu après connexion :", renderErr);
+      maybeShowInstallBanner();
+      pushSetupStarted = false;
+      setupPushNotifications();
+      applyNotificationDeepLink();
+    } catch (err) {
+      console.warn("Affichage après connexion :", err);
+      appEl.classList.remove("app-blurred");
+      updateSessionUI();
+      try {
+        render();
+      } catch (renderErr) {
+        console.warn("Rendu après connexion :", renderErr);
+      }
+    }
+    return true;
+  } finally {
+    if (loginForm) delete loginForm.dataset.busy;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      if (submitLabel) submitBtn.textContent = submitLabel;
     }
   }
-  return true;
 }
 
 async function changeMemberPassword(currentPassword, newPassword, confirmPassword) {
@@ -3074,6 +3090,30 @@ function formatFriendlyDate(dateStr) {
   if (diffDays === 1) return "Hier";
   if (diffDays > 1 && diffDays < 7) return `Il y a ${diffDays} jours`;
   return formatDate(String(dateStr).split("T")[0]);
+}
+
+function toDateInputValue(iso) {
+  const raw = String(iso || "");
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return "";
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function combineDateWithTime(ymd, previousIso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(ymd || ""))) return null;
+  const previous = String(previousIso || "");
+  const timePart = previous.includes("T") ? previous.slice(previous.indexOf("T") + 1) : "12:00:00.000Z";
+  const next = `${ymd}T${timePart}`;
+  if (Number.isNaN(new Date(next).getTime())) return null;
+  return next;
+}
+
+function isGrantedLoan(loan) {
+  return Boolean(loan && GRANTED_LOAN_STATUSES.includes(loan.status));
 }
 
 function getRoleLabel(roleId) {
@@ -5247,6 +5287,33 @@ function getLoanDueDates(loan) {
   return { month1, month2 };
 }
 
+function updateLoanRequestDate(loanId, ymd) {
+  if (!canManagePretsActions()) {
+    alert("Seul le Financier ou un administrateur peut modifier la date de demande.");
+    return;
+  }
+
+  const loan = getLoanById(loanId);
+  if (!loan || !isGrantedLoan(loan)) return;
+
+  const nextIso = combineDateWithTime(ymd, loan.createdAt);
+  if (!nextIso) {
+    alert("Date invalide.");
+    return;
+  }
+  if (toDateInputValue(loan.createdAt) === ymd) return;
+
+  loan.createdAt = nextIso;
+  loan.updatedAt = new Date().toISOString();
+  savePrets();
+  if (typeof window.flushPotoServerSync === "function") {
+    window.flushPotoServerSync();
+  } else if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+  showPretSaveMessage(`Date de demande mise à jour : ${formatFriendlyDate(ymd)}.`);
+}
+
 const pendingPushMessages = [];
 
 function queuePushMessage(memberId, payload) {
@@ -6258,12 +6325,24 @@ function renderPrets() {
   }
 }
 
+function buildLoanRequestDateEditor(loan) {
+  if (!canManagePretsActions() || !isGrantedLoan(loan)) return "";
+  const value = toDateInputValue(loan.createdAt);
+  return `
+    <label class="pret-request-date-label">
+      Date de demande
+      <input type="date" class="pret-request-date-input" data-loan-id="${escapeHtml(loan.id)}" value="${escapeHtml(value)}" aria-label="Date de demande du prêt" />
+    </label>
+  `;
+}
+
 function buildAdminPretActionsHtml(loan) {
   const balance = getLoanBalance(loan);
   const dueDates = getLoanDueDates(loan);
   const isOpen = loan.status === "active" || loan.status === "defaulted";
   return `
     <div class="amende-admin-actions">
+      ${buildLoanRequestDateEditor(loan)}
       ${
         dueDates && isOpen
           ? `<p class="pret-due-dates">Échéance 80 % : ${formatDate(dueDates.month1.toISOString().split("T")[0])} · Solde : ${formatDate(dueDates.month2.toISOString().split("T")[0])}</p>`
@@ -6362,7 +6441,7 @@ function buildAdminPretLedgerRows() {
       return {
         loan,
         id: loan.id,
-        date: loan.approvedAt || loan.createdAt,
+        date: loan.createdAt,
         type: "pret",
         detail: note ? `${member?.name || "—"} — ${note}` : member?.name || "—",
         original,
@@ -6370,7 +6449,7 @@ function buildAdminPretLedgerRows() {
         remaining,
         settled,
         statusLabel: getPretStatusLabel(loan.status),
-        sortAt: loan.approvedAt || loan.createdAt,
+        sortAt: loan.createdAt,
       };
     })
     .sort((a, b) => {
@@ -6409,7 +6488,7 @@ function renderAdminPretLedger() {
         row.loan.status === "rejected" ? "is-rejected" : row.settled ? "is-paid" : "is-open";
       return `
         <tr id="loan-${escapeHtml(row.id)}" class="${row.settled ? "is-settled" : ""}">
-          <td class="amende-col-date" data-label="Date">${escapeHtml(formatFriendlyDate(row.date))}</td>
+          <td class="amende-col-date" data-label="Date de demande">${escapeHtml(formatFriendlyDate(row.date))}</td>
           <td class="amende-col-type" data-label="Type">${escapeHtml(getAmendeTypeLabel(row.type))}</td>
           <td class="amende-col-detail" data-label="Détail">${escapeHtml(row.detail || "—")}</td>
           <td class="num amende-col-amount" data-label="Montant">${formatEuro(row.original)}</td>
@@ -8489,8 +8568,16 @@ async function handlePretActionClick(e) {
   if (deletePretBtn) deletePret(deletePretBtn.dataset.loanId);
 }
 
+function handlePretRequestDateChange(e) {
+  const input = e.target.closest(".pret-request-date-input");
+  if (!input) return;
+  updateLoanRequestDate(input.dataset.loanId, input.value);
+}
+
 document.getElementById("tab-prets")?.addEventListener("click", handlePretActionClick);
 document.getElementById("tab-admin")?.addEventListener("click", handlePretActionClick);
+document.getElementById("tab-prets")?.addEventListener("change", handlePretRequestDateChange);
+document.getElementById("tab-admin")?.addEventListener("change", handlePretRequestDateChange);
 
 adminForm?.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -8874,6 +8961,7 @@ async function initApp() {
     if (document.getElementById("tab-admin")?.classList.contains("active")) {
       if (activeAdminSub === "ancienne-tournee") renderAncienneTourneeDettesAdmin();
       if (activeAdminSub === "communication") renderCommunication();
+      if (activeAdminSub === "prets") renderAdminPrets();
       if (activeAdminSub === "caisse") {
         renderFondCaissePanel();
         renderAutreArgent();
