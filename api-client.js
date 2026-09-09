@@ -191,6 +191,23 @@ function mergeById(existing, incoming) {
   return [...map.values()].sort((a, b) => itemTimestamp(b) - itemTimestamp(a));
 }
 
+function mergeLoansPreferringNewer(existing, incoming) {
+  const incomingList = Array.isArray(incoming) ? incoming : [];
+  const existingList = Array.isArray(existing) ? existing : [];
+  const localById = new Map(existingList.filter((loan) => loan?.id).map((loan) => [loan.id, loan]));
+  return incomingList.map((loan) => {
+    if (!loan?.id) return loan;
+    const local = localById.get(loan.id);
+    if (!local) return loan;
+    const localTime = new Date(local.updatedAt || 0).getTime();
+    const serverTime = new Date(loan.updatedAt || 0).getTime();
+    if (Number.isFinite(localTime) && localTime > (Number.isFinite(serverTime) ? serverTime : 0)) {
+      return local;
+    }
+    return loan;
+  });
+}
+
 function writeServerDataToLocal(serverData) {
   Object.entries(serverData || {}).forEach(([key, value]) => {
     if (!API_SYNC_KEYS.has(key)) return;
@@ -199,6 +216,11 @@ function writeServerDataToLocal(serverData) {
         const raw = localStorage.getItem(key);
         const local = raw ? JSON.parse(raw) : [];
         value = mergeById(Array.isArray(local) ? local : [], Array.isArray(value) ? value : []);
+      }
+      if (key === "poto-timide-prets") {
+        const raw = localStorage.getItem(key);
+        const local = raw ? JSON.parse(raw) : [];
+        value = mergeLoansPreferringNewer(local, value);
       }
       rawSetItem(key, JSON.stringify(value));
     } catch (err) {
@@ -296,7 +318,7 @@ function startPeriodicSync() {
     if (!authState.loggedIn) return;
     await flushServerSync();
     await pullSharedUpdatesFromServer();
-  }, 4000);
+  }, 1500);
 }
 
 function stopPeriodicSync() {

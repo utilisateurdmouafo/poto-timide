@@ -910,14 +910,14 @@ function buildFinancePretRows() {
       const member = getMemberById(loan.borrowerId);
       return {
         id: loan.id,
-        date: loan.approvedAt || loan.createdAt,
+        date: getLoanRequestDate(loan),
         type: "pret",
         detail: member?.name || "—",
         original,
         repaid,
         remaining,
         settled: loan.status === "completed" || remaining <= 0,
-        sortAt: loan.approvedAt || loan.createdAt,
+        sortAt: getLoanRequestDate(loan),
       };
     })
     .sort((a, b) => {
@@ -4613,6 +4613,25 @@ function buildMesDettesRows(memberId) {
     });
   });
 
+  prets
+    .filter((loan) => loan.borrowerId === memberId && ["active", "defaulted", "completed"].includes(loan.status))
+    .forEach((loan) => {
+      const remaining = Math.round((getLoanBalance(loan) || 0) * 100) / 100;
+      const repaid = Math.round((Number(loan.totalRepaid) || 0) * 100) / 100;
+      const original = Math.round((Number(loan.amount) || 0) * 100) / 100;
+      rows.push({
+        id: `pret-${loan.id}`,
+        date: getLoanRequestDate(loan),
+        type: "pret",
+        detail: String(loan.note || "").trim() || "Prêt",
+        original,
+        repaid,
+        remaining,
+        settled: loan.status === "completed" || remaining <= 0,
+        sortAt: getLoanRequestDate(loan),
+      });
+    });
+
   rows.sort((a, b) => {
     if (a.settled !== b.settled) return a.settled ? 1 : -1;
     return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
@@ -4649,7 +4668,7 @@ function renderMesDettes() {
   if (detteTitle) detteTitle.textContent = "Mes dettes";
   if (detteSubtitle) {
     detteSubtitle.hidden = false;
-    detteSubtitle.textContent = "Tout ce que tu dois encore : événements, ancienne tournée, cotisations ouvertes.";
+    detteSubtitle.textContent = "Tout ce que tu dois encore : prêts, événements, ancienne tournée, cotisations ouvertes.";
   }
   renderLedgerHero(detteSummary, {
     total,
@@ -5058,7 +5077,10 @@ function loadNotifications() {
 
 function savePrets(shouldRender = true) {
   localStorage.setItem(PRETS_KEY, JSON.stringify(prets));
-  if (shouldRender) renderPrets();
+  if (!shouldRender) return;
+  renderPrets();
+  renderMesDettes();
+  if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
 }
 
 function saveNotifications(shouldRender = true) {
@@ -5282,7 +5304,11 @@ function getLoanDueDates(loan) {
   return { month1, month2 };
 }
 
-function updateLoanRequestDate(loanId, ymd) {
+function getLoanRequestDate(loan) {
+  return loan?.createdAt || loan?.approvedAt || "";
+}
+
+async function updateLoanRequestDate(loanId, ymd) {
   if (!canManagePretsActions()) {
     alert("Seul le Financier ou un administrateur peut modifier la date de demande.");
     return;
@@ -5291,20 +5317,29 @@ function updateLoanRequestDate(loanId, ymd) {
   const loan = getLoanById(loanId);
   if (!loan) return;
 
-  const nextIso = combineDateWithTime(ymd, loan.createdAt);
-  if (!nextIso) {
+  const nextCreated = combineDateWithTime(ymd, loan.createdAt);
+  if (!nextCreated) {
     alert("Date invalide.");
     return;
   }
-  if (toDateInputValue(loan.createdAt) === ymd) return;
+  if (toDateInputValue(getLoanRequestDate(loan)) === ymd) return;
 
-  loan.createdAt = nextIso;
+  loan.createdAt = nextCreated;
   loan.updatedAt = new Date().toISOString();
   savePrets();
-  if (typeof window.flushPotoServerSync === "function") {
-    window.flushPotoServerSync();
-  } else if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
+  try {
+    localStorage.setItem("poto-timide-data-revision", JSON.stringify(Date.now()));
+  } catch {
+    /* ignore */
+  }
+
+  const flush = window.flushPotoServerSync || window.potoFlushSync;
+  if (typeof flush === "function") {
+    try {
+      await flush();
+    } catch (err) {
+      console.warn("Synchronisation de la date de prêt :", err);
+    }
   }
   showPretSaveMessage(`Date de demande mise à jour : ${formatFriendlyDate(ymd)}.`);
 }
@@ -6220,7 +6255,7 @@ function buildLoanCard(loan, mode) {
         <span class="pret-loan-status">${getPretStatusLabel(loan.status)}</span>
       </div>
       ${loan.note ? `<p class="pret-loan-note">${escapeHtml(loan.note)}</p>` : ""}
-      <p class="pret-loan-date">Demandé le ${formatDate(loan.createdAt.split("T")[0])}</p>
+      <p class="pret-loan-date">Demandé le ${formatDate(toDateInputValue(getLoanRequestDate(loan)))}</p>
       ${voteSection}
       ${financierSection}
       ${activeSection}
@@ -6321,9 +6356,9 @@ function renderPrets() {
 }
 
 function buildAdminRequestDateCell(loan) {
-  const label = formatFriendlyDate(loan?.createdAt);
+  const label = formatFriendlyDate(getLoanRequestDate(loan));
   if (!canManagePretsActions() || !loan) return escapeHtml(label);
-  const value = toDateInputValue(loan.createdAt);
+  const value = toDateInputValue(getLoanRequestDate(loan));
   return `
     <label class="pret-date-cell">
       <span class="pret-date-cell-text">${escapeHtml(label)}</span>
@@ -6408,7 +6443,7 @@ function loanToLedgerRow(loan, mode) {
   return {
     id: loan.id,
     domId: `loan-${loan.id}`,
-    date: loan.approvedAt || loan.createdAt,
+    date: getLoanRequestDate(loan),
     type: "pret",
     detail: note ? `${member?.name || "—"} — ${note}` : member?.name || "—",
     original,
@@ -6418,7 +6453,7 @@ function loanToLedgerRow(loan, mode) {
     statusLabel: getPretStatusLabel(loan.status),
     chipClass,
     actions,
-    sortAt: loan.approvedAt || loan.createdAt,
+    sortAt: getLoanRequestDate(loan),
   };
 }
 
@@ -6436,7 +6471,7 @@ function buildAdminPretLedgerRows() {
       return {
         loan,
         id: loan.id,
-        date: loan.createdAt,
+        date: getLoanRequestDate(loan),
         type: "pret",
         detail: note ? `${member?.name || "—"} — ${note}` : member?.name || "—",
         original,
@@ -6444,7 +6479,7 @@ function buildAdminPretLedgerRows() {
         remaining,
         settled,
         statusLabel: getPretStatusLabel(loan.status),
-        sortAt: loan.createdAt,
+        sortAt: getLoanRequestDate(loan),
       };
     })
     .sort((a, b) => {
@@ -8959,9 +8994,7 @@ async function initApp() {
     if (document.getElementById("tab-prets")?.classList.contains("active")) {
       renderPrets();
     }
-    if (document.getElementById("tab-dettes")?.classList.contains("active")) {
-      renderMesDettes();
-    }
+    renderMesDettes();
     if (document.getElementById("tab-amendes")?.classList.contains("active")) {
       renderMesAmendes();
     }
