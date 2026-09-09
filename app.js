@@ -3112,33 +3112,33 @@ function fitTablesToScreen(scope) {
   root.querySelectorAll(".amende-table-wrap").forEach((wrap) => {
     const table = wrap.querySelector("table.amende-table");
     if (!table) return;
-    table.style.transform = "none";
-    table.style.width = "";
-    table.style.fontSize = "";
-    wrap.style.height = "";
-    if (window.innerWidth > 900) return;
+
+    if (window.innerWidth > 900) {
+      if (table.style.transform || table.style.width || wrap.style.height) {
+        table.style.transform = "";
+        table.style.width = "";
+        wrap.style.height = "";
+      }
+      return;
+    }
 
     table.style.width = "max-content";
     const avail = wrap.clientWidth;
     if (!avail) return;
-    const need = Math.max(table.scrollWidth, table.offsetWidth);
-    if (need <= avail + 1) {
-      table.style.width = "100%";
-      return;
-    }
-    const scale = Math.min(1, avail / need);
+    const need = table.scrollWidth || table.offsetWidth;
+    const scale = need > avail + 1 ? avail / need : 1;
+    const nextTransform = scale < 0.999 ? `scale(${scale})` : "";
+    const nextHeight = scale < 0.999 ? `${Math.round(table.scrollHeight * scale)}px` : "";
+    if (table.style.transform === nextTransform && wrap.style.height === nextHeight) return;
     table.style.transformOrigin = "left top";
-    table.style.transform = `scale(${scale})`;
-    wrap.style.height = `${Math.ceil(table.scrollHeight * scale)}px`;
+    table.style.transform = nextTransform;
+    wrap.style.height = nextHeight;
   });
 }
 
-let fitTablesTimer = 0;
+let lastFitViewportWidth = 0;
 function scheduleFitTables() {
-  clearTimeout(fitTablesTimer);
-  fitTablesTimer = setTimeout(() => {
-    requestAnimationFrame(() => fitTablesToScreen());
-  }, 40);
+  fitTablesToScreen();
 }
 
 function toDateInputValue(iso) {
@@ -8768,8 +8768,19 @@ document.getElementById("tab-admin")?.addEventListener("change", handlePretReque
 document.getElementById("tab-admin")?.addEventListener("click", handlePretRequestDateClick);
 document.getElementById("tab-admin")?.addEventListener("focusout", handlePretRequestDateFocusOut);
 
-window.addEventListener("resize", scheduleFitTables);
-window.addEventListener("orientationchange", scheduleFitTables);
+lastFitViewportWidth = window.innerWidth;
+window.addEventListener("resize", () => {
+  if (window.innerWidth === lastFitViewportWidth) return;
+  lastFitViewportWidth = window.innerWidth;
+  fitTablesToScreen();
+});
+window.addEventListener("orientationchange", () => {
+  lastFitViewportWidth = 0;
+  setTimeout(() => {
+    lastFitViewportWidth = window.innerWidth;
+    fitTablesToScreen();
+  }, 250);
+});
 
 adminForm?.addEventListener("submit", (e) => {
   e.preventDefault();
