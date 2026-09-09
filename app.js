@@ -6416,7 +6416,7 @@ function buildLoanCard(loan, mode) {
       ${activeSection}
       ${
         mode === "active" && balance > 0
-          ? `<p class="pret-balance">Reste à payer : <strong>${formatEuro(balance)}</strong></p>${buildFinancierPayInline()}`
+          ? `<p class="pret-balance">Reste à payer : <strong>${formatEuro(balance)}</strong></p>`
           : ""
       }
       ${mode === "history" ? buildLoanRepaymentsBlock(loan) : ""}
@@ -6539,9 +6539,7 @@ function buildAdminPretActionsHtml(loan) {
               <input type="number" class="pret-repay-input" data-loan-id="${loan.id}" min="0.5" step="0.5" max="${balance}" placeholder="Montant" inputmode="decimal" aria-label="Montant remboursé, reste ${formatEuro(balance)}" />
               <button type="button" class="btn-primary btn-pret-repay" data-loan-id="${loan.id}">Valider</button>
             </div>`
-          : isOpen && balance > 0
-            ? buildFinancierPayInline()
-            : ""
+          : ""
       }
       ${buildLoanRepaymentsBlock(loan)}
       ${buildFinancierActions(loan)}
@@ -7275,7 +7273,6 @@ function buildEvenementMemberSummary(member) {
         <span>Reste à payer</span>
         <strong>${formatEuro(totalRemaining)}</strong>
       </div>
-      ${totalRemaining > 0 ? buildFinancierPayInline() : ""}
     </div>
   `;
 }
@@ -7324,8 +7321,7 @@ function buildEvenementMemberCard(evt, current) {
                    <strong>${formatEuro(share)}</strong>
                    <span class="evenement-status evenement-debt">Dette</span>
                  </div>
-                 <p class="evenement-debt-note">Voir le détail dans l'onglet Mes dettes.</p>
-                 ${buildFinancierPayInline()}`
+                 <p class="evenement-debt-note">Voir le détail dans l'onglet Mes dettes.</p>`
               : `<p class="evenement-contribution-label">Votre cotisation</p>
                  <div class="evenement-contribution-amount">
                    <strong>${formatEuro(share)}</strong>
@@ -7341,8 +7337,7 @@ function buildEvenementMemberCard(evt, current) {
                    myPaid && myPaidAmount > share
                      ? `<p class="evenement-extra-note">+${formatEuro(myPaidAmount - share)} de plus que la cotisation.</p>`
                      : ""
-                 }
-                 ${!myPaid ? buildFinancierPayInline() : ""}`
+                 }`
         }
       </div>
     </article>
@@ -7604,7 +7599,7 @@ function buildMemberEvenementLedgerRows(current) {
           settled: false,
           statusLabel: "Dette",
           chipClass: "is-open",
-          actions: `<p class="evenement-debt-note">Voir Mes dettes.</p>${buildFinancierPayInline()}`,
+          actions: `<p class="evenement-debt-note">Voir Mes dettes.</p>`,
         };
       }
       return {
@@ -7620,7 +7615,7 @@ function buildMemberEvenementLedgerRows(current) {
         settled: paid,
         statusLabel: paid ? "Payé" : "À payer",
         chipClass: paid ? "is-paid" : "is-open",
-        actions: paid ? "" : buildFinancierPayInline(),
+        actions: "",
       };
     });
 }
