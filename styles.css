@@ -5767,8 +5767,42 @@ textarea {
 
 .amende-table-admin .pret-repay-input {
   width: 5rem;
+  height: 2rem;
   min-height: 2rem;
-  padding: 0.25rem 0.4rem;
+  padding: 0 0.4rem;
+  box-sizing: border-box;
+}
+
+.amende-table .pret-financier-controls {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.amende-table .amende-admin-actions .btn-primary,
+.amende-table .amende-admin-actions .btn-secondary,
+.amende-table .amende-admin-actions .btn-pret-delete {
+  height: 2rem;
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  font-size: 0.78rem;
+  line-height: 1;
+  box-sizing: border-box;
+  border-width: 1px;
+  border-style: solid;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+.amende-table .amende-admin-actions .btn-primary {
+  border-color: var(--primary);
 }
 
 .amende-table .pret-repay-history {
@@ -5808,10 +5842,15 @@ textarea {
 
 .amende-table-admin .pret-repay-input {
   width: 5.2rem;
+  height: 2rem;
+  min-height: 2rem;
 }
 
 .amende-table-admin .pret-financier-controls {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  margin: 0;
+  padding: 0;
+  border: 0;
 }
 
 .amende-table-admin .pret-repay-history {
