@@ -8673,6 +8673,168 @@ function toggleAppMenu() {
   else openAppMenu();
 }
 
+function setupMenuSwipe() {
+  const EDGE = 40;
+  let startX = 0;
+  let startY = 0;
+  let lastX = 0;
+  let tracking = false;
+  let mode = "";
+  let committed = false;
+
+  function drawerEl() {
+    return document.getElementById("appNav");
+  }
+
+  function drawerWidth() {
+    return drawerEl()?.offsetWidth || Math.min(window.innerWidth * 0.78, 296);
+  }
+
+  function loginBlocksSwipe() {
+    return Boolean(loginModal?.classList.contains("open") || document.getElementById("changePasswordModal")?.classList.contains("open"));
+  }
+
+  function isHorizScrollable(el) {
+    let node = el;
+    while (node && node !== document.body) {
+      if (node instanceof HTMLElement) {
+        const style = getComputedStyle(node);
+        if ((style.overflowX === "auto" || style.overflowX === "scroll") && node.scrollWidth > node.clientWidth + 12) {
+          return true;
+        }
+      }
+      node = node.parentElement;
+    }
+    return false;
+  }
+
+  function setProgress(progress) {
+    const nav = drawerEl();
+    if (!nav) return;
+    const p = Math.max(0, Math.min(1, progress));
+    nav.classList.add("menu-swiping");
+    nav.style.visibility = p > 0.02 ? "visible" : "hidden";
+    nav.style.pointerEvents = "none";
+    nav.style.transform = `translateX(${((1 - p) * 110).toFixed(2)}%)`;
+    if (appNavBackdrop) {
+      appNavBackdrop.style.display = p > 0.02 ? "block" : "none";
+      appNavBackdrop.style.opacity = String(p);
+      appNavBackdrop.style.pointerEvents = "none";
+    }
+  }
+
+  function clearSwipeStyles() {
+    const nav = drawerEl();
+    if (nav) {
+      nav.classList.remove("menu-swiping");
+      nav.style.visibility = "";
+      nav.style.pointerEvents = "";
+      nav.style.transform = "";
+    }
+    if (appNavBackdrop) {
+      appNavBackdrop.style.display = "";
+      appNavBackdrop.style.opacity = "";
+      appNavBackdrop.style.pointerEvents = "";
+    }
+  }
+
+  document.addEventListener(
+    "touchstart",
+    (e) => {
+      if (!isPhoneNav() || e.touches.length !== 1) return;
+      if (loginBlocksSwipe()) return;
+      if (document.body.classList.contains("admin-menu-open")) return;
+      const target = e.target;
+      if (target instanceof Element && target.closest("input, textarea, select")) return;
+      const touch = e.touches[0];
+      startX = touch.clientX;
+      startY = touch.clientY;
+      lastX = touch.clientX;
+      committed = false;
+      const menuOpen = document.body.classList.contains("app-menu-open");
+      if (menuOpen) {
+        tracking = true;
+        mode = "close";
+        return;
+      }
+      if (isHorizScrollable(target)) {
+        tracking = false;
+        return;
+      }
+      if (startX >= window.innerWidth - EDGE) {
+        tracking = true;
+        mode = "open";
+        return;
+      }
+      tracking = true;
+      mode = "maybe-open";
+    },
+    { passive: true }
+  );
+
+  document.addEventListener(
+    "touchmove",
+    (e) => {
+      if (!tracking) return;
+      const touch = e.touches[0];
+      lastX = touch.clientX;
+      const dx = lastX - startX;
+      const dy = touch.clientY - startY;
+      if (!committed && Math.abs(dy) > 18 && Math.abs(dy) > Math.abs(dx) + 8) {
+        tracking = false;
+        if (mode === "open") clearSwipeStyles();
+        return;
+      }
+      if (mode === "maybe-open") {
+        if (dx > -24) return;
+        if (startX < window.innerWidth * 0.55) {
+          tracking = false;
+          return;
+        }
+        mode = "open";
+      }
+      committed = true;
+      if (e.cancelable) e.preventDefault();
+      const width = drawerWidth();
+      if (mode === "open") setProgress(Math.max(0, Math.min(1, -dx / width)));
+      else if (mode === "close") setProgress(Math.max(0, Math.min(1, 1 - dx / width)));
+    },
+    { passive: false }
+  );
+
+  document.addEventListener(
+    "touchend",
+    () => {
+      if (!tracking) return;
+      const dx = lastX - startX;
+      const width = drawerWidth();
+      const wasOpening = mode === "open";
+      tracking = false;
+      mode = "";
+      if (wasOpening) {
+        if (-dx > Math.min(56, width * 0.25)) {
+          clearSwipeStyles();
+          openAppMenu();
+        } else {
+          clearSwipeStyles();
+          closeAppMenu();
+        }
+        return;
+      }
+      if (dx > Math.min(48, width * 0.2)) {
+        clearSwipeStyles();
+        closeAppMenu();
+      } else {
+        clearSwipeStyles();
+        openAppMenu();
+      }
+    },
+    { passive: true }
+  );
+}
+
+setupMenuSwipe();
+
 menuToggle?.addEventListener("click", (e) => {
   e.stopPropagation();
   toggleAppMenu();

@@ -6675,6 +6675,11 @@ html.phone-nav .menu-toggle-icon {
 }
 
 @media (max-width: 900px) {
+  html,
+  body {
+    overscroll-behavior-x: none;
+  }
+
   body.app-menu-open {
     overflow: hidden;
   }
@@ -6786,6 +6791,11 @@ html.phone-nav .menu-toggle-icon {
     transform: translateX(0);
     visibility: visible;
     pointer-events: auto;
+  }
+
+  .header-inner.menu-swiping {
+    transition: none;
+    visibility: visible;
   }
 
   .app-nav-user {
