@@ -8784,8 +8784,10 @@ function setupMenuSwipe() {
       const dx = lastX - startX;
       const width = drawerWidth();
       const wasOpening = mode === "open";
+      const wasClosing = mode === "close";
       tracking = false;
       mode = "";
+      if (!committed) return;
       if (wasOpening) {
         if (-dx > Math.min(56, width * 0.25)) {
           clearSwipeStyles();
@@ -8796,6 +8798,7 @@ function setupMenuSwipe() {
         }
         return;
       }
+      if (!wasClosing) return;
       if (dx > Math.min(48, width * 0.2)) {
         clearSwipeStyles();
         closeAppMenu();
