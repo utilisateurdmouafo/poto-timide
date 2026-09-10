@@ -386,6 +386,30 @@ function getDefaultMembers() {
     }));
 }
 
+function unwrapSynced(parsed, fallback) {
+  if (parsed == null) return fallback;
+  if (
+    parsed &&
+    typeof parsed === "object" &&
+    !Array.isArray(parsed) &&
+    Object.prototype.hasOwnProperty.call(parsed, "data") &&
+    parsed.updatedAt
+  ) {
+    return parsed.data;
+  }
+  return parsed;
+}
+
+function readSynced(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw == null || raw === "") return fallback;
+    return unwrapSynced(JSON.parse(raw), fallback);
+  } catch {
+    return fallback;
+  }
+}
+
 function migrateDariosToDario(list) {
   let changed = false;
   list.forEach((member) => {
@@ -402,24 +426,19 @@ function migrateDariosToDario(list) {
 
 function loadMembers() {
   try {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (data) return migrateDariosToDario(JSON.parse(data));
+    const parsed = readSynced(STORAGE_KEY, null);
+    if (Array.isArray(parsed)) return migrateDariosToDario(parsed);
   } catch {
     /* ignore corrupted storage */
   }
-
-  const defaults = getDefaultMembers();
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(defaults));
-  return defaults;
+  return getDefaultMembers();
 }
 
 function loadAdminIds() {
   try {
-    const data = localStorage.getItem(ADMIN_IDS_KEY);
-    if (data) {
-      const parsed = JSON.parse(data);
-      if (Array.isArray(parsed)) return parsed;
-    }
+    const parsed = readSynced(ADMIN_IDS_KEY, []);
+    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed?.ids)) return parsed.ids;
   } catch {
     /* ignore corrupted storage */
   }
@@ -427,7 +446,13 @@ function loadAdminIds() {
 }
 
 function saveAdminIds(shouldRender = true) {
-  localStorage.setItem(ADMIN_IDS_KEY, JSON.stringify(adminIds));
+  localStorage.setItem(
+    ADMIN_IDS_KEY,
+    JSON.stringify({
+      ids: adminIds,
+      updatedAt: new Date().toISOString(),
+    })
+  );
   if (shouldRender) render();
 }
 
@@ -443,15 +468,10 @@ function isOwnerMember(memberOrId) {
 }
 
 function ensureDefaultAdmin() {
-  adminIds = adminIds.filter((id) => members.some((member) => member.id === id));
-  ensureOwnerAdmin();
-  if (adminIds.length > 0) return;
-
-  const owner = getOwnerMember();
-  if (owner) {
-    adminIds = [owner.id];
-    saveAdminIds(false);
+  if (members.length) {
+    adminIds = adminIds.filter((id) => members.some((member) => member.id === id));
   }
+  ensureOwnerAdmin();
 }
 
 function ensureOwnerAdmin() {
@@ -459,7 +479,6 @@ function ensureOwnerAdmin() {
   if (!owner) return;
   if (!adminIds.includes(owner.id)) {
     adminIds = [owner.id, ...adminIds.filter((id) => id !== owner.id)];
-    saveAdminIds(false);
   }
 }
 
@@ -469,18 +488,13 @@ function isMemberAdmin(memberId) {
 }
 
 function loadAutreArgent() {
-  try {
-    const data = localStorage.getItem(AUTRE_ARGENT_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
+  const parsed = readSynced(AUTRE_ARGENT_KEY, []);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 function loadAncienneTourneeDettes() {
   try {
-    const data = localStorage.getItem(ANCIENNE_TOURNEE_DETTES_KEY);
-    const raw = data ? JSON.parse(data) : [];
+    const raw = readSynced(ANCIENNE_TOURNEE_DETTES_KEY, []);
     if (Array.isArray(raw)) {
       return raw
         .filter((entry) => entry && entry.memberId && Number(entry.amount) > 0)
@@ -579,12 +593,8 @@ function buildAncienneTourneeRepayControls(entry) {
 }
 
 function loadFinance() {
-  try {
-    const data = localStorage.getItem(FINANCE_KEY);
-    return data ? JSON.parse(data) : null;
-  } catch {
-    return null;
-  }
+  const parsed = readSynced(FINANCE_KEY, null);
+  return parsed && typeof parsed === "object" ? parsed : null;
 }
 
 async function ensureFinanceData() {
@@ -600,7 +610,6 @@ async function ensureFinanceData() {
     const res = await fetch("/finance-vitran.json", { cache: "no-cache" });
     if (!res.ok) return;
     financeData = await res.json();
-    localStorage.setItem(FINANCE_KEY, JSON.stringify(financeData));
   } catch (err) {
     console.warn("Chargement finance-vitran.json impossible.", err);
   }
@@ -1016,8 +1025,7 @@ function saveAutreArgent(shouldRender = true) {
 
 function loadRoles() {
   try {
-    const data = localStorage.getItem(ROLES_KEY);
-    const raw = data ? JSON.parse(data) : {};
+    const raw = readSynced(ROLES_KEY, {});
     if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
     const { updatedAt, ...rolesOnly } = raw;
     return rolesOnly;
@@ -1028,9 +1036,8 @@ function loadRoles() {
 
 function loadCotisations() {
   try {
-    const data = localStorage.getItem(COTISATIONS_KEY);
-    const raw = data ? JSON.parse(data) : {};
-    return normalizeCotisations(raw);
+    const raw = readSynced(COTISATIONS_KEY, {});
+    return normalizeCotisations(raw && typeof raw === "object" ? raw : {});
   } catch {
     return {};
   }
@@ -1263,9 +1270,8 @@ function toggleTourneeBouffeOk(memberId) {
 
 function loadTourneeData() {
   try {
-    const data = localStorage.getItem(TOURNEE_KEY);
-    const raw = data ? JSON.parse(data) : { years: {} };
-    return normalizeTourneeData(raw);
+    const raw = readSynced(TOURNEE_KEY, { years: {} });
+    return normalizeTourneeData(raw && typeof raw === "object" ? raw : { years: {} });
   } catch {
     return { years: {} };
   }
@@ -1570,21 +1576,13 @@ function validateTourneeDraft() {
 }
 
 function loadAmendes() {
-  try {
-    const data = localStorage.getItem(AMENDES_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
+  const parsed = readSynced(AMENDES_KEY, []);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 function loadAmendesCaisse() {
-  try {
-    const data = localStorage.getItem(AMENDES_CAISSE_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
+  const parsed = readSynced(AMENDES_CAISSE_KEY, []);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 function saveAmendesCaisse() {
@@ -1606,9 +1604,7 @@ function getAmendeRepaidAmount(amende) {
 
 function loadFondCaisse() {
   try {
-    const data = localStorage.getItem(FOND_CAISSE_KEY);
-    if (data == null || data === "") return DEFAULT_FOND_CAISSE;
-    const value = JSON.parse(data);
+    const value = readSynced(FOND_CAISSE_KEY, DEFAULT_FOND_CAISSE);
     const amount = typeof value === "number" ? value : Number(value);
     if (!Number.isFinite(amount) || amount < 0) return DEFAULT_FOND_CAISSE;
     return Math.round(amount * 100) / 100;
@@ -1731,13 +1727,8 @@ function normalizeFinancierAccount(raw) {
 
 function loadFinancierAccount() {
   try {
-    const data = localStorage.getItem(FINANCIER_ACCOUNT_KEY);
-    const raw = data ? JSON.parse(data) : null;
-    const account = normalizeFinancierAccount(raw && typeof raw === "object" ? raw : null);
-    if (!String(raw?.iban || "").trim()) {
-      localStorage.setItem(FINANCIER_ACCOUNT_KEY, JSON.stringify(account));
-    }
-    return account;
+    const raw = readSynced(FINANCIER_ACCOUNT_KEY, null);
+    return normalizeFinancierAccount(raw && typeof raw === "object" ? raw : null);
   } catch {
     return { ...DEFAULT_FINANCIER_ACCOUNT };
   }
@@ -1856,8 +1847,7 @@ function renderFondCaissePanel() {
 
 function loadFondCaisseAnnuel() {
   try {
-    const data = localStorage.getItem(FOND_CAISSE_ANNUEL_KEY);
-    const raw = data ? JSON.parse(data) : null;
+    const raw = readSynced(FOND_CAISSE_ANNUEL_KEY, null);
     if (raw && raw.years && typeof raw.years === "object") {
       return { years: raw.years };
     }
@@ -2236,8 +2226,8 @@ function renderFondCaisseAnnuel() {
 
 function loadTabPermissions() {
   try {
-    const data = localStorage.getItem(TAB_PERMISSIONS_KEY);
-    const stored = data ? JSON.parse(data) : {};
+    const storedRaw = readSynced(TAB_PERMISSIONS_KEY, {});
+    const stored = storedRaw && typeof storedRaw === "object" && !Array.isArray(storedRaw) ? storedRaw : {};
     const merged = { ...DEFAULT_TAB_PERMISSIONS };
 
     MANAGEABLE_TABS.forEach((tab) => {
@@ -3389,7 +3379,7 @@ function renderAdminList() {
   });
 }
 
-function assignAdmin(memberId) {
+async function assignAdmin(memberId) {
   if (!requireGroupAdmin("nommer un administrateur")) return;
 
   const member = getMemberById(memberId);
@@ -3402,6 +3392,7 @@ function assignAdmin(memberId) {
 
   adminIds.push(memberId);
   saveAdminIds();
+  if (typeof potoFlushSync === "function") await potoFlushSync();
   if (adminForm) adminForm.reset();
 }
 
@@ -3425,6 +3416,7 @@ async function removeAdmin(memberId) {
 
   adminIds = adminIds.filter((id) => id !== memberId);
   saveAdminIds();
+  if (typeof potoFlushSync === "function") await potoFlushSync();
 
   const current = getCurrentMember();
   if (current?.id === memberId) {
@@ -5209,21 +5201,13 @@ function renderAmendesAdminHistory() {
 }
 
 function loadPrets() {
-  try {
-    const data = localStorage.getItem(PRETS_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
+  const parsed = readSynced(PRETS_KEY, []);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 function loadNotifications() {
-  try {
-    const data = localStorage.getItem(NOTIFICATIONS_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
+  const parsed = readSynced(NOTIFICATIONS_KEY, []);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 function savePrets(shouldRender = true) {
@@ -6872,12 +6856,8 @@ function renderAdminPrets() {
 }
 
 function loadEvenements() {
-  try {
-    const data = localStorage.getItem(EVENEMENTS_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
+  const parsed = readSynced(EVENEMENTS_KEY, []);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 function saveEvenements(shouldRender = true) {
@@ -7853,13 +7833,8 @@ function renderEvenements() {
 }
 
 function loadCommunicationPosts() {
-  try {
-    const data = localStorage.getItem(COMMUNICATION_KEY);
-    const parsed = data ? JSON.parse(data) : [];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  const parsed = readSynced(COMMUNICATION_KEY, []);
+  return Array.isArray(parsed) ? parsed : [];
 }
 
 async function saveCommunicationPosts() {
@@ -8528,7 +8503,7 @@ function purgeMemberReferences(memberId) {
   localStorage.setItem(EVENEMENTS_KEY, JSON.stringify(evenements));
   localStorage.setItem(PRETS_KEY, JSON.stringify(prets));
   localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
-  localStorage.setItem(ADMIN_IDS_KEY, JSON.stringify(adminIds));
+  saveAdminIds(false);
   localStorage.setItem(AUTRE_ARGENT_KEY, JSON.stringify(autreArgent));
   localStorage.setItem(ANCIENNE_TOURNEE_DETTES_KEY, JSON.stringify(ancienneTourneeDettes));
   localStorage.setItem(FOND_CAISSE_ANNUEL_KEY, JSON.stringify(fondCaisseAnnuel));

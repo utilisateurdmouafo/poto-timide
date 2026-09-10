@@ -208,6 +208,19 @@ function mergeLoansPreferringNewer(existing, incoming) {
   });
 }
 
+function unwrapLocalSynced(value) {
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.prototype.hasOwnProperty.call(value, "data") &&
+    value.updatedAt
+  ) {
+    return value.data;
+  }
+  return value;
+}
+
 function writeServerDataToLocal(serverData) {
   Object.entries(serverData || {}).forEach(([key, value]) => {
     if (!API_SYNC_KEYS.has(key)) return;
@@ -215,13 +228,15 @@ function writeServerDataToLocal(serverData) {
     try {
       if (key === "poto-timide-communication" || key === "poto-timide-notifications") {
         const raw = localStorage.getItem(key);
-        const local = raw ? JSON.parse(raw) : [];
-        value = mergeById(Array.isArray(local) ? local : [], Array.isArray(value) ? value : []);
+        const local = raw ? unwrapLocalSynced(JSON.parse(raw)) : [];
+        const incoming = unwrapLocalSynced(value);
+        value = mergeById(Array.isArray(local) ? local : [], Array.isArray(incoming) ? incoming : []);
       }
       if (key === "poto-timide-prets") {
         const raw = localStorage.getItem(key);
-        const local = raw ? JSON.parse(raw) : [];
-        value = mergeLoansPreferringNewer(local, value);
+        const local = raw ? unwrapLocalSynced(JSON.parse(raw)) : [];
+        const incoming = unwrapLocalSynced(value);
+        value = mergeLoansPreferringNewer(Array.isArray(local) ? local : [], Array.isArray(incoming) ? incoming : []);
       }
       rawSetItem(key, JSON.stringify(value));
     } catch (err) {
@@ -331,11 +346,33 @@ function stopPeriodicSync() {
   }
 }
 
+function stampSyncedValue(key, value) {
+  if (!API_SYNC_KEYS.has(key)) return value;
+  if (key === "poto-timide-data-revision") return value;
+  if (key === "poto-timide-communication" || key === "poto-timide-notifications") return value;
+  try {
+    const parsed = JSON.parse(value);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed) && parsed.updatedAt) {
+      return value;
+    }
+    if (Array.isArray(parsed) || typeof parsed === "number") {
+      return JSON.stringify({ data: parsed, updatedAt: new Date().toISOString() });
+    }
+    if (parsed && typeof parsed === "object") {
+      return JSON.stringify({ ...parsed, updatedAt: new Date().toISOString() });
+    }
+  } catch {
+    /* keep original */
+  }
+  return value;
+}
+
 function installStorageSync() {
   nativeSetItem = localStorage.setItem.bind(localStorage);
   localStorage.setItem = function patchedSetItem(key, value) {
-    nativeSetItem(key, value);
-    if (API_SYNC_KEYS.has(key)) queueServerSync(key, value);
+    const next = stampSyncedValue(key, value);
+    nativeSetItem(key, next);
+    if (API_SYNC_KEYS.has(key)) queueServerSync(key, next);
   };
 }
 

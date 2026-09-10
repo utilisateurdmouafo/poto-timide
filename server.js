@@ -88,6 +88,12 @@ const EMPTY_APP_DEFAULTS = {
 
 const MEMBERS_KEY = "poto-timide-members";
 const ADMIN_IDS_KEY = "poto-timide-admin-ids";
+
+function unwrapAdminIds(value) {
+  if (Array.isArray(value)) return [...value];
+  if (value && Array.isArray(value.ids)) return [...value.ids];
+  return [];
+}
 const ADMIN_NAME = "Dario";
 const OWNER_NAME = process.env.POTO_OWNER_NAME || ADMIN_NAME;
 
@@ -265,6 +271,19 @@ async function hydrateDataCache() {
   dataCacheHydrated = true;
 }
 
+function unwrapStored(value) {
+  if (
+    value &&
+    typeof value === "object" &&
+    !Array.isArray(value) &&
+    Object.prototype.hasOwnProperty.call(value, "data") &&
+    value.updatedAt
+  ) {
+    return value.data;
+  }
+  return value;
+}
+
 async function getAllStoredData() {
   if (!dataCacheHydrated) await hydrateDataCache();
   const data = {};
@@ -276,7 +295,7 @@ async function getAllStoredData() {
   return data;
 }
 
-async function getData(key) {
+async function getRawData(key) {
   if (dataCache.has(key)) return parseCachedValue(dataCache.get(key));
   if (dataCacheHydrated) return null;
 
@@ -287,6 +306,10 @@ async function getData(key) {
   }
   dataCache.set(key, row.value);
   return parseCachedValue(row.value);
+}
+
+async function getData(key) {
+  return unwrapStored(await getRawData(key));
 }
 
 async function setData(key, value) {
@@ -327,24 +350,26 @@ function objectUpdatedAt(value) {
   return Number.isFinite(time) ? time : 0;
 }
 
-const VERSIONED_OBJECT_KEYS = new Set(["poto-timide-tab-permissions", "poto-timide-roles"]);
+const VERSIONED_OBJECT_KEYS = new Set([
+  "poto-timide-tab-permissions",
+  "poto-timide-roles",
+  "poto-timide-admin-ids",
+]);
 
 async function persistStorageValue(key, value) {
   try {
+    const existingRaw = await getRawData(key);
     if (MERGE_BY_ID_KEYS.has(key)) {
-      value = mergeById(await getData(key), value);
-    } else if (VERSIONED_OBJECT_KEYS.has(key)) {
-      const existing = await getData(key);
-      if (existing && objectUpdatedAt(existing) > objectUpdatedAt(value)) {
-        return existing;
-      }
+      value = mergeById(unwrapStored(existingRaw) || [], unwrapStored(value) || []);
+    } else if (objectUpdatedAt(existingRaw) > objectUpdatedAt(value)) {
+      return unwrapStored(existingRaw);
     }
     await setData(key, value);
-    return value;
+    return unwrapStored(value);
   } catch (err) {
     console.warn("Fusion/écriture impossible :", key, err.message);
     await setData(key, value);
-    return value;
+    return unwrapStored(value);
   }
 }
 
@@ -639,9 +664,13 @@ async function sanitizePayloadForOwner(payload) {
       : (await getData(MEMBERS_KEY)) || [];
     const owner = findOwnerInMembers(members) || ownerFallback;
     if (owner) {
-      const adminIds = Array.isArray(sanitized[ADMIN_IDS_KEY]) ? sanitized[ADMIN_IDS_KEY] : [];
+      const raw = sanitized[ADMIN_IDS_KEY];
+      const adminIds = unwrapAdminIds(raw);
       if (!adminIds.includes(owner.id)) {
-        sanitized[ADMIN_IDS_KEY] = [owner.id, ...adminIds.filter((id) => id !== owner.id)];
+        const next = [owner.id, ...adminIds.filter((id) => id !== owner.id)];
+        sanitized[ADMIN_IDS_KEY] = Array.isArray(raw)
+          ? next
+          : { ...(raw && typeof raw === "object" ? raw : {}), ids: next, updatedAt: raw?.updatedAt || new Date().toISOString() };
       }
     }
   }
@@ -664,10 +693,16 @@ async function enforceOwnerSafeguards() {
     owner = ownerFallback;
   }
 
-  let adminIds = (await getData(ADMIN_IDS_KEY)) || [];
+  const storedAdmins = await getData(ADMIN_IDS_KEY);
+  let adminIds = unwrapAdminIds(storedAdmins);
   if (!adminIds.includes(owner.id)) {
     adminIds = [owner.id, ...adminIds.filter((id) => id !== owner.id)];
-    await setData(ADMIN_IDS_KEY, adminIds);
+    await setData(
+      ADMIN_IDS_KEY,
+      Array.isArray(storedAdmins)
+        ? adminIds
+        : { ...(storedAdmins && typeof storedAdmins === "object" ? storedAdmins : {}), ids: adminIds, updatedAt: storedAdmins?.updatedAt || new Date().toISOString() }
+    );
   }
 }
 
@@ -781,7 +816,7 @@ async function findMemberById(id) {
 
 async function isAdminId(memberId) {
   if (await isOwnerId(memberId)) return true;
-  const adminIds = (await getData(ADMIN_IDS_KEY)) || [];
+  const adminIds = unwrapAdminIds(await getData(ADMIN_IDS_KEY));
   return adminIds.includes(memberId);
 }
 
@@ -953,11 +988,11 @@ function createApp() {
       }
 
       const ownerId = findOwnerInMembers(members)?.id || getOwnerFallbackMember()?.id || null;
-      const adminIds = (await getData(ADMIN_IDS_KEY)) || [];
+      const adminIds = unwrapAdminIds(await getData(ADMIN_IDS_KEY));
       req.session.userId = user.id;
       req.session.memberName = member.name;
       req.session.isAdmin = Boolean(
-        (ownerId && user.id === ownerId) || (Array.isArray(adminIds) && adminIds.includes(user.id))
+        (ownerId && user.id === ownerId) || adminIds.includes(user.id)
       );
       req.session.mustChangePassword = Boolean(user.must_change_password);
       req.session.lastSeen = Date.now();
