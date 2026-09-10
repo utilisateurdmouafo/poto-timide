@@ -2381,19 +2381,26 @@ function showAdminSub(subId) {
   updateAdminSubtabVisibility();
 
   const root = document.getElementById("tab-admin");
-  const tabButtons = root
-    ? root.querySelectorAll("[data-admin-sub]")
-    : adminSubtabs?.querySelectorAll("[data-admin-sub]");
+  const tabButtons = adminSubtabs?.querySelectorAll("[data-admin-sub]")
+    || root?.querySelectorAll("[data-admin-sub]");
 
   tabButtons?.forEach((btn) => {
     const key = btn.dataset.adminSub;
     if (!key) return;
     btn.classList.toggle("active", key === subId);
     btn.setAttribute("aria-selected", String(key === subId));
-    if (key === subId) {
+    if (key === subId && !isPhoneNav()) {
       btn.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
     }
   });
+
+  if (adminCurrentSubLabel) {
+    const activeBtn = [...(tabButtons || [])].find((btn) => btn.dataset.adminSub === subId);
+    const label = (activeBtn?.textContent || "").replace(/\s+/g, " ").trim();
+    adminCurrentSubLabel.textContent = label;
+    adminCurrentSubLabel.hidden = !isPhoneNav() || !label;
+  }
+  closeAdminMenu();
 
   const panels = root
     ? root.querySelectorAll(".gestion-subpanel[data-admin-panel]")
@@ -2630,7 +2637,44 @@ function canDecidePrets() {
   return isFinancier();
 }
 
+function isNavPreview() {
+  const preview = new URLSearchParams(location.search).get("preview");
+  return preview === "nav" || preview === "menu";
+}
+
+function hasSessionHint() {
+  try {
+    const hint = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+    return Boolean(hint?.memberId);
+  } catch {
+    return false;
+  }
+}
+
+function applySessionHint() {
+  try {
+    const hint = JSON.parse(localStorage.getItem(SESSION_KEY) || "null");
+    if (!hint?.memberId) return false;
+    authState = {
+      loggedIn: true,
+      member: { id: hint.memberId, name: hint.memberName || "" },
+      mustChangePassword: false,
+    };
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function revealApp(loggedIn) {
+  document.documentElement.classList.toggle("has-session", Boolean(loggedIn));
+  document.documentElement.classList.toggle("needs-login", !loggedIn);
+}
+
 function openLoginModal() {
+  if (isNavPreview()) return;
+  revealApp(false);
+  closeAppMenu();
   loginError.hidden = true;
   loginForm.reset();
   const remembered = typeof getRememberedLoginName === "function" ? getRememberedLoginName() : "";
@@ -2838,6 +2882,7 @@ async function loginMember(name, password) {
     }
 
     loginModal.classList.remove("open");
+    revealApp(true);
     if (authState.mustChangePassword) {
       openChangePasswordModal();
     } else {
@@ -4030,11 +4075,16 @@ function showTab(tabId) {
   tabContents.forEach((content) => {
     content.classList.toggle("active", content.id === `tab-${tabId}`);
   });
-  document.querySelector(`.tab[data-tab="${tabId}"]`)?.scrollIntoView({
-    inline: "center",
-    block: "nearest",
-    behavior: "smooth",
-  });
+  if (!document.body.classList.contains("app-menu-open") && window.innerWidth > 900) {
+    document.querySelector(`.tab[data-tab="${tabId}"]`)?.scrollIntoView({
+      inline: "center",
+      block: "nearest",
+      behavior: "smooth",
+    });
+  }
+  closeAppMenu();
+  if (tabId !== "admin") closeAdminMenu();
+  syncAdminMenuToggle();
 
   if (tabId === "membres") {
     renderBureau();
@@ -8530,6 +8580,128 @@ roleForm?.addEventListener("submit", (e) => {
   assignRole(memberId, roleId);
 });
 
+const menuToggle = document.getElementById("menuToggle");
+const adminMenuToggle = document.getElementById("adminMenuToggle");
+const appNavBackdrop = document.getElementById("appNavBackdrop");
+const adminNavBackdrop = document.getElementById("adminNavBackdrop");
+const adminNavHost = document.getElementById("adminNavHost");
+const adminSubtabsMount = document.getElementById("adminSubtabsMount");
+const adminCurrentSubLabel = document.getElementById("adminCurrentSubLabel");
+
+function isPhoneNav() {
+  return window.matchMedia("(max-width: 900px)").matches;
+}
+
+function syncPhoneNavClass() {
+  document.documentElement.classList.toggle("phone-nav", isPhoneNav());
+}
+
+function setMenuToggleIcon(open) {
+  const icon = menuToggle?.querySelector(".menu-toggle-icon");
+  if (icon) icon.textContent = open ? "✕" : "☰";
+}
+
+function setSubMenuToggleIcon(open) {
+  const icon = adminMenuToggle?.querySelector(".menu-toggle-icon");
+  if (icon) icon.textContent = open ? "✕" : "☰";
+}
+
+function isAdminTabActive() {
+  return document.getElementById("tab-admin")?.classList.contains("active");
+}
+
+function placeAdminSubtabs() {
+  if (!adminSubtabs || !adminNavHost || !adminSubtabsMount) return;
+  const host = isPhoneNav() ? adminNavHost : adminSubtabsMount;
+  if (adminSubtabs.parentElement !== host) host.appendChild(adminSubtabs);
+}
+
+function syncAdminMenuToggle() {
+  placeAdminSubtabs();
+  const show = isPhoneNav() && isAdminTabActive() && canAccessAdminTab();
+  if (adminMenuToggle) adminMenuToggle.hidden = !show;
+  document.documentElement.classList.toggle("admin-tab-on", Boolean(show));
+  if (!show) closeAdminMenu();
+}
+
+function setPanelInert(el, inert) {
+  if (!el) return;
+  if (inert) el.setAttribute("inert", "");
+  else el.removeAttribute("inert");
+}
+
+function openAdminMenu() {
+  if (!isPhoneNav()) return;
+  if (adminMenuToggle?.hidden) return;
+  placeAdminSubtabs();
+  closeAppMenu();
+  document.body.classList.add("admin-menu-open");
+  adminMenuToggle?.setAttribute("aria-expanded", "true");
+  adminMenuToggle?.setAttribute("aria-label", "Fermer le menu Admin");
+  setSubMenuToggleIcon(true);
+  setPanelInert(adminSubtabs, false);
+}
+
+function closeAdminMenu() {
+  document.body.classList.remove("admin-menu-open");
+  adminMenuToggle?.setAttribute("aria-expanded", "false");
+  adminMenuToggle?.setAttribute("aria-label", "Ouvrir le menu Admin");
+  setSubMenuToggleIcon(false);
+  setPanelInert(adminSubtabs, isPhoneNav());
+}
+
+function openAppMenu() {
+  if (!isPhoneNav()) return;
+  closeAdminMenu();
+  document.body.classList.add("app-menu-open");
+  menuToggle?.setAttribute("aria-expanded", "true");
+  menuToggle?.setAttribute("aria-label", "Fermer le menu");
+  setMenuToggleIcon(true);
+  setPanelInert(document.getElementById("appNav"), false);
+}
+
+function closeAppMenu() {
+  document.body.classList.remove("app-menu-open");
+  menuToggle?.setAttribute("aria-expanded", "false");
+  menuToggle?.setAttribute("aria-label", "Ouvrir le menu");
+  setMenuToggleIcon(false);
+  setPanelInert(document.getElementById("appNav"), isPhoneNav());
+}
+
+function toggleAppMenu() {
+  if (document.body.classList.contains("app-menu-open")) closeAppMenu();
+  else openAppMenu();
+}
+
+menuToggle?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  toggleAppMenu();
+});
+adminMenuToggle?.addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (document.body.classList.contains("admin-menu-open")) closeAdminMenu();
+  else openAdminMenu();
+});
+appNavBackdrop?.addEventListener("click", closeAppMenu);
+adminNavBackdrop?.addEventListener("click", closeAdminMenu);
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  if (document.body.classList.contains("admin-menu-open")) closeAdminMenu();
+  else closeAppMenu();
+});
+syncPhoneNavClass();
+syncAdminMenuToggle();
+closeAppMenu();
+closeAdminMenu();
+window.addEventListener("resize", () => {
+  syncPhoneNavClass();
+  syncAdminMenuToggle();
+  if (!isPhoneNav()) {
+    closeAppMenu();
+    closeAdminMenu();
+  }
+});
+
 tabs.forEach((tab) => {
   tab.addEventListener("click", () => showTab(tab.dataset.tab));
 });
@@ -9210,15 +9382,28 @@ async function initApp() {
   reloadFromStorage();
   await ensureFinanceData();
 
+  const hinted = applySessionHint();
+  if (hinted) {
+    revealApp(true);
+    loginModal?.classList.remove("open");
+    appEl?.classList.remove("app-blurred");
+    updateSessionUI();
+    render();
+    showTab(getSavedTab());
+  }
+
   try {
     await checkServerSession();
   } catch (err) {
     console.error(err);
     reloadFromStorage();
-    openLoginModal();
-    loginError.textContent =
-      "Serveur indisponible — vos données locales sont conservées. Reconnectez-vous.";
-    loginError.hidden = false;
+    if (!hinted) {
+      revealApp(false);
+      openLoginModal();
+      loginError.textContent =
+        "Serveur indisponible — vos données locales sont conservées. Reconnectez-vous.";
+      loginError.hidden = false;
+    }
     appReady = true;
     updateSessionUI();
     render();
@@ -9228,7 +9413,9 @@ async function initApp() {
 
   if (authState.loggedIn) {
     await restoreLoggedInApp();
+    revealApp(true);
   } else {
+    revealApp(false);
     openLoginModal();
   }
 
@@ -9275,6 +9462,13 @@ async function initApp() {
   navigator.serviceWorker?.addEventListener("message", (event) => {
     if (event.data?.type === "OPEN_NOTIFICATION") openFromNotification(event.data);
   });
+
+  if (isNavPreview()) {
+    revealApp(true);
+    loginModal?.classList.remove("open");
+    appEl?.classList.remove("app-blurred");
+    if (new URLSearchParams(location.search).get("preview") === "menu") openAppMenu();
+  }
 }
 
 const INSTALL_DISMISS_KEY = "poto-install-dismissed";
