@@ -3161,6 +3161,8 @@ function formatAdaptiveDate(dateStr) {
 }
 
 function fitTablesToScreen(scope) {
+  // Plus de réduction (scale) : on garde une taille lisible
+  // et on permet le défilement horizontal (swipe gauche/droite).
   if (typeof isUserEditingForm === "function" && isUserEditingForm()) return;
   if (typeof isLoanDateEditing === "function" && isLoanDateEditing()) return;
   const root = scope && scope.querySelectorAll ? scope : document;
@@ -3168,38 +3170,12 @@ function fitTablesToScreen(scope) {
     const table = wrap.querySelector("table");
     if (!table) return;
 
-    const prevTransform = table.style.transform;
-    const prevWidth = table.style.width;
-    const prevMinWidth = table.style.minWidth;
-    const prevHeight = wrap.style.height;
-
+    // Annuler tout ancien scale / hauteur forcée
     table.style.transform = "";
-    wrap.style.height = "";
+    table.style.transformOrigin = "";
     table.style.width = "max-content";
-    table.style.minWidth = "0";
-
-    const avail = wrap.clientWidth;
-    if (!avail) {
-      table.style.transform = prevTransform;
-      table.style.width = prevWidth;
-      table.style.minWidth = prevMinWidth;
-      wrap.style.height = prevHeight;
-      return;
-    }
-
-    const need = Math.max(table.scrollWidth, table.offsetWidth);
-    const shouldScale = need > avail + 1;
-    const scale = shouldScale ? avail / need : 1;
-    const nextTransform = shouldScale ? `scale(${scale})` : "";
-    const nextWidth = shouldScale ? "max-content" : "100%";
-    const nextMinWidth = shouldScale ? "0" : "100%";
-    const nextHeight = shouldScale ? `${Math.round(table.scrollHeight * scale)}px` : "";
-
-    table.style.transformOrigin = "left top";
-    table.style.transform = nextTransform;
-    table.style.width = nextWidth;
-    table.style.minWidth = nextMinWidth;
-    wrap.style.height = nextHeight;
+    table.style.minWidth = "max-content";
+    wrap.style.height = "";
   });
 }
 
@@ -5404,9 +5380,10 @@ function getVoteStats(loan) {
   const voters = getLoanVoters(loan.borrowerId);
   let yesCount = 0;
   let noCount = 0;
+  const votes = loan?.votes && typeof loan.votes === "object" ? loan.votes : {};
 
   voters.forEach((voter) => {
-    const vote = loan.votes[voter.id];
+    const vote = votes[voter.id];
     if (vote === "yes") yesCount += 1;
     if (vote === "no") noCount += 1;
   });
@@ -5896,6 +5873,7 @@ function initiatePret(amount, note) {
     note: note.trim(),
     status: "voting",
     createdAt: createdAt.toISOString(),
+    updatedAt: createdAt.toISOString(),
     deadlineAt: deadlineAt.toISOString(),
     votes: {},
     financierDecision: null,
@@ -5914,7 +5892,7 @@ function initiatePret(amount, note) {
   pretForm.reset();
 }
 
-function votePret(loanId, vote) {
+async function votePret(loanId, vote) {
   const current = getCurrentMember();
   if (!current) return;
 
@@ -5922,13 +5900,23 @@ function votePret(loanId, vote) {
   if (!loan || loan.status !== "voting") return;
   if (loan.borrowerId === current.id) return;
 
-  loan.votes[current.id] = vote === "yes" ? "yes" : "no";
+  // Déjà voté → on ne propose plus les boutons
+  if (!loan.votes || typeof loan.votes !== "object") loan.votes = {};
+  if (loan.votes[current.id] === "yes" || loan.votes[current.id] === "no") {
+    renderPrets();
+    return;
+  }
+
+  const choice = vote === "yes" ? "yes" : "no";
+  loan.votes[current.id] = choice;
+  loan.updatedAt = new Date().toISOString();
   confirmVoterNotification(loan, current.id);
 
   const stats = getVoteStats(loan);
   if (stats.unanimousYes) {
     loan.status = "awaiting_financier";
     loan.autoApprovedByTimeout = false;
+    loan.updatedAt = new Date().toISOString();
     finalizeVotePhaseNotifications(loan);
     notifyFinancierForLoan(loan);
     saveNotifications(false);
@@ -5936,7 +5924,17 @@ function votePret(loanId, vote) {
     saveNotifications(false);
   }
 
+  // Affichage immédiat : le vote apparaît tout de suite
   savePrets();
+
+  // Envoi serveur tout de suite pour ne pas perdre le vote au prochain pull
+  try {
+    if (typeof potoFlushSync === "function") {
+      await potoFlushSync();
+    }
+  } catch (err) {
+    console.warn("Synchronisation du vote échouée, nouvel essai automatique.", err);
+  }
 }
 
 const PENDING_FINANCIER_STATUSES = ["voting", "awaiting_financier"];
@@ -5961,11 +5959,13 @@ function financierDecidePret(loanId, decision) {
     loan.financierDecision = "approved";
     loan.financierDecidedAt = new Date().toISOString();
     loan.approvedAt = loan.financierDecidedAt;
+    loan.updatedAt = loan.financierDecidedAt;
     updateLoanNotificationsOnDecision(loan, "approved");
   } else {
     loan.status = "rejected";
     loan.financierDecision = "rejected";
     loan.financierDecidedAt = new Date().toISOString();
+    loan.updatedAt = loan.financierDecidedAt;
     updateLoanNotificationsOnDecision(loan, "rejected");
   }
 
@@ -6419,7 +6419,8 @@ function buildLoanCard(loan, mode) {
   let voteSection = "";
   if (mode === "voting") {
     const canVote = current && current.id !== loan.borrowerId;
-    const myVote = current ? loan.votes[current.id] : null;
+    const votesMap = loan?.votes && typeof loan.votes === "object" ? loan.votes : {};
+    const myVote = current ? votesMap[current.id] : null;
     voteSection = `
       <div class="pret-vote-stats">
         <span class="pret-stat pret-stat-yes">${stats.yesCount} Oui</span>
@@ -6643,7 +6644,8 @@ function buildPretVoteActionsHtml(loan, mode) {
   const current = getCurrentMember();
   const stats = getVoteStats(loan);
   const canVote = current && current.id !== loan.borrowerId;
-  const myVote = current ? loan.votes[current.id] : null;
+  const votesMap = loan?.votes && typeof loan.votes === "object" ? loan.votes : {};
+  const myVote = current ? votesMap[current.id] : null;
   if (mode === "voting") {
     return `
       <div class="amende-admin-actions">
@@ -9102,8 +9104,22 @@ async function handlePretActionClick(e) {
   const undoRepayBtn = e.target.closest(".btn-pret-repay-undo");
   const deletePretBtn = e.target.closest(".btn-pret-delete");
 
-  if (yesBtn) votePret(yesBtn.dataset.loanId, "yes");
-  if (noBtn) votePret(noBtn.dataset.loanId, "no");
+  if (yesBtn || noBtn) {
+    const btn = yesBtn || noBtn;
+    if (btn.dataset.voting === "1") return; // anti double-clic
+    const actions = btn.closest(".pret-vote-actions");
+    if (actions) {
+      actions.querySelectorAll("button").forEach((b) => {
+        b.disabled = true;
+        b.dataset.voting = "1";
+      });
+    } else {
+      btn.disabled = true;
+      btn.dataset.voting = "1";
+    }
+    await votePret(btn.dataset.loanId, yesBtn ? "yes" : "no");
+    return;
+  }
 
   if (approveBtn) {
     const borrower = getMemberById(getLoanById(approveBtn.dataset.loanId)?.borrowerId);

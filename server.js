@@ -344,6 +344,71 @@ function mergeById(existing, incoming) {
   return [...map.values()].sort((a, b) => itemTimestamp(b) - itemTimestamp(a));
 }
 
+function loanStatusRank(status) {
+  const ranks = {
+    voting: 1,
+    awaiting_financier: 2,
+    active: 3,
+    defaulted: 3,
+    completed: 4,
+    rejected: 4,
+  };
+  return ranks[status] || 0;
+}
+
+function mergeLoanVotes(a, b) {
+  const votes = {};
+  if (a && typeof a === "object") Object.assign(votes, a);
+  if (b && typeof b === "object") Object.assign(votes, b);
+  return votes;
+}
+
+/** Fusion des prêts : conserve tous les votes même si deux personnes votent en même temps */
+function mergeLoansWithVotes(existing, incoming) {
+  const existingList = Array.isArray(existing) ? existing : [];
+  const incomingList = Array.isArray(incoming) ? incoming : [];
+  const map = new Map();
+
+  const add = (loan) => {
+    if (!loan || typeof loan !== "object" || !loan.id) return;
+    const prev = map.get(loan.id);
+    if (!prev) {
+      map.set(loan.id, {
+        ...loan,
+        votes: mergeLoanVotes(null, loan.votes),
+      });
+      return;
+    }
+
+    const prevTime = new Date(prev.updatedAt || prev.createdAt || 0).getTime() || 0;
+    const nextTime = new Date(loan.updatedAt || loan.createdAt || 0).getTime() || 0;
+    const preferIncoming = nextTime >= prevTime;
+    const base = preferIncoming ? loan : prev;
+    const other = preferIncoming ? prev : loan;
+
+    let status = base.status;
+    if (loanStatusRank(other.status) > loanStatusRank(base.status)) {
+      status = other.status;
+    }
+
+    map.set(loan.id, {
+      ...other,
+      ...base,
+      status,
+      votes: mergeLoanVotes(prev.votes, loan.votes),
+      updatedAt:
+        nextTime >= prevTime
+          ? loan.updatedAt || prev.updatedAt || new Date().toISOString()
+          : prev.updatedAt || loan.updatedAt || new Date().toISOString(),
+    });
+  };
+
+  existingList.forEach(add);
+  incomingList.forEach(add);
+
+  return [...map.values()].sort((a, b) => itemTimestamp(b) - itemTimestamp(a));
+}
+
 function objectUpdatedAt(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return 0;
   const time = new Date(value.updatedAt || 0).getTime();
@@ -359,7 +424,9 @@ const VERSIONED_OBJECT_KEYS = new Set([
 async function persistStorageValue(key, value) {
   try {
     const existingRaw = await getRawData(key);
-    if (MERGE_BY_ID_KEYS.has(key)) {
+    if (key === "poto-timide-prets") {
+      value = mergeLoansWithVotes(unwrapStored(existingRaw) || [], unwrapStored(value) || []);
+    } else if (MERGE_BY_ID_KEYS.has(key)) {
       value = mergeById(unwrapStored(existingRaw) || [], unwrapStored(value) || []);
     } else if (objectUpdatedAt(existingRaw) > objectUpdatedAt(value)) {
       return unwrapStored(existingRaw);

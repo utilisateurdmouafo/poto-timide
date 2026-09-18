@@ -191,20 +191,72 @@ function mergeById(existing, incoming) {
   return [...map.values()].sort((a, b) => itemTimestamp(b) - itemTimestamp(a));
 }
 
+function loanStatusRank(status) {
+  const ranks = {
+    voting: 1,
+    awaiting_financier: 2,
+    active: 3,
+    defaulted: 3,
+    completed: 4,
+    rejected: 4,
+  };
+  return ranks[status] || 0;
+}
+
+function mergeLoanVotes(a, b) {
+  const votes = {};
+  if (a && typeof a === "object") Object.assign(votes, a);
+  if (b && typeof b === "object") Object.assign(votes, b);
+  return votes;
+}
+
+/** Fusion intelligente des prêts : union des votes + statut le plus avancé */
 function mergeLoansPreferringNewer(existing, incoming) {
-  const incomingList = Array.isArray(incoming) ? incoming : [];
   const existingList = Array.isArray(existing) ? existing : [];
-  const localById = new Map(existingList.filter((loan) => loan?.id).map((loan) => [loan.id, loan]));
-  return incomingList.map((loan) => {
-    if (!loan?.id) return loan;
-    const local = localById.get(loan.id);
-    if (!local) return loan;
-    const localTime = new Date(local.updatedAt || 0).getTime();
-    const serverTime = new Date(loan.updatedAt || 0).getTime();
-    if (Number.isFinite(localTime) && localTime > (Number.isFinite(serverTime) ? serverTime : 0)) {
-      return local;
+  const incomingList = Array.isArray(incoming) ? incoming : [];
+  const map = new Map();
+
+  const add = (loan) => {
+    if (!loan || typeof loan !== "object" || !loan.id) return;
+    const prev = map.get(loan.id);
+    if (!prev) {
+      map.set(loan.id, {
+        ...loan,
+        votes: mergeLoanVotes(null, loan.votes),
+      });
+      return;
     }
-    return loan;
+
+    const prevTime = new Date(prev.updatedAt || prev.createdAt || 0).getTime() || 0;
+    const nextTime = new Date(loan.updatedAt || loan.createdAt || 0).getTime() || 0;
+    const preferIncoming = nextTime >= prevTime;
+    const base = preferIncoming ? loan : prev;
+    const other = preferIncoming ? prev : loan;
+
+    let status = base.status;
+    if (loanStatusRank(other.status) > loanStatusRank(base.status)) {
+      status = other.status;
+    }
+
+    map.set(loan.id, {
+      ...other,
+      ...base,
+      status,
+      votes: mergeLoanVotes(prev.votes, loan.votes),
+      updatedAt:
+        nextTime >= prevTime
+          ? loan.updatedAt || prev.updatedAt || new Date().toISOString()
+          : prev.updatedAt || loan.updatedAt || new Date().toISOString(),
+    });
+  };
+
+  existingList.forEach(add);
+  incomingList.forEach(add);
+
+  return [...map.values()].sort((a, b) => {
+    const ta = new Date(a.updatedAt || a.createdAt || 0).getTime() || 0;
+    const tb = new Date(b.updatedAt || b.createdAt || 0).getTime() || 0;
+    return tb - ta;
   });
 }
 
