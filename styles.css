@@ -7122,3 +7122,38 @@ html.phone-nav .menu-toggle-icon {
   font-size: 0.85rem;
   color: #64748b;
 }
+
+.loi-search-hit {
+  background: #fef08a;
+  color: inherit;
+  padding: 0 0.15em;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.loi-search-excerpts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.loi-search-phrase {
+  margin: 0;
+  padding: 0.55rem 0.7rem;
+  border-left: 3px solid #0ea5e9;
+  background: #f0f9ff;
+  border-radius: 0 10px 10px 0;
+  line-height: 1.5;
+}
+
+.loi-search-phrase-title-only {
+  font-style: italic;
+  color: #64748b;
+  border-left-color: #94a3b8;
+  background: #f8fafc;
+}
+
+.loi-card-search .loi-card-title {
+  font-size: 0.95rem;
+  opacity: 0.9;
+}

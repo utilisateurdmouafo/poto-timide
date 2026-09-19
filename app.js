@@ -8080,24 +8080,58 @@ function getVisibleLoiArticles() {
     });
 }
 
-function filterLoiArticles(items, query) {
-  const q = String(query || "")
-    .trim()
+function normalizeLoiSearchText(text) {
+  return String(text || "")
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");
-  if (!q) return items;
-  return items.filter((item) => {
-    const title = String(item.title || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-    const body = String(item.body || "")
-      .toLowerCase()
-      .normalize("NFD")
-      .replace(/[\u0300-\u036f]/g, "");
-    return title.includes(q) || body.includes(q);
+}
+
+/** Découpe le texte en phrases (points, ! ?, retours ligne) */
+function splitLoiSentences(text) {
+  const raw = String(text || "").replace(/\r\n/g, "\n").trim();
+  if (!raw) return [];
+  const parts = raw
+    .split(/(?<=[.!?…])\s+|\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length ? parts : [raw];
+}
+
+function highlightLoiMatch(sentence, query) {
+  const safe = escapeHtml(sentence);
+  const q = String(query || "").trim();
+  if (!q) return safe;
+  try {
+    const escaped = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const re = new RegExp(`(${escaped})`, "gi");
+    return safe.replace(re, '<mark class="loi-search-hit">$1</mark>');
+  } catch {
+    return safe;
+  }
+}
+
+/**
+ * Recherche : ne garde que les phrases contenant le mot.
+ * Retourne null si pas de requête, sinon des extraits.
+ */
+function searchLoiPhrases(items, query) {
+  const q = normalizeLoiSearchText(query).trim();
+  if (!q) return null;
+
+  const results = [];
+  items.forEach((item) => {
+    const title = String(item.title || "");
+    const body = String(item.body || "");
+    const titleMatch = normalizeLoiSearchText(title).includes(q);
+    const phrases = splitLoiSentences(body).filter((sentence) =>
+      normalizeLoiSearchText(sentence).includes(q)
+    );
+    if (titleMatch || phrases.length) {
+      results.push({ article: item, titleMatch, phrases });
+    }
   });
+  return results;
 }
 
 function buildLoiCardHtml(item, { manage = false } = {}) {
@@ -8117,6 +8151,27 @@ function buildLoiCardHtml(item, { manage = false } = {}) {
     </article>`;
 }
 
+/** Résultat de recherche : uniquement les phrases où apparaît le mot */
+function buildLoiSearchResultHtml(result, query) {
+  const item = result.article;
+  const titleHtml = result.titleMatch
+    ? highlightLoiMatch(item.title || "Sans titre", query)
+    : escapeHtml(item.title || "Sans titre");
+  const phraseBlocks =
+    result.phrases.length > 0
+      ? result.phrases
+          .map((p) => `<p class="loi-search-phrase">${highlightLoiMatch(p, query)}</p>`)
+          .join("")
+      : result.titleMatch
+        ? `<p class="loi-search-phrase loi-search-phrase-title-only">Mot trouvé dans le titre de l'article.</p>`
+        : "";
+  return `
+    <article class="loi-card loi-card-search" id="loi-search-${escapeHtml(item.id)}">
+      <h3 class="loi-card-title">${titleHtml}</h3>
+      <div class="loi-card-body loi-search-excerpts">${phraseBlocks}</div>
+    </article>`;
+}
+
 function cancelEditLoi() {
   editingLoiId = null;
   loiForm?.reset();
@@ -8125,38 +8180,53 @@ function cancelEditLoi() {
   if (loiComposerTitle) loiComposerTitle.textContent = "Ajouter un article";
 }
 
-/** Onglet membre : toujours lecture seule + recherche */
+/** Onglet membre : lecture seule + recherche par phrases */
 function renderLoiList() {
   if (!loiList) return;
   const all = getVisibleLoiArticles();
-  const items = filterLoiArticles(all, loiSearchQuery);
-  if (loiSearchMeta) {
-    if (loiSearchQuery.trim()) {
-      loiSearchMeta.hidden = false;
-      loiSearchMeta.textContent =
-        items.length === 0
-          ? `Aucun résultat pour « ${loiSearchQuery.trim()} »`
-          : `${items.length} résultat${items.length > 1 ? "s" : ""} sur ${all.length}`;
-    } else {
+  const query = String(loiSearchQuery || "").trim();
+  const searchResults = searchLoiPhrases(all, query);
+
+  if (!all.length) {
+    if (loiSearchMeta) {
       loiSearchMeta.hidden = true;
       loiSearchMeta.textContent = "";
     }
-  }
-  if (!all.length) {
     loiList.innerHTML = `<p class="panel-desc">Aucun article pour le moment.</p>`;
     return;
   }
-  if (!items.length) {
-    loiList.innerHTML = `<p class="panel-desc">Aucun article ne correspond à ta recherche.</p>`;
+
+  // Pas de recherche : afficher les articles complets
+  if (!searchResults) {
+    if (loiSearchMeta) {
+      loiSearchMeta.hidden = true;
+      loiSearchMeta.textContent = "";
+    }
+    loiList.innerHTML = all.map((item) => buildLoiCardHtml(item, { manage: false })).join("");
     return;
   }
-  loiList.innerHTML = items.map((item) => buildLoiCardHtml(item, { manage: false })).join("");
+
+  const phraseCount = searchResults.reduce((n, r) => n + r.phrases.length + (r.titleMatch ? 1 : 0), 0);
+  if (loiSearchMeta) {
+    loiSearchMeta.hidden = false;
+    loiSearchMeta.textContent =
+      searchResults.length === 0
+        ? `Aucun résultat pour « ${query} »`
+        : `${phraseCount} phrase${phraseCount > 1 ? "s" : ""} trouvée${phraseCount > 1 ? "s" : ""} dans ${searchResults.length} article${searchResults.length > 1 ? "s" : ""}`;
+  }
+
+  if (!searchResults.length) {
+    loiList.innerHTML = `<p class="panel-desc">Aucune phrase ne contient « ${escapeHtml(query)} ».</p>`;
+    return;
+  }
+
+  loiList.innerHTML = searchResults.map((r) => buildLoiSearchResultHtml(r, query)).join("");
 }
 
 function renderLoi() {
   // Lecture seule — jamais de formulaire d'édition ici
-  if (loiSearchInput && loiSearchInput.value !== loiSearchQuery) {
-    // garder la saisie utilisateur
+  if (loiSearchInput && loiSearchQuery === "" && loiSearchInput.value) {
+    loiSearchQuery = loiSearchInput.value;
   }
   renderLoiList();
 }
