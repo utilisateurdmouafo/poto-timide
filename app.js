@@ -4816,6 +4816,10 @@ function renderLedgerTable(rows, { body, foot, wrap, emptyText, rowIdPrefix }) {
 }
 
 function buildMesDettesRows(memberId) {
+  // Cohérence des onglets :
+  // - prêts → onglet Prêts
+  // - cotisations d'événements ouvertes → onglet Événements
+  // - ici : dettes converties + ancienne tournée
   const rows = [];
 
   getAmendesForMember(memberId)
@@ -4839,21 +4843,6 @@ function buildMesDettesRows(memberId) {
       });
     });
 
-  getOpenEvenementDebtsForMember(memberId).forEach((item) => {
-    const remaining = Math.round((Number(item.amount) || 0) * 100) / 100;
-    rows.push({
-      id: `event-${item.id}`,
-      date: item.createdAt,
-      type: "evenement",
-      detail: item.title || "Événement",
-      original: remaining,
-      repaid: 0,
-      remaining,
-      settled: false,
-      sortAt: item.createdAt,
-    });
-  });
-
   getAncienneTourneeEntriesFor(memberId).forEach((entry) => {
     const remaining = Math.round((Number(entry.amount) || 0) * 100) / 100;
     const repaid = Math.round((Number(entry.repaidAmount) || 0) * 100) / 100;
@@ -4872,25 +4861,6 @@ function buildMesDettesRows(memberId) {
       sortAt: entry.createdAt,
     });
   });
-
-  prets
-    .filter((loan) => loan.borrowerId === memberId && ["active", "defaulted", "completed"].includes(loan.status))
-    .forEach((loan) => {
-      const remaining = Math.round((getLoanBalance(loan) || 0) * 100) / 100;
-      const repaid = Math.round((Number(loan.totalRepaid) || 0) * 100) / 100;
-      const original = Math.round((Number(loan.amount) || 0) * 100) / 100;
-      rows.push({
-        id: `pret-${loan.id}`,
-        date: getLoanRequestDate(loan),
-        type: "pret",
-        detail: String(loan.note || "").trim() || "Prêt",
-        original,
-        repaid,
-        remaining,
-        settled: loan.status === "completed" || remaining <= 0,
-        sortAt: getLoanRequestDate(loan),
-      });
-    });
 
   rows.sort((a, b) => {
     if (a.settled !== b.settled) return a.settled ? 1 : -1;
@@ -4928,7 +4898,8 @@ function renderMesDettes() {
   if (detteTitle) detteTitle.textContent = "Mes dettes";
   if (detteSubtitle) {
     detteSubtitle.hidden = false;
-    detteSubtitle.textContent = "Tout ce que tu dois encore : prêts, événements, ancienne tournée, cotisations ouvertes.";
+    detteSubtitle.textContent =
+      "Dettes personnelles hors prêts et événements : ancienne tournée et dettes converties. Les prêts sont dans Prêts, les cotisations d'événements dans Événements.";
   }
   renderLedgerHero(detteSummary, {
     total,
@@ -5319,7 +5290,22 @@ function renderAmendesAdminHistory() {
 
 function loadPrets() {
   const parsed = readSynced(PRETS_KEY, []);
-  return Array.isArray(parsed) ? parsed : [];
+  if (!Array.isArray(parsed)) return [];
+  // Recalcule totalRepaid depuis l'historique pour rester cohérent après sync
+  return parsed.map((loan) => {
+    if (!loan || typeof loan !== "object") return loan;
+    if (!Array.isArray(loan.repayments)) loan.repayments = [];
+    const fromHistory =
+      Math.round(
+        loan.repayments.reduce((sum, r) => sum + (Number(r?.amount) || 0), 0) * 100
+      ) / 100;
+    if (fromHistory > 0 || loan.repayments.length > 0) {
+      loan.totalRepaid = fromHistory;
+    } else {
+      loan.totalRepaid = Math.round((Number(loan.totalRepaid) || 0) * 100) / 100;
+    }
+    return loan;
+  });
 }
 
 function loadNotifications() {
@@ -6183,13 +6169,15 @@ function recordRepayment(loanId, amount) {
 
   const current = getCurrentMember();
   ensureLoanRepayments(loan);
+  const now = new Date().toISOString();
   loan.repayments.push({
     id: generateId(),
     amount: parsedAmount,
-    date: new Date().toISOString(),
+    date: now,
     recordedBy: current?.id || null,
   });
   syncLoanRepaidFromHistory(loan);
+  loan.updatedAt = now;
 
   const actor = getActorLabel();
   const borrower = getMemberById(loan.borrowerId);
@@ -6207,8 +6195,11 @@ function recordRepayment(loanId, amount) {
   }
 
   savePrets();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
   showPretSaveMessage(
-    `${formatEuro(parsedAmount)} retournés dans la caisse. Caisse disponible : ${formatEuro(getCaisseDisponible())}.`
+    `${formatEuro(parsedAmount)} retournés dans la caisse. Reste sur ce prêt : ${formatEuro(getLoanBalance(loan))}. Prêts sortis : ${formatEuro(getLoansCapitalOut())}.`
   );
 }
 

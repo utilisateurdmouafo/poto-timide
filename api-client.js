@@ -211,7 +211,42 @@ function mergeLoanVotes(a, b) {
   return votes;
 }
 
-/** Fusion intelligente des prêts : union des votes + statut le plus avancé */
+/** Union des remboursements par id (ne jamais perdre un paiement synchronisé) */
+function mergeLoanRepayments(a, b) {
+  const map = new Map();
+  const addList = (list) => {
+    if (!Array.isArray(list)) return;
+    list.forEach((repay) => {
+      if (!repay || typeof repay !== "object") return;
+      const key = repay.id || `${repay.date || ""}-${repay.amount || 0}-${repay.recordedBy || ""}`;
+      const prev = map.get(key);
+      if (!prev) {
+        map.set(key, { ...repay, id: repay.id || key });
+        return;
+      }
+      const prevT = new Date(prev.date || 0).getTime() || 0;
+      const nextT = new Date(repay.date || 0).getTime() || 0;
+      map.set(key, nextT >= prevT ? { ...prev, ...repay, id: prev.id || repay.id || key } : prev);
+    });
+  };
+  addList(a);
+  addList(b);
+  return [...map.values()].sort((x, y) => {
+    const tx = new Date(x.date || 0).getTime() || 0;
+    const ty = new Date(y.date || 0).getTime() || 0;
+    return ty - tx;
+  });
+}
+
+function recomputeLoanRepaid(loan) {
+  if (!loan || typeof loan !== "object") return loan;
+  const list = Array.isArray(loan.repayments) ? loan.repayments : [];
+  loan.totalRepaid =
+    Math.round(list.reduce((sum, r) => sum + (Number(r.amount) || 0), 0) * 100) / 100;
+  return loan;
+}
+
+/** Fusion intelligente des prêts : votes + remboursements + statut le plus avancé */
 function mergeLoansPreferringNewer(existing, incoming) {
   const existingList = Array.isArray(existing) ? existing : [];
   const incomingList = Array.isArray(incoming) ? incoming : [];
@@ -221,10 +256,12 @@ function mergeLoansPreferringNewer(existing, incoming) {
     if (!loan || typeof loan !== "object" || !loan.id) return;
     const prev = map.get(loan.id);
     if (!prev) {
-      map.set(loan.id, {
+      const seeded = {
         ...loan,
         votes: mergeLoanVotes(null, loan.votes),
-      });
+        repayments: mergeLoanRepayments(null, loan.repayments),
+      };
+      map.set(loan.id, recomputeLoanRepaid(seeded));
       return;
     }
 
@@ -234,16 +271,10 @@ function mergeLoansPreferringNewer(existing, incoming) {
     const base = preferIncoming ? loan : prev;
     const other = preferIncoming ? prev : loan;
 
-    // Une suppression (deletedAt) gagne toujours si elle est plus récente
-    const deletedAt =
-      nextTime >= prevTime
-        ? loan.deletedAt || (preferIncoming ? null : prev.deletedAt) || null
-        : prev.deletedAt || loan.deletedAt || null;
-    // Si l'un des deux est supprimé avec un timestamp plus récent, on garde la suppression
     const newerDeleted =
       (loan.deletedAt && new Date(loan.deletedAt).getTime() >= prevTime) ? loan.deletedAt :
       (prev.deletedAt && new Date(prev.deletedAt).getTime() >= nextTime) ? prev.deletedAt :
-      deletedAt;
+      null;
 
     let status = base.status;
     if (!newerDeleted && loanStatusRank(other.status) > loanStatusRank(base.status)) {
@@ -251,17 +282,19 @@ function mergeLoansPreferringNewer(existing, incoming) {
     }
     if (newerDeleted) status = "rejected";
 
-    map.set(loan.id, {
+    const merged = {
       ...other,
       ...base,
       status,
       votes: mergeLoanVotes(prev.votes, loan.votes),
+      repayments: mergeLoanRepayments(prev.repayments, loan.repayments),
       deletedAt: newerDeleted || null,
       updatedAt:
         nextTime >= prevTime
           ? loan.updatedAt || loan.deletedAt || prev.updatedAt || new Date().toISOString()
           : prev.updatedAt || prev.deletedAt || loan.updatedAt || new Date().toISOString(),
-    });
+    };
+    map.set(loan.id, recomputeLoanRepaid(merged));
   };
 
   existingList.forEach(add);
