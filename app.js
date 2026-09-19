@@ -6475,9 +6475,11 @@ function canManagePretsActions() {
   return isAdminWorkspace() && hasRoleTabAccess("prets");
 }
 
-function buildFinancierActions(loan) {
+function buildFinancierActions(loan, options = {}) {
   if (!canManagePretsActions()) return "";
+  if (isLoanDeleted(loan)) return "";
 
+  const { showDelete = true } = options;
   const canApproveReject = PENDING_FINANCIER_STATUSES.includes(loan.status);
 
   return `
@@ -6488,7 +6490,11 @@ function buildFinancierActions(loan) {
              <button type="button" class="btn-secondary btn-pret-reject" data-loan-id="${loan.id}">Refuser</button>`
           : ""
       }
-      <button type="button" class="btn-pret-delete" data-loan-id="${loan.id}">Supprimer</button>
+      ${
+        showDelete
+          ? `<button type="button" class="btn-pret-delete" data-loan-id="${loan.id}">Supprimer</button>`
+          : ""
+      }
     </div>
   `;
 }
@@ -6707,6 +6713,11 @@ function buildAdminPretActionsHtml(loan) {
   const balance = getLoanBalance(loan);
   const dueDates = getLoanDueDates(loan);
   const isOpen = loan.status === "active" || loan.status === "defaulted";
+  // Accès admin/financier : supprimer aussi les prêts accordés, soldés ou refusés de l'historique
+  const canDeleteHistory =
+    canManagePretsActions() &&
+    !isLoanDeleted(loan) &&
+    ["active", "defaulted", "completed", "rejected"].includes(loan.status);
   return `
     <div class="amende-admin-actions">
       ${
@@ -6723,7 +6734,12 @@ function buildAdminPretActionsHtml(loan) {
           : ""
       }
       ${buildLoanRepaymentsBlock(loan)}
-      ${buildFinancierActions(loan)}
+      ${buildFinancierActions(loan, { showDelete: false })}
+      ${
+        canDeleteHistory
+          ? `<button type="button" class="btn-pret-delete" data-loan-id="${escapeHtml(loan.id)}">Supprimer</button>`
+          : ""
+      }
     </div>
   `;
 }
@@ -6794,7 +6810,11 @@ function loanToLedgerRow(loan, mode) {
 
 function buildAdminPretLedgerRows() {
   return prets
-    .filter((loan) => ["active", "defaulted", "completed", "rejected"].includes(loan.status))
+    .filter(
+      (loan) =>
+        !isLoanDeleted(loan) &&
+        ["active", "defaulted", "completed", "rejected"].includes(loan.status)
+    )
     .map((loan) => {
       const repaid = Math.round((Number(loan.totalRepaid) || 0) * 100) / 100;
       const isRejected = loan.status === "rejected";
