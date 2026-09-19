@@ -3685,6 +3685,9 @@ function fillMemberList(listEl, { withAdminActions }) {
 }
 
 function renderMemberList() {
+  const totalEl = document.getElementById("memberTotalCount");
+  if (totalEl) totalEl.textContent = String(members.length);
+  if (memberCounter) memberCounter.textContent = `${members.length} / ${MAX_MEMBERS} membres`;
   fillMemberList(memberList, { withAdminActions: false });
   fillMemberList(memberListAdmin, { withAdminActions: true });
 }
