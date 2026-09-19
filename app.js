@@ -6363,7 +6363,16 @@ function renderPretSummary() {
       </div>`
     : "";
 
+  const pendingVoteCard = pendingVote
+    ? `<div class="pret-summary-card pret-summary-locked">
+        <span class="pret-summary-label">Demande en vote</span>
+        <strong>${escapeHtml(getMemberById(pendingVote.borrowerId)?.name || "—")}</strong>
+        <span class="pret-summary-formula">${escapeHtml(getPretStatusLabel(pendingVote.status))} · ${formatEuro(pendingVote.amount)}</span>
+      </div>`
+    : "";
+
   pretSummary.innerHTML = `
+    ${pendingVoteCard}
     <div class="pret-summary-card pret-summary-main">
       <span class="pret-summary-label">Argent empruntable</span>
       <strong class="pret-summary-amount">${formatEuro(borrowable)}</strong>
@@ -6391,15 +6400,6 @@ function renderPretSummary() {
       <strong class="pret-summary-amount">${formatEuro(getCaisseTotal())}</strong>
       <span class="pret-summary-formula">Caisse disponible ${formatEuro(caisseDisponible)} + prêts ${formatEuro(loansOut)}</span>
     </div>
-    ${
-      pendingVote
-        ? `<div class="pret-summary-card pret-summary-locked">
-            <span class="pret-summary-label">Demande en vote</span>
-            <strong>${escapeHtml(getMemberById(pendingVote.borrowerId)?.name || "—")}</strong>
-            <span class="pret-summary-formula">${escapeHtml(getPretStatusLabel(pendingVote.status))} · ${formatEuro(pendingVote.amount)}</span>
-          </div>`
-        : ""
-    }
   `;
 }
 
