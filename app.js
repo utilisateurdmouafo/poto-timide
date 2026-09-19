@@ -59,7 +59,7 @@ const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["communication", "membres", "tournee", "prets", "evenements", "dettes", "amendes", "finance", "loi", "admin"];
+const TAB_IDS = ["communication", "membres", "tournee", "ex-tournee", "prets", "evenements", "dettes", "amendes", "finance", "loi", "admin"];
 const LOI_KEY = "poto-timide-loi";
 const COMMUNICATION_KINDS = [
   {
@@ -559,6 +559,7 @@ function saveAncienneTourneeDettes(shouldRender = true) {
   if (shouldRender) {
     renderAncienneTourneeDettesAdmin();
     renderMesDettes();
+    renderExTournee();
   }
 }
 
@@ -4155,6 +4156,11 @@ function showTab(tabId) {
     renderTourneeTable();
   }
 
+  if (tabId === "ex-tournee") {
+    reloadFromStorage();
+    renderExTournee();
+  }
+
   if (tabId === "prets") {
     reloadFromStorage();
     renderPrets();
@@ -4480,6 +4486,47 @@ function renderAncienneTourneeMemberView() {
   const current = getCurrentMember();
   if (!current) return [];
   return getAncienneTourneeEntriesFor(current.id);
+}
+
+/** Onglet Ex tournée : toutes les dettes d'ancienne tournée, lecture seule */
+function renderExTournee() {
+  const container = document.getElementById("exTourneeList");
+  if (!container) return;
+
+  const rows = [...ancienneTourneeDettes]
+    .map((entry) => {
+      const remaining = Math.round((Number(entry.amount) || 0) * 100) / 100;
+      const repaid = Math.round((Number(entry.repaidAmount) || 0) * 100) / 100;
+      const original = Math.round(
+        (Number(entry.originalAmount) || remaining + repaid) * 100
+      ) / 100;
+      const member = getMemberById(entry.memberId);
+      return {
+        id: entry.id,
+        date: entry.createdAt,
+        type: "ancienne-tournee",
+        detail: member?.name || "—",
+        original,
+        repaid,
+        remaining,
+        settled: remaining <= 0,
+        sortAt: entry.createdAt,
+      };
+    })
+    .sort((a, b) => {
+      if (a.settled !== b.settled) return a.settled ? 1 : -1;
+      return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+    });
+
+  renderLedgerInto(container, {
+    title: "Dettes ancienne tournée",
+    noun: "dette",
+    emptyMeta: "Aucune dette d'ancienne tournée",
+    emptyText: "Aucune dette d'ancienne tournée pour le moment.",
+    rows,
+    rowIdPrefix: "ex-tournee",
+    hideTitle: true,
+  });
 }
 
 function isFinancierPoste() {
@@ -9980,6 +10027,9 @@ async function initApp() {
     renderCommunication();
     renderAncienneTourneeMemberView();
     renderAncienneTourneeDettesAdmin();
+    if (document.getElementById("tab-ex-tournee")?.classList.contains("active")) {
+      renderExTournee();
+    }
     renderEvenements();
     renderAmendes();
     renderFinanceDashboard();
