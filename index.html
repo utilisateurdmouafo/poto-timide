@@ -198,16 +198,24 @@
 
       <!-- ========== PRÊTS ========== -->
       <div class="tab-content" id="tab-prets">
+        <!-- Bloc vote en tout premier : total à régler + tableau des demandes -->
+        <section class="panel" id="pretVotingPanel">
+          <h2>Demandes en vote</h2>
+          <p class="panel-desc">Votez Oui ou Non sous 24 h. Le total à régler et le détail apparaissent ici.</p>
+          <div id="pretVotingList" class="pret-loan-list"></div>
+        </section>
+
+        <section class="panel" id="financierPretPanel" hidden>
+          <h2>Validation Financier</h2>
+          <p class="panel-desc">Validez ou refusez les demandes de prêt.</p>
+          <div id="pretFinancierList" class="pret-loan-list"></div>
+        </section>
+
         <section class="panel">
           <h2>Prêts du groupe</h2>
           <p class="panel-desc">Demandez un prêt : les membres votent sous 24 h.</p>
           <div class="pret-summary" id="pretSummary"></div>
           <p class="save-msg" id="pretSaveMsg" hidden></p>
-        </section>
-
-        <section class="panel">
-          <h2>Demandes en vote</h2>
-          <div id="pretVotingList" class="pret-loan-list"></div>
         </section>
 
         <section class="panel" id="pretNotificationsPanel">
@@ -233,12 +241,6 @@
             </label>
             <button type="submit" class="btn-primary">Initier un prêt</button>
           </form>
-        </section>
-
-        <section class="panel" id="financierPretPanel" hidden>
-          <h2>Validation Financier</h2>
-          <p class="panel-desc">Validez ou refusez les demandes de prêt.</p>
-          <div id="pretFinancierList" class="pret-loan-list"></div>
         </section>
 
         <section class="panel">
