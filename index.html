@@ -364,31 +364,25 @@
         </div>
       </div>
 
-      <!-- ========== LA LOI ========== -->
+      <!-- ========== LA LOI (lecture seule pour tous les membres) ========== -->
       <div class="tab-content" id="tab-loi">
         <section class="panel loi-panel">
           <div class="amende-head">
             <h2>La loi</h2>
-            <p class="panel-desc">Règlement, articles et règles de fonctionnement du groupe Potos Timides.</p>
+            <p class="panel-desc">Règlement, articles et règles de fonctionnement du groupe Potos Timides. Lecture seule.</p>
           </div>
-          <p class="info-msg" id="loiLockMsg" hidden></p>
-          <div id="loiComposer" class="loi-composer" hidden>
-            <h3 id="loiComposerTitle">Ajouter un article</h3>
-            <form id="loiForm" class="pret-form">
-              <label>
-                Titre / article
-                <input type="text" id="loiTitle" maxlength="160" placeholder="Ex : Article 1 — Cotisations" required />
-              </label>
-              <label>
-                Contenu
-                <textarea id="loiBody" rows="6" maxlength="8000" placeholder="Texte de l'article, règles, modalités…" required></textarea>
-              </label>
-              <div class="fond-caisse-actions">
-                <button type="submit" class="btn-primary" id="loiSubmitBtn">Enregistrer</button>
-                <button type="button" class="btn-secondary" id="loiCancelBtn" hidden>Annuler</button>
-              </div>
-            </form>
-            <p class="save-msg" id="loiSaveMsg" hidden></p>
+          <div class="loi-search-wrap">
+            <label class="loi-search-label" for="loiSearchInput">
+              Rechercher
+              <input
+                type="search"
+                id="loiSearchInput"
+                class="loi-search-input"
+                placeholder="Ex : cotisation, amende, prêt…"
+                autocomplete="off"
+              />
+            </label>
+            <p class="loi-search-meta" id="loiSearchMeta" hidden></p>
           </div>
           <div id="loiList" class="loi-list"></div>
         </section>
@@ -438,6 +432,7 @@
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="amendes">Amendes</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="evenements">Événements</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="communication">Communication</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="loi">La loi</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="sauvegarde">Sauvegarde</button>
           </nav>
           </div>
@@ -884,6 +879,34 @@
                   <p class="save-msg" id="communicationSaveMsg" hidden></p>
                 </section>
                 <div id="communicationAdminList" class="communication-list"></div>
+              </section>
+            </div>
+
+            <div class="gestion-subpanel" id="adminSub-loi" data-admin-panel="loi" hidden>
+              <section class="panel loi-panel">
+                <div class="amende-head">
+                  <h2>La loi — gestion</h2>
+                  <p class="panel-desc">Ajouter, modifier ou supprimer les articles du règlement. Les membres voient uniquement la lecture seule.</p>
+                </div>
+                <div id="loiComposer" class="loi-composer">
+                  <h3 id="loiComposerTitle">Ajouter un article</h3>
+                  <form id="loiForm" class="pret-form">
+                    <label>
+                      Titre / article
+                      <input type="text" id="loiTitle" maxlength="160" placeholder="Ex : Article 1 — Cotisations" required />
+                    </label>
+                    <label>
+                      Contenu
+                      <textarea id="loiBody" rows="6" maxlength="8000" placeholder="Texte de l'article, règles, modalités…" required></textarea>
+                    </label>
+                    <div class="fond-caisse-actions">
+                      <button type="submit" class="btn-primary" id="loiSubmitBtn">Enregistrer</button>
+                      <button type="button" class="btn-secondary" id="loiCancelBtn" hidden>Annuler</button>
+                    </div>
+                  </form>
+                  <p class="save-msg" id="loiSaveMsg" hidden></p>
+                </div>
+                <div id="loiAdminList" class="loi-list"></div>
               </section>
             </div>
 

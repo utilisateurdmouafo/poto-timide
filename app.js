@@ -91,7 +91,7 @@ const FINANCE_SUBTABS = ["caisse", "archives"];
 const FINANCE_LIVE_DETTE_SUB = "dettes-amendes";
 const FINANCE_CAISSE_SUB = "caisse";
 const FINANCE_ARCHIVES_SUB = "archives";
-const ADMIN_SUBTABS = ["membres", "bureau", "admins", "acces", "tournee", "ancienne-tournee", "caisse", "prets", "amendes", "evenements", "communication", "sauvegarde"];
+const ADMIN_SUBTABS = ["membres", "bureau", "admins", "acces", "tournee", "ancienne-tournee", "caisse", "prets", "amendes", "evenements", "communication", "loi", "sauvegarde"];
 const ADMIN_SUBTAB_KEY = "poto-timide-admin-subtab";
 // Compat anciens noms de stockage
 const GESTION_SUBTAB_KEY = ADMIN_SUBTAB_KEY;
@@ -293,8 +293,11 @@ const loiCancelBtn = document.getElementById("loiCancelBtn");
 const loiComposer = document.getElementById("loiComposer");
 const loiComposerTitle = document.getElementById("loiComposerTitle");
 const loiList = document.getElementById("loiList");
-const loiLockMsg = document.getElementById("loiLockMsg");
+const loiAdminList = document.getElementById("loiAdminList");
+const loiSearchInput = document.getElementById("loiSearchInput");
+const loiSearchMeta = document.getElementById("loiSearchMeta");
 const loiSaveMsg = document.getElementById("loiSaveMsg");
+let loiSearchQuery = "";
 const adminRolesPanel = document.getElementById("adminRolesPanel");
 const adminList = document.getElementById("adminList");
 const adminForm = document.getElementById("adminForm");
@@ -2490,6 +2493,9 @@ function showAdminSub(subId) {
     activeCommunicationSub = "communique";
     renderCommunication();
     focusCommunicationCursor();
+  }
+  if (subId === "loi") {
+    renderLoiAdmin();
   }
   if (subId === "sauvegarde") {
     loadBackupPanel();
@@ -8016,6 +8022,7 @@ async function saveLoiArticles() {
 }
 
 function canManageLoi() {
+  // Édition uniquement pour admin ou postes autorisés (via Admin → Accès → La loi)
   if (!isLoggedIn()) return false;
   if (isGroupAdmin()) return true;
   return hasRoleTabAccess("loi");
@@ -8032,6 +8039,43 @@ function getVisibleLoiArticles() {
     });
 }
 
+function filterLoiArticles(items, query) {
+  const q = String(query || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+  if (!q) return items;
+  return items.filter((item) => {
+    const title = String(item.title || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    const body = String(item.body || "")
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    return title.includes(q) || body.includes(q);
+  });
+}
+
+function buildLoiCardHtml(item, { manage = false } = {}) {
+  const title = escapeHtml(item.title || "Sans titre");
+  const body = escapeHtml(item.body || "").replace(/\n/g, "<br>");
+  const actions = manage
+    ? `<div class="loi-card-actions">
+        <button type="button" class="btn-secondary btn-loi-edit" data-loi-id="${escapeHtml(item.id)}">Modifier</button>
+        <button type="button" class="btn-pret-delete btn-loi-delete" data-loi-id="${escapeHtml(item.id)}">Supprimer</button>
+      </div>`
+    : "";
+  return `
+    <article class="loi-card" id="loi-${escapeHtml(item.id)}">
+      <h3 class="loi-card-title">${title}</h3>
+      <div class="loi-card-body">${body}</div>
+      ${actions}
+    </article>`;
+}
+
 function cancelEditLoi() {
   editingLoiId = null;
   loiForm?.reset();
@@ -8040,59 +8084,66 @@ function cancelEditLoi() {
   if (loiComposerTitle) loiComposerTitle.textContent = "Ajouter un article";
 }
 
-function renderLoiComposer() {
-  const canEdit = canManageLoi();
-  if (loiComposer) loiComposer.hidden = !canEdit;
-  if (loiLockMsg) {
-    if (canEdit) {
-      loiLockMsg.hidden = true;
-    } else {
-      loiLockMsg.hidden = false;
-      loiLockMsg.textContent =
-        "Lecture seule. L'édition est réservée aux postes autorisés (onglet Admin → Accès → La loi).";
-    }
-  }
-}
-
+/** Onglet membre : toujours lecture seule + recherche */
 function renderLoiList() {
   if (!loiList) return;
-  const items = getVisibleLoiArticles();
-  const canEdit = canManageLoi();
-  if (!items.length) {
-    loiList.innerHTML = `<p class="panel-desc">Aucun article pour le moment.${
-      canEdit ? " Ajoute le premier ci-dessus." : ""
-    }</p>`;
+  const all = getVisibleLoiArticles();
+  const items = filterLoiArticles(all, loiSearchQuery);
+  if (loiSearchMeta) {
+    if (loiSearchQuery.trim()) {
+      loiSearchMeta.hidden = false;
+      loiSearchMeta.textContent =
+        items.length === 0
+          ? `Aucun résultat pour « ${loiSearchQuery.trim()} »`
+          : `${items.length} résultat${items.length > 1 ? "s" : ""} sur ${all.length}`;
+    } else {
+      loiSearchMeta.hidden = true;
+      loiSearchMeta.textContent = "";
+    }
+  }
+  if (!all.length) {
+    loiList.innerHTML = `<p class="panel-desc">Aucun article pour le moment.</p>`;
     return;
   }
-  loiList.innerHTML = items
-    .map((item) => {
-      const title = escapeHtml(item.title || "Sans titre");
-      const body = escapeHtml(item.body || "").replace(/\n/g, "<br>");
-      const actions = canEdit
-        ? `<div class="loi-card-actions">
-            <button type="button" class="btn-secondary btn-loi-edit" data-loi-id="${escapeHtml(item.id)}">Modifier</button>
-            <button type="button" class="btn-pret-delete btn-loi-delete" data-loi-id="${escapeHtml(item.id)}">Supprimer</button>
-          </div>`
-        : "";
-      return `
-        <article class="loi-card" id="loi-${escapeHtml(item.id)}">
-          <h3 class="loi-card-title">${title}</h3>
-          <div class="loi-card-body">${body}</div>
-          ${actions}
-        </article>`;
-    })
-    .join("");
+  if (!items.length) {
+    loiList.innerHTML = `<p class="panel-desc">Aucun article ne correspond à ta recherche.</p>`;
+    return;
+  }
+  loiList.innerHTML = items.map((item) => buildLoiCardHtml(item, { manage: false })).join("");
 }
 
 function renderLoi() {
-  renderLoiComposer();
+  // Lecture seule — jamais de formulaire d'édition ici
+  if (loiSearchInput && loiSearchInput.value !== loiSearchQuery) {
+    // garder la saisie utilisateur
+  }
   renderLoiList();
+}
+
+/** Admin → La loi : édition réservée aux autorisés */
+function renderLoiAdmin() {
+  if (!canManageLoi()) {
+    if (loiComposer) loiComposer.hidden = true;
+    if (loiAdminList) {
+      loiAdminList.innerHTML =
+        `<p class="panel-desc">Tu n'as pas l'accès pour gérer La loi. Un admin peut t'accorder cet accès dans Admin → Accès.</p>`;
+    }
+    return;
+  }
+  if (loiComposer) loiComposer.hidden = false;
+  if (!loiAdminList) return;
+  const items = getVisibleLoiArticles();
+  if (!items.length) {
+    loiAdminList.innerHTML = `<p class="panel-desc">Aucun article. Ajoute le premier ci-dessus.</p>`;
+    return;
+  }
+  loiAdminList.innerHTML = items.map((item) => buildLoiCardHtml(item, { manage: true })).join("");
 }
 
 async function submitLoiForm(e) {
   e?.preventDefault?.();
   if (!canManageLoi()) {
-    alert("Vous n'avez pas l'autorisation de modifier La loi.");
+    alert("Vous n'avez pas l'autorisation de modifier La loi. Cet accès se gère dans Admin → Accès.");
     return;
   }
   const title = String(loiTitleInput?.value || "").trim();
@@ -8137,6 +8188,7 @@ async function submitLoiForm(e) {
       : "Enregistré ici, synchronisation serveur en cours…";
   }
   cancelEditLoi();
+  renderLoiAdmin();
   renderLoi();
 }
 
@@ -8163,6 +8215,7 @@ async function deleteLoiArticle(id) {
   item.updatedAt = now;
   if (editingLoiId === id) cancelEditLoi();
   await saveLoiArticles();
+  renderLoiAdmin();
   renderLoi();
 }
 
@@ -8176,6 +8229,11 @@ function handleLoiListClick(e) {
   if (deleteBtn) {
     deleteLoiArticle(deleteBtn.dataset.loiId);
   }
+}
+
+function handleLoiSearchInput() {
+  loiSearchQuery = String(loiSearchInput?.value || "");
+  renderLoiList();
 }
 
 function canManageCommunicationPost(post) {
@@ -9201,9 +9259,11 @@ communicationAdminList?.addEventListener("click", handleCommunicationListClick);
 loiForm?.addEventListener("submit", submitLoiForm);
 loiCancelBtn?.addEventListener("click", () => {
   cancelEditLoi();
-  renderLoi();
+  renderLoiAdmin();
 });
-loiList?.addEventListener("click", handleLoiListClick);
+loiAdminList?.addEventListener("click", handleLoiListClick);
+loiSearchInput?.addEventListener("input", handleLoiSearchInput);
+loiSearchInput?.addEventListener("search", handleLoiSearchInput);
 
 adminSubtabs?.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-admin-sub]");
@@ -9935,6 +9995,7 @@ async function initApp() {
       if (activeAdminSub === "ancienne-tournee") renderAncienneTourneeDettesAdmin();
       if (activeAdminSub === "communication") renderCommunication();
       if (activeAdminSub === "prets") renderAdminPrets();
+      if (activeAdminSub === "loi") renderLoiAdmin();
       if (activeAdminSub === "acces") renderTabPermissionsPanel();
       if (activeAdminSub === "caisse") {
         renderFondCaissePanel();

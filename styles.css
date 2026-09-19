@@ -7089,3 +7089,36 @@ html.phone-nav .menu-toggle-icon {
   font: inherit;
   background: #fff;
 }
+
+.loi-search-wrap {
+  margin: 0.75rem 0 1.1rem;
+}
+
+.loi-search-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #0c4a6e;
+}
+
+.loi-search-input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(14, 165, 233, 0.28);
+  padding: 0.7rem 0.9rem;
+  font: inherit;
+  background: #fff;
+}
+
+.loi-search-input:focus {
+  outline: 2px solid rgba(14, 165, 233, 0.35);
+  border-color: #0ea5e9;
+}
+
+.loi-search-meta {
+  margin: 0.45rem 0 0;
+  font-size: 0.85rem;
+  color: #64748b;
+}
