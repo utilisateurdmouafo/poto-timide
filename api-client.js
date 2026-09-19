@@ -273,6 +273,12 @@ function unwrapLocalSynced(value) {
   return value;
 }
 
+function objectUpdatedAtMs(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return 0;
+  const time = new Date(value.updatedAt || 0).getTime();
+  return Number.isFinite(time) ? time : 0;
+}
+
 function writeServerDataToLocal(serverData) {
   Object.entries(serverData || {}).forEach(([key, value]) => {
     if (!API_SYNC_KEYS.has(key)) return;
@@ -289,6 +295,27 @@ function writeServerDataToLocal(serverData) {
         const local = raw ? unwrapLocalSynced(JSON.parse(raw)) : [];
         const incoming = unwrapLocalSynced(value);
         value = mergeLoansPreferringNewer(Array.isArray(local) ? local : [], Array.isArray(incoming) ? incoming : []);
+      }
+      // Accès / rôles / admins : ne pas écraser une version locale plus récente
+      if (
+        key === "poto-timide-tab-permissions" ||
+        key === "poto-timide-roles" ||
+        key === "poto-timide-admin-ids"
+      ) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          try {
+            const local = unwrapLocalSynced(JSON.parse(raw));
+            const incoming = unwrapLocalSynced(value);
+            if (objectUpdatedAtMs(local) > objectUpdatedAtMs(incoming)) {
+              value = local;
+            } else {
+              value = incoming;
+            }
+          } catch {
+            /* keep server value */
+          }
+        }
       }
       rawSetItem(key, JSON.stringify(value));
     } catch (err) {

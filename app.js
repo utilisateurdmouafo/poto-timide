@@ -3439,8 +3439,29 @@ async function removeAdmin(memberId) {
   }
 }
 
+let tabPermissionsSaving = false;
+let tabPermissionsTouchAt = 0;
+
+function collectTabPermissionsFromUI() {
+  const nextPermissions = {};
+  MANAGEABLE_TABS.forEach((tab) => {
+    nextPermissions[tab.id] = [];
+  });
+  tabPermissionsBody?.querySelectorAll(".tab-perm-checkbox:checked").forEach((checkbox) => {
+    const tabId = checkbox.dataset.tab;
+    const roleId = checkbox.dataset.role;
+    if (nextPermissions[tabId] && !nextPermissions[tabId].includes(roleId)) {
+      nextPermissions[tabId].push(roleId);
+    }
+  });
+  return nextPermissions;
+}
+
 function renderTabPermissionsPanel() {
   if (!tabPermissionsTable || !tabPermissionsBody) return;
+  // Ne pas reconstruire le tableau si l'utilisateur vient de cocher une case
+  if (tabPermissionsSaving) return;
+  if (Date.now() - tabPermissionsTouchAt < 4000) return;
 
   const headerRow = tabPermissionsTable.querySelector("thead tr");
   headerRow.innerHTML = `
@@ -3474,53 +3495,57 @@ function renderTabPermissionsPanel() {
   }).join("");
 }
 
-async function saveTabPermissionsFromUI() {
+async function saveTabPermissionsFromUI(options = {}) {
+  const { silent = false } = options;
   if (!requireGroupAdmin("configurer les accès aux onglets")) return;
 
-  const nextPermissions = {};
-  MANAGEABLE_TABS.forEach((tab) => {
-    nextPermissions[tab.id] = [];
-  });
-
-  tabPermissionsBody.querySelectorAll(".tab-perm-checkbox:checked").forEach((checkbox) => {
-    const tabId = checkbox.dataset.tab;
-    const roleId = checkbox.dataset.role;
-    if (nextPermissions[tabId] && !nextPermissions[tabId].includes(roleId)) {
-      nextPermissions[tabId].push(roleId);
-    }
-  });
-
+  const nextPermissions = collectTabPermissionsFromUI();
   tabPermissions = nextPermissions;
   saveTabPermissionsData();
+  tabPermissionsTouchAt = Date.now();
 
-  if (tabPermissionsMsg) {
+  if (!silent && tabPermissionsMsg) {
     tabPermissionsMsg.textContent = "Enregistrement des accès…";
     tabPermissionsMsg.className = "save-msg";
     tabPermissionsMsg.hidden = false;
   }
 
-  const flushed = typeof potoFlushSync === "function" ? await potoFlushSync() : true;
-  if (!flushed) {
-    if (tabPermissionsMsg) {
-      tabPermissionsMsg.textContent = "Accès enregistrés ici, mais pas encore sur le serveur. Réessaie.";
-      tabPermissionsMsg.className = "save-msg save-msg-error";
+  tabPermissionsSaving = true;
+  try {
+    const flushed = typeof potoFlushSync === "function" ? await potoFlushSync() : true;
+    if (!flushed) {
+      if (tabPermissionsMsg) {
+        tabPermissionsMsg.textContent = "Accès enregistrés ici, mais pas encore sur le serveur. Réessaie.";
+        tabPermissionsMsg.className = "save-msg save-msg-error";
+        tabPermissionsMsg.hidden = false;
+      }
+      return;
     }
+
+    if (tabPermissionsMsg) {
+      tabPermissionsMsg.textContent = silent ? "Accès mis à jour." : "Accès aux onglets enregistrés.";
+      tabPermissionsMsg.className = "save-msg save-msg-success";
+      tabPermissionsMsg.hidden = false;
+    }
+
+    updateSessionUI();
+    updateAdminSubtabVisibility();
+  } finally {
+    tabPermissionsSaving = false;
+    tabPermissionsTouchAt = Date.now();
+  }
+}
+
+async function handleTabPermissionCheckboxChange(e) {
+  const checkbox = e.target.closest?.(".tab-perm-checkbox");
+  if (!checkbox || !tabPermissionsBody?.contains(checkbox)) return;
+  if (!isGroupAdmin()) {
+    checkbox.checked = !checkbox.checked;
     return;
   }
-
-  if (tabPermissionsMsg) {
-    tabPermissionsMsg.textContent = "Accès aux onglets enregistrés.";
-    tabPermissionsMsg.className = "save-msg save-msg-success";
-    tabPermissionsMsg.hidden = false;
-  }
-
-  updateSessionUI();
-  updateAdminSubtabVisibility();
-  renderTourneeTable();
-  renderAmendes();
-  renderPrets();
-  renderEvenements();
-  renderCommunication();
+  tabPermissionsTouchAt = Date.now();
+  // Enregistrement immédiat au clic — la case reste cochée
+  await saveTabPermissionsFromUI({ silent: true });
 }
 
 function buildBureauHtml(allowClear) {
@@ -9002,7 +9027,8 @@ document.addEventListener("click", (e) => {
   if (memberId) toggleTourneeBouffeOk(memberId);
 });
 
-saveTabPermissionsBtn?.addEventListener("click", saveTabPermissionsFromUI);
+saveTabPermissionsBtn?.addEventListener("click", () => saveTabPermissionsFromUI({ silent: false }));
+tabPermissionsBody?.addEventListener("change", handleTabPermissionCheckboxChange);
 
 amendeForm?.addEventListener("submit", (e) => {
   e.preventDefault();
