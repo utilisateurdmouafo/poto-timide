@@ -109,6 +109,10 @@
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19h16M7 16v-4m5 4V8m5 8v-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
             Finance
           </button>
+          <button class="tab" data-tab="loi">
+            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.5 4.5h8.2L17.5 7.3V19.5H6.5V4.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14.5 4.5V7.3h2.9M9 11h6M9 14.5h6M9 18h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+            La loi
+          </button>
           <button class="tab tab-admin-entry" data-tab="admin" id="tabBtnAdmin" hidden>
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3.5 19 6.5v5.2c0 4.2-2.9 7.4-7 8.8-4.1-1.4-7-4.6-7-8.8V6.5L12 3.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="m9 12 2 2 4-4.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
             Admin
@@ -358,6 +362,36 @@
             </p>
           </section>
         </div>
+      </div>
+
+      <!-- ========== LA LOI ========== -->
+      <div class="tab-content" id="tab-loi">
+        <section class="panel loi-panel">
+          <div class="amende-head">
+            <h2>La loi</h2>
+            <p class="panel-desc">Règlement, articles et règles de fonctionnement du groupe Potos Timides.</p>
+          </div>
+          <p class="info-msg" id="loiLockMsg" hidden></p>
+          <div id="loiComposer" class="loi-composer" hidden>
+            <h3 id="loiComposerTitle">Ajouter un article</h3>
+            <form id="loiForm" class="pret-form">
+              <label>
+                Titre / article
+                <input type="text" id="loiTitle" maxlength="160" placeholder="Ex : Article 1 — Cotisations" required />
+              </label>
+              <label>
+                Contenu
+                <textarea id="loiBody" rows="6" maxlength="8000" placeholder="Texte de l'article, règles, modalités…" required></textarea>
+              </label>
+              <div class="fond-caisse-actions">
+                <button type="submit" class="btn-primary" id="loiSubmitBtn">Enregistrer</button>
+                <button type="button" class="btn-secondary" id="loiCancelBtn" hidden>Annuler</button>
+              </div>
+            </form>
+            <p class="save-msg" id="loiSaveMsg" hidden></p>
+          </div>
+          <div id="loiList" class="loi-list"></div>
+        </section>
       </div>
 
       <!-- ========== COMMUNICATION ========== -->

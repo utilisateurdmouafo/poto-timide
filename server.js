@@ -35,6 +35,7 @@ const STORAGE_KEYS = [
   "poto-timide-notifications",
   "poto-timide-evenements",
   "poto-timide-communication",
+  "poto-timide-loi",
   "poto-timide-admin-ids",
   "poto-timide-autre-argent",
   "poto-timide-ancienne-tournee-dettes",
@@ -60,6 +61,7 @@ const DEFAULT_TAB_PERMISSIONS = {
   amendes: ["censeur", "tresorier"],
   evenements: ["tresorier"],
   communication: ["president", "vice-president"],
+  loi: [],
 };
 
 const DEFAULT_FINANCIER_ACCOUNT = {
@@ -79,6 +81,7 @@ const EMPTY_APP_DEFAULTS = {
   "poto-timide-notifications": [],
   "poto-timide-evenements": [],
   "poto-timide-communication": [],
+  "poto-timide-loi": [],
   "poto-timide-autre-argent": [],
   "poto-timide-ancienne-tournee-dettes": [],
   "poto-timide-fond-caisse": 0,
@@ -322,7 +325,11 @@ async function setData(key, value) {
   backupDatabase().catch(() => {});
 }
 
-const MERGE_BY_ID_KEYS = new Set(["poto-timide-communication", "poto-timide-notifications"]);
+const MERGE_BY_ID_KEYS = new Set([
+  "poto-timide-communication",
+  "poto-timide-notifications",
+  "poto-timide-loi",
+]);
 
 function itemTimestamp(item) {
   const raw = item?.updatedAt || item?.deletedAt || item?.createdAt || 0;

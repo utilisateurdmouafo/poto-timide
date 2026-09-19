@@ -59,7 +59,8 @@ const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["communication", "membres", "tournee", "prets", "evenements", "dettes", "amendes", "finance", "admin"];
+const TAB_IDS = ["communication", "membres", "tournee", "prets", "evenements", "dettes", "amendes", "finance", "loi", "admin"];
+const LOI_KEY = "poto-timide-loi";
 const COMMUNICATION_KINDS = [
   {
     id: "communique",
@@ -137,6 +138,7 @@ const MANAGEABLE_TABS = [
   { id: "amendes", label: "Dettes & amendes" },
   { id: "evenements", label: "Événements" },
   { id: "communication", label: "Communication" },
+  { id: "loi", label: "La loi" },
 ];
 
 const DEFAULT_TAB_PERMISSIONS = {
@@ -149,6 +151,7 @@ const DEFAULT_TAB_PERMISSIONS = {
   amendes: ["censeur", "tresorier"],
   evenements: ["tresorier"],
   communication: ["president", "vice-president"],
+  loi: [],
 };
 
 const DEFAULT_MEMBER_NAMES = [
@@ -282,6 +285,16 @@ const communicationAdminList = document.getElementById("communicationAdminList")
 const adminCommunicationSubtabs = document.getElementById("adminCommunicationSubtabs");
 const communicationLockMsg = document.getElementById("communicationLockMsg");
 const communicationSaveMsg = document.getElementById("communicationSaveMsg");
+const loiForm = document.getElementById("loiForm");
+const loiTitleInput = document.getElementById("loiTitle");
+const loiBodyInput = document.getElementById("loiBody");
+const loiSubmitBtn = document.getElementById("loiSubmitBtn");
+const loiCancelBtn = document.getElementById("loiCancelBtn");
+const loiComposer = document.getElementById("loiComposer");
+const loiComposerTitle = document.getElementById("loiComposerTitle");
+const loiList = document.getElementById("loiList");
+const loiLockMsg = document.getElementById("loiLockMsg");
+const loiSaveMsg = document.getElementById("loiSaveMsg");
 const adminRolesPanel = document.getElementById("adminRolesPanel");
 const adminList = document.getElementById("adminList");
 const adminForm = document.getElementById("adminForm");
@@ -356,6 +369,8 @@ let prets = [];
 let notifications = [];
 let evenements = [];
 let communicationPosts = [];
+let loiArticles = [];
+let editingLoiId = null;
 let activeCommunicationSub = "communique";
 let editingCommunicationId = null;
 let autreArgent = [];
@@ -2578,6 +2593,7 @@ function reloadFromStorage() {
   evenements = loadEvenements();
   communicationPosts = loadCommunicationPosts();
   activeCommunicationSub = loadCommunicationSubtab();
+  loiArticles = loadLoiArticles();
   autreArgent = loadAutreArgent();
   ancienneTourneeDettes = loadAncienneTourneeDettes();
   fondCaisse = loadFondCaisse();
@@ -4165,6 +4181,11 @@ function showTab(tabId) {
       localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_ARCHIVES_SUB);
     }
     renderFinance();
+  }
+
+  if (tabId === "loi") {
+    reloadFromStorage();
+    renderLoi();
   }
 
   if (tabId === "admin") {
@@ -7976,6 +7997,187 @@ function canPublishCommunication() {
   return canManageTab("communication");
 }
 
+function loadLoiArticles() {
+  const parsed = readSynced(LOI_KEY, []);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+async function saveLoiArticles() {
+  localStorage.setItem(LOI_KEY, JSON.stringify(loiArticles));
+  if (typeof bumpLiveDataRevision === "function") bumpLiveDataRevision();
+  if (typeof potoFlushSync !== "function") return false;
+  let ok = await potoFlushSync();
+  if (!ok) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    ok = await potoFlushSync();
+  }
+  if (ok) loiArticles = loadLoiArticles();
+  return ok;
+}
+
+function canManageLoi() {
+  if (!isLoggedIn()) return false;
+  if (isGroupAdmin()) return true;
+  return hasRoleTabAccess("loi");
+}
+
+function getVisibleLoiArticles() {
+  return [...loiArticles]
+    .filter((item) => item && !item.deletedAt)
+    .sort((a, b) => {
+      const oa = Number(a.order) || 0;
+      const ob = Number(b.order) || 0;
+      if (oa !== ob) return oa - ob;
+      return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+    });
+}
+
+function cancelEditLoi() {
+  editingLoiId = null;
+  loiForm?.reset();
+  if (loiCancelBtn) loiCancelBtn.hidden = true;
+  if (loiSubmitBtn) loiSubmitBtn.textContent = "Enregistrer";
+  if (loiComposerTitle) loiComposerTitle.textContent = "Ajouter un article";
+}
+
+function renderLoiComposer() {
+  const canEdit = canManageLoi();
+  if (loiComposer) loiComposer.hidden = !canEdit;
+  if (loiLockMsg) {
+    if (canEdit) {
+      loiLockMsg.hidden = true;
+    } else {
+      loiLockMsg.hidden = false;
+      loiLockMsg.textContent =
+        "Lecture seule. L'édition est réservée aux postes autorisés (onglet Admin → Accès → La loi).";
+    }
+  }
+}
+
+function renderLoiList() {
+  if (!loiList) return;
+  const items = getVisibleLoiArticles();
+  const canEdit = canManageLoi();
+  if (!items.length) {
+    loiList.innerHTML = `<p class="panel-desc">Aucun article pour le moment.${
+      canEdit ? " Ajoute le premier ci-dessus." : ""
+    }</p>`;
+    return;
+  }
+  loiList.innerHTML = items
+    .map((item) => {
+      const title = escapeHtml(item.title || "Sans titre");
+      const body = escapeHtml(item.body || "").replace(/\n/g, "<br>");
+      const actions = canEdit
+        ? `<div class="loi-card-actions">
+            <button type="button" class="btn-secondary btn-loi-edit" data-loi-id="${escapeHtml(item.id)}">Modifier</button>
+            <button type="button" class="btn-pret-delete btn-loi-delete" data-loi-id="${escapeHtml(item.id)}">Supprimer</button>
+          </div>`
+        : "";
+      return `
+        <article class="loi-card" id="loi-${escapeHtml(item.id)}">
+          <h3 class="loi-card-title">${title}</h3>
+          <div class="loi-card-body">${body}</div>
+          ${actions}
+        </article>`;
+    })
+    .join("");
+}
+
+function renderLoi() {
+  renderLoiComposer();
+  renderLoiList();
+}
+
+async function submitLoiForm(e) {
+  e?.preventDefault?.();
+  if (!canManageLoi()) {
+    alert("Vous n'avez pas l'autorisation de modifier La loi.");
+    return;
+  }
+  const title = String(loiTitleInput?.value || "").trim();
+  const body = String(loiBodyInput?.value || "").trim();
+  if (!title || !body) {
+    alert("Titre et contenu obligatoires.");
+    return;
+  }
+  const now = new Date().toISOString();
+  const current = getCurrentMember();
+  if (editingLoiId) {
+    const item = loiArticles.find((a) => a.id === editingLoiId);
+    if (!item || item.deletedAt) {
+      alert("Article introuvable.");
+      cancelEditLoi();
+      return;
+    }
+    item.title = title;
+    item.body = body;
+    item.updatedAt = now;
+    item.updatedBy = current?.id || null;
+  } else {
+    loiArticles.unshift({
+      id: generateId(),
+      title,
+      body,
+      order: getVisibleLoiArticles().length + 1,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: current?.id || null,
+      deletedAt: null,
+    });
+  }
+  const ok = await saveLoiArticles();
+  if (loiSaveMsg) {
+    loiSaveMsg.hidden = false;
+    loiSaveMsg.className = ok ? "save-msg save-msg-success" : "save-msg save-msg-error";
+    loiSaveMsg.textContent = ok
+      ? editingLoiId
+        ? "Article mis à jour."
+        : "Article ajouté."
+      : "Enregistré ici, synchronisation serveur en cours…";
+  }
+  cancelEditLoi();
+  renderLoi();
+}
+
+function startEditLoi(id) {
+  if (!canManageLoi()) return;
+  const item = loiArticles.find((a) => a.id === id && !a.deletedAt);
+  if (!item) return;
+  editingLoiId = id;
+  if (loiTitleInput) loiTitleInput.value = item.title || "";
+  if (loiBodyInput) loiBodyInput.value = item.body || "";
+  if (loiCancelBtn) loiCancelBtn.hidden = false;
+  if (loiSubmitBtn) loiSubmitBtn.textContent = "Enregistrer les modifications";
+  if (loiComposerTitle) loiComposerTitle.textContent = "Modifier l'article";
+  loiComposer?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function deleteLoiArticle(id) {
+  if (!canManageLoi()) return;
+  const item = loiArticles.find((a) => a.id === id);
+  if (!item || item.deletedAt) return;
+  if (!(await appConfirm(`Supprimer l'article « ${item.title || "Sans titre"} » ?`))) return;
+  const now = new Date().toISOString();
+  item.deletedAt = now;
+  item.updatedAt = now;
+  if (editingLoiId === id) cancelEditLoi();
+  await saveLoiArticles();
+  renderLoi();
+}
+
+function handleLoiListClick(e) {
+  const editBtn = e.target.closest(".btn-loi-edit");
+  const deleteBtn = e.target.closest(".btn-loi-delete");
+  if (editBtn) {
+    startEditLoi(editBtn.dataset.loiId);
+    return;
+  }
+  if (deleteBtn) {
+    deleteLoiArticle(deleteBtn.dataset.loiId);
+  }
+}
+
 function canManageCommunicationPost(post) {
   return Boolean(post) && !post.deletedAt && canPublishCommunication();
 }
@@ -8996,6 +9198,13 @@ function handleCommunicationListClick(e) {
 communicationList?.addEventListener("click", handleCommunicationListClick);
 communicationAdminList?.addEventListener("click", handleCommunicationListClick);
 
+loiForm?.addEventListener("submit", submitLoiForm);
+loiCancelBtn?.addEventListener("click", () => {
+  cancelEditLoi();
+  renderLoi();
+});
+loiList?.addEventListener("click", handleLoiListClick);
+
 adminSubtabs?.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-admin-sub]");
   if (!btn?.dataset.adminSub) return;
@@ -9373,6 +9582,7 @@ const BACKUP_KEY_LABELS = {
   notifications: "Notifications",
   evenements: "Événements",
   communication: "Communication",
+  loi: "La loi",
   "admin-ids": "Administrateurs",
   "autre-argent": "Autre argent",
   "ancienne-tournee-dettes": "Dettes ancienne tournée",
@@ -9711,6 +9921,9 @@ async function initApp() {
     renderAmendes();
     renderFinanceDashboard();
     renderFondCaisseAnnuel();
+    if (document.getElementById("tab-loi")?.classList.contains("active")) {
+      renderLoi();
+    }
     if (document.getElementById("tab-prets")?.classList.contains("active")) {
       renderPrets();
     }
