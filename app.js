@@ -846,9 +846,48 @@ function buildLedgerSectionHtml({ title, noun, emptyMeta, emptyText, rows, rowId
     </div>`;
 }
 
+function getTableWrapScroll(container) {
+  if (!container) return 0;
+  // Le wrap peut être le container lui-même ou un enfant
+  if (container.classList?.contains("amende-table-wrap") ||
+      container.classList?.contains("table-wrap") ||
+      container.classList?.contains("dette-table-wrap") ||
+      container.classList?.contains("finance-table-wrap")) {
+    return container.scrollLeft || 0;
+  }
+  const wrap = container.querySelector?.(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap");
+  return wrap ? wrap.scrollLeft || 0 : 0;
+}
+
+function setTableWrapScroll(container, left) {
+  if (!container || !left) return;
+  const apply = () => {
+    if (container.classList?.contains("amende-table-wrap") ||
+        container.classList?.contains("table-wrap") ||
+        container.classList?.contains("dette-table-wrap") ||
+        container.classList?.contains("finance-table-wrap")) {
+      container.scrollLeft = left;
+      return;
+    }
+    const wrap = container.querySelector?.(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap");
+    if (wrap) wrap.scrollLeft = left;
+  };
+  apply();
+  requestAnimationFrame(() => {
+    apply();
+    requestAnimationFrame(apply);
+  });
+}
+
 function renderLedgerInto(container, options) {
   if (!container) return;
-  container.innerHTML = buildLedgerSectionHtml(options);
+  const nextHtml = buildLedgerSectionHtml(options);
+  // Évite de recréer le DOM (et de perdre le scroll) si rien n'a changé
+  if (container.dataset.ledgerHtml === nextHtml) return;
+  const savedScroll = getTableWrapScroll(container);
+  container.innerHTML = nextHtml;
+  container.dataset.ledgerHtml = nextHtml;
+  setTableWrapScroll(container, savedScroll);
   scheduleFitTables();
 }
 
@@ -9578,6 +9617,18 @@ async function initApp() {
   window.potoOnServerDataPulled = () => {
     if (typeof window.potoIsUserEditingForm === "function" && window.potoIsUserEditingForm()) return;
     if (typeof window.potoIsLoanDateEditing === "function" && window.potoIsLoanDateEditing()) return;
+    // Mémoriser le scroll horizontal des tableaux avant le re-render
+    const scrollSnapshot = [];
+    document.querySelectorAll(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap").forEach((wrap, index) => {
+      if (wrap.scrollLeft > 0) {
+        scrollSnapshot.push({
+          index,
+          left: wrap.scrollLeft,
+          // clé stable si le parent a un id
+          parentId: wrap.closest("[id]")?.id || "",
+        });
+      }
+    });
     reloadFromStorage();
     updatePretTabBadge();
     renderCommunication();
@@ -9605,6 +9656,26 @@ async function initApp() {
       }
     }
     scheduleFitTables();
+    // Restaurer le scroll horizontal après le re-render
+    if (scrollSnapshot.length) {
+      const restore = () => {
+        const wraps = document.querySelectorAll(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap");
+        scrollSnapshot.forEach(({ index, left, parentId }) => {
+          let wrap = null;
+          if (parentId) {
+            const parent = document.getElementById(parentId);
+            wrap = parent?.querySelector?.(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap") || null;
+          }
+          if (!wrap) wrap = wraps[index] || null;
+          if (wrap) wrap.scrollLeft = left;
+        });
+      };
+      restore();
+      requestAnimationFrame(() => {
+        restore();
+        requestAnimationFrame(restore);
+      });
+    }
   };
 
   appReady = true;

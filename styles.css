@@ -4770,6 +4770,8 @@ textarea {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
+  overflow-anchor: none;
+  scroll-behavior: auto;
 }
 
 .table-wrap table,
@@ -5679,6 +5681,8 @@ textarea {
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
+  overflow-anchor: none;
+  scroll-behavior: auto;
   border: 1px solid var(--border);
   border-radius: 18px;
   background: #fff;
