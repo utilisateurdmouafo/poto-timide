@@ -227,26 +227,39 @@ function mergeLoansPreferringNewer(existing, incoming) {
       return;
     }
 
-    const prevTime = new Date(prev.updatedAt || prev.createdAt || 0).getTime() || 0;
-    const nextTime = new Date(loan.updatedAt || loan.createdAt || 0).getTime() || 0;
+    const prevTime = new Date(prev.updatedAt || prev.deletedAt || prev.createdAt || 0).getTime() || 0;
+    const nextTime = new Date(loan.updatedAt || loan.deletedAt || loan.createdAt || 0).getTime() || 0;
     const preferIncoming = nextTime >= prevTime;
     const base = preferIncoming ? loan : prev;
     const other = preferIncoming ? prev : loan;
 
+    // Une suppression (deletedAt) gagne toujours si elle est plus récente
+    const deletedAt =
+      nextTime >= prevTime
+        ? loan.deletedAt || (preferIncoming ? null : prev.deletedAt) || null
+        : prev.deletedAt || loan.deletedAt || null;
+    // Si l'un des deux est supprimé avec un timestamp plus récent, on garde la suppression
+    const newerDeleted =
+      (loan.deletedAt && new Date(loan.deletedAt).getTime() >= prevTime) ? loan.deletedAt :
+      (prev.deletedAt && new Date(prev.deletedAt).getTime() >= nextTime) ? prev.deletedAt :
+      deletedAt;
+
     let status = base.status;
-    if (loanStatusRank(other.status) > loanStatusRank(base.status)) {
+    if (!newerDeleted && loanStatusRank(other.status) > loanStatusRank(base.status)) {
       status = other.status;
     }
+    if (newerDeleted) status = "rejected";
 
     map.set(loan.id, {
       ...other,
       ...base,
       status,
       votes: mergeLoanVotes(prev.votes, loan.votes),
+      deletedAt: newerDeleted || null,
       updatedAt:
         nextTime >= prevTime
-          ? loan.updatedAt || prev.updatedAt || new Date().toISOString()
-          : prev.updatedAt || loan.updatedAt || new Date().toISOString(),
+          ? loan.updatedAt || loan.deletedAt || prev.updatedAt || new Date().toISOString()
+          : prev.updatedAt || prev.deletedAt || loan.updatedAt || new Date().toISOString(),
     });
   };
 
@@ -254,8 +267,8 @@ function mergeLoansPreferringNewer(existing, incoming) {
   incomingList.forEach(add);
 
   return [...map.values()].sort((a, b) => {
-    const ta = new Date(a.updatedAt || a.createdAt || 0).getTime() || 0;
-    const tb = new Date(b.updatedAt || b.createdAt || 0).getTime() || 0;
+    const ta = new Date(a.updatedAt || a.deletedAt || a.createdAt || 0).getTime() || 0;
+    const tb = new Date(b.updatedAt || b.deletedAt || b.createdAt || 0).getTime() || 0;
     return tb - ta;
   });
 }

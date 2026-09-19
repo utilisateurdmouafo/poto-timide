@@ -951,7 +951,7 @@ function buildFinanceAmendeRows() {
 
 function buildFinancePretRows() {
   return prets
-    .filter((loan) => ["active", "defaulted", "completed"].includes(loan.status))
+    .filter((loan) => !isLoanDeleted(loan) && ["active", "defaulted", "completed"].includes(loan.status))
     .map((loan) => {
       const repaid = Math.round((Number(loan.totalRepaid) || 0) * 100) / 100;
       const remaining = Math.round((getLoanBalance(loan) || 0) * 100) / 100;
@@ -5367,6 +5367,7 @@ function getCaisseBrute() {
  */
 function getLoansCashImpact() {
   return prets.reduce((sum, loan) => {
+    if (isLoanDeleted(loan)) return sum;
     if (!["active", "defaulted", "completed"].includes(loan.status)) return sum;
     return sum - loan.amount + (loan.totalRepaid || 0);
   }, 0);
@@ -5393,11 +5394,22 @@ function getCaisseTotal() {
 }
 
 function getPendingVoteLoan() {
-  return prets.find((loan) => PENDING_VOTE_STATUSES.includes(loan.status)) || null;
+  return (
+    prets.find(
+      (loan) => !isLoanDeleted(loan) && PENDING_VOTE_STATUSES.includes(loan.status)
+    ) || null
+  );
 }
 
 function getBorrowerActiveLoan(memberId) {
-  return prets.find((loan) => loan.borrowerId === memberId && BORROWER_ACTIVE_STATUSES.includes(loan.status)) || null;
+  return (
+    prets.find(
+      (loan) =>
+        !isLoanDeleted(loan) &&
+        loan.borrowerId === memberId &&
+        BORROWER_ACTIVE_STATUSES.includes(loan.status)
+    ) || null
+  );
 }
 
 function canInitiateNewPret() {
@@ -5410,7 +5422,9 @@ function canInitiateNewPret() {
 }
 
 function getActiveLoans() {
-  return prets.filter((loan) => loan.status === "active" || loan.status === "defaulted");
+  return prets.filter(
+    (loan) => !isLoanDeleted(loan) && (loan.status === "active" || loan.status === "defaulted")
+  );
 }
 
 function getActiveLoanRemaining() {
@@ -5827,6 +5841,7 @@ function processLoanStatusUpdates() {
   let changed = false;
 
   prets.forEach((loan) => {
+    if (isLoanDeleted(loan)) return;
     if (loan.status !== "voting") return;
 
     const stats = getVoteStats(loan);
@@ -6188,6 +6203,10 @@ function buildLoanRepaymentsBlock(loan) {
   `;
 }
 
+function isLoanDeleted(loan) {
+  return Boolean(loan?.deletedAt);
+}
+
 async function deletePret(loanId) {
   if (!canManagePretsActions()) {
     alert("Seul le Financier ou un administrateur peut supprimer un prêt.");
@@ -6195,7 +6214,7 @@ async function deletePret(loanId) {
   }
 
   const loan = getLoanById(loanId);
-  if (!loan) return;
+  if (!loan || isLoanDeleted(loan)) return;
 
   const borrower = getMemberById(loan.borrowerId);
   const borrowerName = borrower?.name || "ce membre";
@@ -6208,7 +6227,12 @@ async function deletePret(loanId) {
     return;
   }
 
-  prets = prets.filter((item) => item.id !== loanId);
+  // Soft-delete : on garde une tombe pour que la synchro ne ramène pas le prêt
+  const now = new Date().toISOString();
+  loan.deletedAt = now;
+  loan.updatedAt = now;
+  loan.status = "rejected";
+
   notifications = notifications.filter((notif) => notif.loanId !== loanId);
 
   notifyAllMembers(
@@ -6217,8 +6241,11 @@ async function deletePret(loanId) {
     { loanId, tab: "prets", title: "Prêt supprimé" }
   );
   savePrets();
-  if (typeof window.flushPotoServerSync === "function") {
-    window.flushPotoServerSync();
+  try {
+    if (typeof potoFlushSync === "function") await potoFlushSync();
+    else if (typeof window.flushPotoServerSync === "function") await window.flushPotoServerSync();
+  } catch (err) {
+    console.warn("Sync suppression prêt échouée", err);
   }
 }
 
@@ -6329,7 +6356,9 @@ function renderPretSummary() {
   const caisseDisponible = getCaisseDisponible();
   const borrowable = getBorrowableAmount();
   const pendingVote = getPendingVoteLoan();
-  const activeLoans = prets.filter((loan) => loan.status === "active" || loan.status === "defaulted");
+  const activeLoans = prets.filter(
+    (loan) => !isLoanDeleted(loan) && (loan.status === "active" || loan.status === "defaulted")
+  );
   const activePretLabel = activeLoans.length === 1 ? "1 prêt" : `${activeLoans.length} prêts`;
   const activeTotal = activeLoans.reduce((sum, loan) => sum + loan.amount, 0);
   const activeLoansDetails = [...activeLoans]
@@ -6605,10 +6634,14 @@ function renderPrets() {
   renderInitiatePretPanel();
   renderPretNotifications();
 
-  const votingLoans = prets.filter((loan) => loan.status === "voting");
-  const awaitingLoans = prets.filter((loan) => loan.status === "awaiting_financier");
+  const votingLoans = prets.filter((loan) => !isLoanDeleted(loan) && loan.status === "voting");
+  const awaitingLoans = prets.filter((loan) => !isLoanDeleted(loan) && loan.status === "awaiting_financier");
 
-  const activeLoans = prets.filter((loan) => ["active", "defaulted", "completed", "rejected"].includes(loan.status));
+  const activeLoans = prets.filter(
+    (loan) =>
+      !isLoanDeleted(loan) &&
+      ["active", "defaulted", "completed", "rejected"].includes(loan.status)
+  );
 
   if (pretVotingList) {
     renderLedgerInto(pretVotingList, {
@@ -6873,9 +6906,11 @@ function renderAdminPrets() {
 
   const caisseDisponible = getCaisseDisponible();
   const borrowable = getBorrowableAmount();
-  const activeLoansLive = prets.filter((loan) => loan.status === "active" || loan.status === "defaulted");
-  const votingLoans = prets.filter((loan) => loan.status === "voting");
-  const awaitingLoans = prets.filter((loan) => loan.status === "awaiting_financier");
+  const activeLoansLive = prets.filter(
+    (loan) => !isLoanDeleted(loan) && (loan.status === "active" || loan.status === "defaulted")
+  );
+  const votingLoans = prets.filter((loan) => !isLoanDeleted(loan) && loan.status === "voting");
+  const awaitingLoans = prets.filter((loan) => !isLoanDeleted(loan) && loan.status === "awaiting_financier");
 
   if (summaryEl) {
     summaryEl.innerHTML = `

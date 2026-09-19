@@ -380,26 +380,34 @@ function mergeLoansWithVotes(existing, incoming) {
       return;
     }
 
-    const prevTime = new Date(prev.updatedAt || prev.createdAt || 0).getTime() || 0;
-    const nextTime = new Date(loan.updatedAt || loan.createdAt || 0).getTime() || 0;
+    const prevTime = new Date(prev.updatedAt || prev.deletedAt || prev.createdAt || 0).getTime() || 0;
+    const nextTime = new Date(loan.updatedAt || loan.deletedAt || loan.createdAt || 0).getTime() || 0;
     const preferIncoming = nextTime >= prevTime;
     const base = preferIncoming ? loan : prev;
     const other = preferIncoming ? prev : loan;
 
+    const prevDel = prev.deletedAt ? new Date(prev.deletedAt).getTime() || 0 : 0;
+    const nextDel = loan.deletedAt ? new Date(loan.deletedAt).getTime() || 0 : 0;
+    const newerDeleted =
+      nextDel >= prevDel && nextDel > 0 ? loan.deletedAt :
+      prevDel > 0 ? prev.deletedAt : null;
+
     let status = base.status;
-    if (loanStatusRank(other.status) > loanStatusRank(base.status)) {
+    if (!newerDeleted && loanStatusRank(other.status) > loanStatusRank(base.status)) {
       status = other.status;
     }
+    if (newerDeleted) status = "rejected";
 
     map.set(loan.id, {
       ...other,
       ...base,
       status,
       votes: mergeLoanVotes(prev.votes, loan.votes),
+      deletedAt: newerDeleted || null,
       updatedAt:
         nextTime >= prevTime
-          ? loan.updatedAt || prev.updatedAt || new Date().toISOString()
-          : prev.updatedAt || loan.updatedAt || new Date().toISOString(),
+          ? loan.updatedAt || loan.deletedAt || prev.updatedAt || new Date().toISOString()
+          : prev.updatedAt || prev.deletedAt || loan.updatedAt || new Date().toISOString(),
     });
   };
 
