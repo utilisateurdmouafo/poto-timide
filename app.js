@@ -6355,7 +6355,6 @@ function renderPretSummary() {
   const caisseBrute = getCaisseBrute();
   const caisseDisponible = getCaisseDisponible();
   const borrowable = getBorrowableAmount();
-  const pendingVote = getPendingVoteLoan();
   const activeLoans = prets.filter(
     (loan) => !isLoanDeleted(loan) && (loan.status === "active" || loan.status === "defaulted")
   );
@@ -6392,16 +6391,8 @@ function renderPretSummary() {
       </div>`
     : "";
 
-  const pendingVoteCard = pendingVote
-    ? `<div class="pret-summary-card pret-summary-locked">
-        <span class="pret-summary-label">Demande en vote</span>
-        <strong>${escapeHtml(getMemberById(pendingVote.borrowerId)?.name || "—")}</strong>
-        <span class="pret-summary-formula">${escapeHtml(getPretStatusLabel(pendingVote.status))} · ${formatEuro(pendingVote.amount)}</span>
-      </div>`
-    : "";
-
+  // La demande de vote est uniquement en haut de page (pretVotingList), pas ici
   pretSummary.innerHTML = `
-    ${pendingVoteCard}
     <div class="pret-summary-card pret-summary-main">
       <span class="pret-summary-label">Argent empruntable</span>
       <strong class="pret-summary-amount">${formatEuro(borrowable)}</strong>
@@ -9678,7 +9669,8 @@ async function initApp() {
   window.potoOnServerDataPulled = () => {
     if (typeof window.potoIsUserEditingForm === "function" && window.potoIsUserEditingForm()) return;
     if (typeof window.potoIsLoanDateEditing === "function" && window.potoIsLoanDateEditing()) return;
-    // Mémoriser le scroll horizontal des tableaux avant le re-render
+    // Mémoriser le scroll vertical de la page + horizontal des tableaux
+    const pageScrollY = window.scrollY || document.documentElement.scrollTop || 0;
     const scrollSnapshot = [];
     document.querySelectorAll(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap").forEach((wrap, index) => {
       if (wrap.scrollLeft > 0) {
@@ -9717,26 +9709,25 @@ async function initApp() {
       }
     }
     scheduleFitTables();
-    // Restaurer le scroll horizontal après le re-render
-    if (scrollSnapshot.length) {
-      const restore = () => {
-        const wraps = document.querySelectorAll(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap");
-        scrollSnapshot.forEach(({ index, left, parentId }) => {
-          let wrap = null;
-          if (parentId) {
-            const parent = document.getElementById(parentId);
-            wrap = parent?.querySelector?.(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap") || null;
-          }
-          if (!wrap) wrap = wraps[index] || null;
-          if (wrap) wrap.scrollLeft = left;
-        });
-      };
-      restore();
-      requestAnimationFrame(() => {
-        restore();
-        requestAnimationFrame(restore);
+    // Restaurer le scroll vertical de la page + horizontal des tableaux
+    const restoreAll = () => {
+      window.scrollTo(0, pageScrollY);
+      const wraps = document.querySelectorAll(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap");
+      scrollSnapshot.forEach(({ index, left, parentId }) => {
+        let wrap = null;
+        if (parentId) {
+          const parent = document.getElementById(parentId);
+          wrap = parent?.querySelector?.(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap") || null;
+        }
+        if (!wrap) wrap = wraps[index] || null;
+        if (wrap) wrap.scrollLeft = left;
       });
-    }
+    };
+    restoreAll();
+    requestAnimationFrame(() => {
+      restoreAll();
+      requestAnimationFrame(restoreAll);
+    });
   };
 
   appReady = true;
@@ -9848,14 +9839,28 @@ function highlightNotificationItem() {
   setTimeout(() => target.classList.remove("is-notif-target"), 4000);
 }
 
+let loanHighlightConsumed = false;
 function highlightLoanFromNotification() {
+  // Une seule fois : sinon chaque re-render ramène le scroll en haut
+  if (loanHighlightConsumed) return;
   const loanId = sessionStorage.getItem("poto-open-loan") || new URLSearchParams(location.search).get("loan");
   if (!loanId) return;
   const card = document.getElementById(`loan-${loanId}`);
   const fallback = document.getElementById("pretVotingList");
   const target = card || fallback;
   if (!target) return;
+  loanHighlightConsumed = true;
   sessionStorage.removeItem("poto-open-loan");
+  // Retirer ?loan= de l'URL pour ne plus re-scroller
+  try {
+    const url = new URL(location.href);
+    if (url.searchParams.has("loan")) {
+      url.searchParams.delete("loan");
+      history.replaceState({}, "", url.pathname + url.search + url.hash);
+    }
+  } catch {
+    /* ignore */
+  }
   target.classList.add("is-notif-target");
   target.scrollIntoView({ behavior: "smooth", block: "center" });
   setTimeout(() => target.classList.remove("is-notif-target"), 4000);
