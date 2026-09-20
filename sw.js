@@ -1,4 +1,4 @@
-const CACHE_NAME = "poto-timide-app-v45";
+const CACHE_NAME = "poto-timide-app-v46";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -54,6 +54,23 @@ async function networkFirst(request) {
   }
 }
 
+function buildDeepLinkUrl(data) {
+  const origin = self.location.origin;
+  const params = new URLSearchParams();
+  if (data.tab) params.set("tab", data.tab);
+  if (data.admin) params.set("admin", data.admin);
+  if (data.loanId) params.set("loan", data.loanId);
+  if (data.item) params.set("item", data.item);
+  const qs = params.toString();
+  if (data.url && typeof data.url === "string" && data.url.startsWith("http")) {
+    return data.url;
+  }
+  if (data.url && typeof data.url === "string" && data.url.startsWith("/")) {
+    return origin + data.url;
+  }
+  return qs ? `${origin}/?${qs}` : `${origin}/?tab=prets`;
+}
+
 self.addEventListener("push", (event) => {
   let data = {};
   try {
@@ -61,6 +78,18 @@ self.addEventListener("push", (event) => {
   } catch {
     data = { body: event.data ? event.data.text() : "" };
   }
+
+  const tab = data.tab || "prets";
+  const admin = data.admin || "";
+  const loanId = data.loanId || "";
+  const item = data.item || "";
+  const url = buildDeepLinkUrl({
+    url: data.url,
+    tab,
+    admin,
+    loanId,
+    item,
+  });
 
   const title = data.title || "Poto Timide";
   const options = {
@@ -72,11 +101,11 @@ self.addEventListener("push", (event) => {
     renotify: true,
     vibrate: [140, 80, 140],
     data: {
-      url: data.url || "/?tab=prets",
-      tab: data.tab || "prets",
-      admin: data.admin || "",
-      loanId: data.loanId || "",
-      item: data.item || "",
+      url,
+      tab,
+      admin,
+      loanId,
+      item,
     },
   };
 
@@ -86,7 +115,15 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const data = event.notification.data || {};
-  const targetUrl = data.url || "/?tab=prets";
+  const targetUrl = buildDeepLinkUrl(data);
+  const message = {
+    type: "OPEN_NOTIFICATION",
+    tab: data.tab || "prets",
+    admin: data.admin || "",
+    loanId: data.loanId || "",
+    item: data.item || "",
+    url: targetUrl,
+  };
 
   event.waitUntil(
     (async () => {
@@ -96,16 +133,20 @@ self.addEventListener("notificationclick", (event) => {
       });
 
       for (const client of windowClients) {
-        if (client.url.startsWith(self.location.origin) && "focus" in client) {
-          client.postMessage({
-            type: "OPEN_NOTIFICATION",
-            tab: data.tab || "prets",
-            admin: data.admin || "",
-            loanId: data.loanId || "",
-            item: data.item || "",
-            url: targetUrl,
-          });
-          return client.focus();
+        try {
+          if (!client.url || !client.url.startsWith(self.location.origin)) continue;
+          if (typeof client.navigate === "function") {
+            try {
+              await client.navigate(targetUrl);
+            } catch {
+              /* navigate pas toujours dispo */
+            }
+          }
+          if ("focus" in client) await client.focus();
+          client.postMessage(message);
+          return;
+        } catch {
+          /* client suivant */
         }
       }
 

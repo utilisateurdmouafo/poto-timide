@@ -5746,6 +5746,32 @@ window.potoIsLoanDateEditing = isLoanDateEditing;
 window.potoIsUserEditingForm = isUserEditingForm;
 
 const pendingPushMessages = [];
+/** Domaine public : le clic notif ouvre ce site (prod) */
+const PUBLIC_APP_ORIGIN = "https://pototimide.com";
+
+function buildNotificationDeepLinkUrl({ tab = "prets", admin = "", loanId = "", item = "" } = {}) {
+  const params = new URLSearchParams();
+  if (tab) params.set("tab", tab);
+  if (admin) params.set("admin", admin);
+  if (loanId) params.set("loan", loanId);
+  if (item) params.set("item", item);
+  let origin = PUBLIC_APP_ORIGIN;
+  try {
+    if (typeof location !== "undefined" && location.hostname) {
+      if (/localhost|127\.0\.0\.1/.test(location.hostname)) {
+        origin = location.origin;
+      } else if (location.hostname.includes("pototimide")) {
+        origin = location.origin;
+      } else {
+        // Render ou autre → renvoyer vers le domaine public
+        origin = PUBLIC_APP_ORIGIN;
+      }
+    }
+  } catch {
+    /* keep PUBLIC_APP_ORIGIN */
+  }
+  return `${origin}/?${params.toString()}`;
+}
 
 function queuePushMessage(memberId, payload) {
   const current = getCurrentMember();
@@ -5754,16 +5780,13 @@ function queuePushMessage(memberId, payload) {
   const loanId = payload.loanId || "";
   const admin = payload.admin || "";
   const item = payload.item || "";
-  const urlParams = new URLSearchParams();
-  urlParams.set("tab", tab);
-  if (admin) urlParams.set("admin", admin);
-  if (loanId) urlParams.set("loan", loanId);
-  if (item) urlParams.set("item", item);
+  const url =
+    payload.url || buildNotificationDeepLinkUrl({ tab, admin, loanId, item });
   pendingPushMessages.push({
     memberId,
     title: payload.title || "Poto Timide",
     body: payload.body || "",
-    url: payload.url || `/?${urlParams.toString()}`,
+    url,
     tab,
     admin,
     loanId,
@@ -10277,23 +10300,39 @@ function rememberNotificationDeepLink() {
   const params = new URLSearchParams(location.search);
   const tab = params.get("tab");
   const loan = params.get("loan");
+  const admin = params.get("admin");
+  const item = params.get("item");
   if (tab) sessionStorage.setItem("poto-open-tab", tab);
   if (loan) sessionStorage.setItem("poto-open-loan", loan);
+  if (admin) sessionStorage.setItem("poto-open-admin", admin);
+  if (item) sessionStorage.setItem("poto-open-item", item);
 }
 
 function openFromNotification({ tab = "prets", admin = "", loanId = "", item = "" } = {}) {
+  // Permettre un nouveau highlight à chaque clic notif
+  loanHighlightConsumed = false;
   if (admin) sessionStorage.setItem("poto-open-admin", admin);
   if (item) sessionStorage.setItem("poto-open-item", item);
   if (tab) {
     sessionStorage.setItem("poto-open-tab", tab);
     showTab(tab);
   }
-  if (admin && tab === "admin") showAdminSub(admin);
+  if (admin && (tab === "admin" || getActiveMainTab() === "admin")) {
+    showAdminSub(admin);
+  }
   if (loanId) {
     sessionStorage.setItem("poto-open-loan", loanId);
-    highlightLoanFromNotification();
   }
-  highlightNotificationItem();
+  // Plusieurs tentatives : le DOM peut ne pas être prêt juste après showTab
+  const tryHighlight = () => {
+    if (loanId) highlightLoanFromNotification();
+    highlightNotificationItem();
+  };
+  tryHighlight();
+  requestAnimationFrame(tryHighlight);
+  setTimeout(tryHighlight, 250);
+  setTimeout(tryHighlight, 800);
+  setTimeout(tryHighlight, 1600);
 }
 
 function applyNotificationDeepLink() {
@@ -10302,21 +10341,15 @@ function applyNotificationDeepLink() {
   const admin = sessionStorage.getItem("poto-open-admin") || params.get("admin");
   const item = sessionStorage.getItem("poto-open-item") || params.get("item");
   const loanId = sessionStorage.getItem("poto-open-loan") || params.get("loan");
-  if (admin) sessionStorage.setItem("poto-open-admin", admin);
-  if (item) sessionStorage.setItem("poto-open-item", item);
-  if (tab) {
-    sessionStorage.removeItem("poto-open-tab");
-    showTab(tab);
-  }
-  if (admin && (tab === "admin" || getActiveMainTab() === "admin")) {
-    sessionStorage.removeItem("poto-open-admin");
-    showAdminSub(admin);
-  }
-  if (loanId) {
-    sessionStorage.setItem("poto-open-loan", loanId);
-    highlightLoanFromNotification();
-  }
-  highlightNotificationItem();
+  if (!tab && !loanId && !item && !admin) return;
+  openFromNotification({
+    tab: tab || "prets",
+    admin: admin || "",
+    loanId: loanId || "",
+    item: item || "",
+  });
+  sessionStorage.removeItem("poto-open-tab");
+  sessionStorage.removeItem("poto-open-admin");
 }
 
 function highlightNotificationItem() {
@@ -10330,7 +10363,9 @@ function highlightNotificationItem() {
     document.getElementById(`amende-${item}`) ||
     document.getElementById(`ancienne-${item}`) ||
     document.getElementById(`evenement-${item}`) ||
-    document.getElementById(`loan-${item}`);
+    document.getElementById(`loan-${item}`) ||
+    document.getElementById(`ex-tournee-${item}`) ||
+    document.getElementById(`loi-${item}`);
   if (!target) return;
   sessionStorage.removeItem("poto-open-item");
   target.classList.add("is-notif-target");
@@ -10340,29 +10375,33 @@ function highlightNotificationItem() {
 
 let loanHighlightConsumed = false;
 function highlightLoanFromNotification() {
-  // Une seule fois : sinon chaque re-render ramène le scroll en haut
+  // Une seule fois quand l'élément est trouvé (sinon on réessaie)
   if (loanHighlightConsumed) return;
   const loanId = sessionStorage.getItem("poto-open-loan") || new URLSearchParams(location.search).get("loan");
   if (!loanId) return;
-  const card = document.getElementById(`loan-${loanId}`);
-  const fallback = document.getElementById("pretVotingList");
-  const target = card || fallback;
-  if (!target) return;
+  const card =
+    document.getElementById(`loan-${loanId}`) ||
+    document.querySelector(`[data-loan-id="${loanId}"]`);
+  // Ne consommer que si on a vraiment la carte du prêt
+  if (!card) return;
   loanHighlightConsumed = true;
   sessionStorage.removeItem("poto-open-loan");
-  // Retirer ?loan= de l'URL pour ne plus re-scroller
   try {
     const url = new URL(location.href);
-    if (url.searchParams.has("loan")) {
-      url.searchParams.delete("loan");
-      history.replaceState({}, "", url.pathname + url.search + url.hash);
-    }
+    let changed = false;
+    ["loan", "tab", "admin", "item"].forEach((key) => {
+      if (url.searchParams.has(key)) {
+        url.searchParams.delete(key);
+        changed = true;
+      }
+    });
+    if (changed) history.replaceState({}, "", url.pathname + url.search + url.hash);
   } catch {
     /* ignore */
   }
-  target.classList.add("is-notif-target");
-  target.scrollIntoView({ behavior: "smooth", block: "center" });
-  setTimeout(() => target.classList.remove("is-notif-target"), 4000);
+  card.classList.add("is-notif-target");
+  card.scrollIntoView({ behavior: "smooth", block: "center" });
+  setTimeout(() => card.classList.remove("is-notif-target"), 4000);
 }
 
 function hidePushBanner(persist) {
