@@ -38,6 +38,7 @@ const STORAGE_KEYS = [
   "poto-timide-loi",
   "poto-timide-admin-ids",
   "poto-timide-autre-argent",
+  "poto-timide-capital-hors-groupe",
   "poto-timide-ancienne-tournee-dettes",
   "poto-timide-finance",
   "poto-timide-fond-caisse",
@@ -83,6 +84,7 @@ const EMPTY_APP_DEFAULTS = {
   "poto-timide-communication": [],
   "poto-timide-loi": [],
   "poto-timide-autre-argent": [],
+  "poto-timide-capital-hors-groupe": [],
   "poto-timide-ancienne-tournee-dettes": [],
   "poto-timide-fond-caisse": 0,
   "poto-timide-fond-caisse-annuel": {},
@@ -326,6 +328,7 @@ async function setData(key, value) {
 }
 
 const MERGE_BY_ID_KEYS = new Set([
+  "poto-timide-capital-hors-groupe",
   "poto-timide-communication",
   "poto-timide-notifications",
   "poto-timide-loi",

@@ -7188,3 +7188,24 @@ html.phone-nav .menu-toggle-icon {
   box-shadow: 0 0 0 6px rgba(14, 165, 233, 0.2);
   transition: box-shadow 0.3s ease;
 }
+
+.capital-hors-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  margin-top: 0.85rem;
+}
+.capital-hors-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 12px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+}
+.capital-hors-item .panel-desc {
+  display: block;
+  margin: 0.15rem 0 0;
+}

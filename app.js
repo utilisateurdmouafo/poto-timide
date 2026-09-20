@@ -59,6 +59,7 @@ const ADMIN_IDS_KEY = "poto-timide-admin-ids";
 const AUTRE_ARGENT_KEY = "poto-timide-autre-argent";
 const ANCIENNE_TOURNEE_DETTES_KEY = "poto-timide-ancienne-tournee-dettes";
 const FOND_CAISSE_KEY = "poto-timide-fond-caisse";
+const CAPITAL_HORS_GROUPE_KEY = "poto-timide-capital-hors-groupe";
 const FOND_CAISSE_ANNUEL_KEY = "poto-timide-fond-caisse-annuel";
 const FINANCIER_ACCOUNT_KEY = "poto-timide-financier-account";
 const FINANCE_KEY = "poto-timide-finance";
@@ -383,6 +384,7 @@ let editingLoiId = null;
 let activeCommunicationSub = "communique";
 let editingCommunicationId = null;
 let autreArgent = [];
+let capitalHorsGroupe = [];
 let ancienneTourneeDettes = [];
 let fondCaisse = DEFAULT_FOND_CAISSE;
 let fondCaisseAnnuel = { years: {} };
@@ -2650,6 +2652,7 @@ function reloadFromStorage() {
   activeCommunicationSub = loadCommunicationSubtab();
   loiArticles = loadLoiArticles();
   autreArgent = loadAutreArgent();
+  capitalHorsGroupe = loadCapitalHorsGroupe();
   ancienneTourneeDettes = loadAncienneTourneeDettes();
   fondCaisse = loadFondCaisse();
   fondCaisseAnnuel = loadFondCaisseAnnuel();
@@ -5496,17 +5499,119 @@ function getLoansCapitalOut() {
   }, 0);
 }
 
+/** Argent dehors hors groupe (ex-membre, prêt non récupéré, etc.) */
+function loadCapitalHorsGroupe() {
+  const parsed = readSynced(CAPITAL_HORS_GROUPE_KEY, []);
+  return Array.isArray(parsed) ? parsed.filter((e) => e && !e.deletedAt) : [];
+}
+
+function saveCapitalHorsGroupe(shouldRender = true) {
+  localStorage.setItem(CAPITAL_HORS_GROUPE_KEY, JSON.stringify(capitalHorsGroupe));
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+  if (shouldRender) {
+    renderCapitalHorsGroupeAdmin();
+    renderPrets();
+    renderFinanceDashboard();
+    if (typeof renderAutreArgent === "function") renderAutreArgent();
+  }
+}
+
+function getCapitalHorsGroupeTotal() {
+  return capitalHorsGroupe.reduce((sum, entry) => {
+    if (!entry || entry.deletedAt) return sum;
+    return sum + Math.max(0, Number(entry.amount) || 0);
+  }, 0);
+}
+
+/** Capital total dehors = prêts en cours + argent hors groupe */
+function getTotalCapitalOut() {
+  return getLoansCapitalOut() + getCapitalHorsGroupeTotal();
+}
+
 /**
- * Caisse disponible : fond + amendes + dons − prêts sortis + remboursements.
+ * Caisse disponible : fond + amendes + dons − prêts sortis − hors groupe + remboursements.
  * Sert aux prêts (argent libre).
  */
 function getCaisseDisponible() {
-  return Math.max(0, getCaisseBase() + getTotalAutreArgent() + getLoansCashImpact());
+  return Math.max(
+    0,
+    getCaisseBase() + getTotalAutreArgent() + getLoansCashImpact() - getCapitalHorsGroupeTotal()
+  );
 }
 
-/** Caisse total = caisse disponible + prêts sortis */
+/** Caisse total = caisse disponible + tout l'argent encore dehors */
 function getCaisseTotal() {
-  return getCaisseDisponible() + getLoansCapitalOut();
+  return getCaisseDisponible() + getTotalCapitalOut();
+}
+
+function addCapitalHorsGroupe(label, amount) {
+  if (!canEditFondCaisse() && !canManageCaisseArgent()) {
+    alert("Seul un administrateur (accès Caisse) peut ajouter de l'argent dehors.");
+    return false;
+  }
+  const parsed = Math.round(parseFloat(amount) * 100) / 100;
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    alert("Montant invalide.");
+    return false;
+  }
+  const name = String(label || "").trim() || "Ex-membre / créance";
+  capitalHorsGroupe.unshift({
+    id: generateId(),
+    label: name,
+    amount: parsed,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+  saveCapitalHorsGroupe();
+  notifyAllMembers(
+    "capital_hors_groupe",
+    `${getActorLabel()} a enregistré ${formatEuro(parsed)} dehors (${name}).`,
+    { tab: "prets", title: "Argent dehors" }
+  );
+  return true;
+}
+
+async function deleteCapitalHorsGroupe(id) {
+  if (!canEditFondCaisse() && !canManageCaisseArgent()) {
+    alert("Seul un administrateur (accès Caisse) peut supprimer cette ligne.");
+    return false;
+  }
+  const entry = capitalHorsGroupe.find((e) => e.id === id);
+  if (!entry) return false;
+  if (!(await appConfirm(`Retirer « ${entry.label} » (${formatEuro(entry.amount)}) de l'argent dehors ?`))) {
+    return false;
+  }
+  const now = new Date().toISOString();
+  entry.deletedAt = now;
+  entry.updatedAt = now;
+  saveCapitalHorsGroupe();
+  return true;
+}
+
+function renderCapitalHorsGroupeAdmin() {
+  const list = document.getElementById("capitalHorsGroupeList");
+  const totalEl = document.getElementById("capitalHorsGroupeTotal");
+  if (totalEl) totalEl.textContent = formatEuro(getCapitalHorsGroupeTotal());
+  if (!list) return;
+  const items = capitalHorsGroupe.filter((e) => e && !e.deletedAt);
+  if (!items.length) {
+    list.innerHTML = `<p class="panel-desc">Aucune créance hors groupe pour le moment.</p>`;
+    return;
+  }
+  list.innerHTML = items
+    .map(
+      (e) => `
+      <div class="capital-hors-item">
+        <div>
+          <strong>${escapeHtml(e.label || "—")}</strong>
+          <span class="panel-desc">${formatEuro(e.amount)} · ${formatDate((e.createdAt || "").split("T")[0] || "")}</span>
+        </div>
+        <button type="button" class="btn-pret-delete btn-capital-hors-delete" data-id="${escapeHtml(e.id)}">Supprimer</button>
+      </div>`
+    )
+    .join("");
 }
 
 function getPendingVoteLoan() {
@@ -6608,7 +6713,19 @@ function renderPretSummary() {
   const donsTotal = getTotalAutreArgent();
   const amendesTotal = getTotalAmendesInCaisse();
   const loansOut = getLoansCapitalOut();
+  const horsGroupe = getCapitalHorsGroupeTotal();
+  const totalOut = getTotalCapitalOut();
   const loansImpact = getLoansCashImpact();
+  const horsItems = capitalHorsGroupe
+    .filter((e) => e && !e.deletedAt)
+    .map(
+      (e) => `
+      <span class="pret-active-detail-item">
+        <span class="pret-active-detail-name">${escapeHtml(e.label || "Ex-membre")}</span>
+        <span class="pret-active-detail-amount">${formatEuro(e.amount)}</span>
+      </span>`
+    )
+    .join("");
 
   const fondCard = canViewFondCaisse()
     ? `<div class="pret-summary-card">
@@ -6627,7 +6744,7 @@ function renderPretSummary() {
     <div class="pret-summary-card">
       <span class="pret-summary-label">Caisse disponible</span>
       <strong>${formatEuro(caisseDisponible)}</strong>
-      <span class="pret-summary-formula">Amendes + dons ou aides − prêts sortis + remboursements</span>
+      <span class="pret-summary-formula">Amendes + dons − prêts sortis − hors groupe + remboursements</span>
     </div>
     <div class="pret-summary-card">
       <span class="pret-summary-label">Caisse brute</span>
@@ -6640,11 +6757,21 @@ function renderPretSummary() {
       <span class="pret-summary-formula">Capital encore dehors (prêt − remboursé)</span>
       ${activeLoans.length ? `<div class="pret-active-details">${activeLoansDetails}</div>` : ""}
     </div>
+    ${
+      horsGroupe > 0
+        ? `<div class="pret-summary-card pret-summary-out">
+        <span class="pret-summary-label">Argent dehors (ex-membres)</span>
+        <strong class="pret-summary-amount">${formatEuro(horsGroupe)}</strong>
+        <span class="pret-summary-formula">Prêts / créances hors groupe (pas en caisse, mais dans le total)</span>
+        ${horsItems ? `<div class="pret-active-details">${horsItems}</div>` : ""}
+      </div>`
+        : ""
+    }
     ${fondCard}
     <div class="pret-summary-card pret-summary-total">
       <span class="pret-summary-label">Caisse total</span>
       <strong class="pret-summary-amount">${formatEuro(getCaisseTotal())}</strong>
-      <span class="pret-summary-formula">Caisse disponible ${formatEuro(caisseDisponible)} + prêts ${formatEuro(loansOut)}</span>
+      <span class="pret-summary-formula">Caisse disponible ${formatEuro(caisseDisponible)} + dehors ${formatEuro(totalOut)}</span>
     </div>
   `;
 }
@@ -9659,6 +9786,21 @@ document.addEventListener("click", (e) => {
   const memberId = btn.dataset.memberId;
   const kind = btn.dataset.kind === "ristourne" ? "ristourne" : "reception";
   if (memberId) toggleTourneeMarkOk(kind, memberId);
+});
+
+
+
+document.getElementById("capitalHorsGroupeForm")?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const label = document.getElementById("capitalHorsGroupeLabel")?.value;
+  const amount = document.getElementById("capitalHorsGroupeAmount")?.value;
+  if (addCapitalHorsGroupe(label, amount)) {
+    e.target.reset();
+  }
+});
+document.getElementById("capitalHorsGroupeList")?.addEventListener("click", (e) => {
+  const btn = e.target.closest(".btn-capital-hors-delete");
+  if (btn?.dataset.id) deleteCapitalHorsGroupe(btn.dataset.id);
 });
 
 saveTabPermissionsBtn?.addEventListener("click", () => saveTabPermissionsFromUI({ silent: false }));

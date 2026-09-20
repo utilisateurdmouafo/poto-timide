@@ -13,6 +13,7 @@ const API_SYNC_KEYS = new Set([
   "poto-timide-loi",
   "poto-timide-admin-ids",
   "poto-timide-autre-argent",
+  "poto-timide-capital-hors-groupe",
   "poto-timide-ancienne-tournee-dettes",
   "poto-timide-finance",
   "poto-timide-fond-caisse",
@@ -346,7 +347,8 @@ function writeServerDataToLocal(serverData) {
       if (
         key === "poto-timide-communication" ||
         key === "poto-timide-notifications" ||
-        key === "poto-timide-loi"
+        key === "poto-timide-loi" ||
+        key === "poto-timide-capital-hors-groupe"
       ) {
         const raw = localStorage.getItem(key);
         const local = raw ? unwrapLocalSynced(JSON.parse(raw)) : [];

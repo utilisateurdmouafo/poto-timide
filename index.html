@@ -685,6 +685,28 @@
               </section>
               </div>
 
+              
+              <section class="panel" id="capitalHorsGroupePanel">
+                <h2>Argent dehors (ex-membres)</h2>
+                <p class="panel-desc">
+                  Prêt d’un poto qui a quitté le groupe : l’argent n’est plus dans la caisse disponible,
+                  mais il reste compté dans la <strong>caisse total</strong>.
+                  Total hors groupe : <strong id="capitalHorsGroupeTotal">0 €</strong>
+                </p>
+                <form id="capitalHorsGroupeForm" class="autre-argent-form">
+                  <label>
+                    Qui / motif
+                    <input type="text" id="capitalHorsGroupeLabel" placeholder="Ex : Prêt de Marc (parti)" maxlength="80" required />
+                  </label>
+                  <label>
+                    Montant (€)
+                    <input type="number" id="capitalHorsGroupeAmount" min="1" step="0.5" placeholder="Ex : 850" required />
+                  </label>
+                  <button type="submit" class="btn-primary">Enregistrer l’argent dehors</button>
+                </form>
+                <div id="capitalHorsGroupeList" class="capital-hors-list"></div>
+              </section>
+
               <section class="panel" id="autreArgentFormPanel">
                 <h2>Autre argent</h2>
                 <p class="panel-desc">
