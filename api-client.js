@@ -450,11 +450,24 @@ function queueServerSync(key, rawValue) {
   syncTimer = setTimeout(flushServerSync, 200);
 }
 
+/** Attentes quand un flush est déjà en cours (évite de perdre un vote) */
+let flushWaiters = [];
+
 async function flushServerSync() {
   if (!authState.loggedIn) return false;
   if (!hasPendingEdits()) return true;
-  if (syncing) return false;
+
+  // Si un flush tourne déjà : attendre la fin puis réessayer (ne pas abandonner le vote)
+  if (syncing) {
+    await new Promise((resolve) => {
+      flushWaiters.push(resolve);
+    });
+    if (!hasPendingEdits()) return true;
+    if (syncing) return false;
+  }
+
   syncing = true;
+  // Fusionner tout le pending au moment du départ
   const payload = { ...pendingSyncPayload };
   pendingSyncPayload = {};
   try {
@@ -462,6 +475,21 @@ async function flushServerSync() {
       method: "PUT",
       body: JSON.stringify(payload),
     });
+    // Si de nouvelles mods sont arrivées pendant le PUT, les envoyer aussi
+    if (hasPendingEdits()) {
+      const extra = { ...pendingSyncPayload };
+      pendingSyncPayload = {};
+      try {
+        await apiFetch("/api/data", {
+          method: "PUT",
+          body: JSON.stringify(extra),
+        });
+      } catch (err2) {
+        Object.assign(pendingSyncPayload, extra);
+        console.warn("Synchronisation serveur (2e passe) échouée.", err2);
+        return false;
+      }
+    }
     return true;
   } catch (err) {
     Object.assign(pendingSyncPayload, payload);
@@ -469,6 +497,14 @@ async function flushServerSync() {
     return false;
   } finally {
     syncing = false;
+    const waiters = flushWaiters.splice(0, flushWaiters.length);
+    waiters.forEach((fn) => {
+      try {
+        fn();
+      } catch {
+        /* ignore */
+      }
+    });
   }
 }
 

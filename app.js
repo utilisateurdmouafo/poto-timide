@@ -2636,6 +2636,14 @@ function reloadFromStorage() {
   amendesCaisse = loadAmendesCaisse();
   tabPermissions = loadTabPermissions();
   prets = loadPrets();
+  // Réappliquer les votes faits sur cet appareil (évite le "comme si je n'avais pas voté")
+  if (typeof applyPendingLocalVotesToPrets === "function" && applyPendingLocalVotesToPrets()) {
+    try {
+      localStorage.setItem(PRETS_KEY, JSON.stringify(prets));
+    } catch {
+      /* ignore */
+    }
+  }
   notifications = loadNotifications();
   evenements = loadEvenements();
   communicationPosts = loadCommunicationPosts();
@@ -6102,6 +6110,58 @@ function initiatePret(amount, note) {
   pretForm.reset();
 }
 
+/** Votes locaux non encore confirmés par le serveur — ne jamais les perdre au pull */
+const pendingLocalVotes = new Map(); // loanId -> { [memberId]: "yes"|"no", at: iso }
+
+function rememberLocalVote(loanId, memberId, choice) {
+  if (!loanId || !memberId) return;
+  const prev = pendingLocalVotes.get(loanId) || {};
+  pendingLocalVotes.set(loanId, {
+    ...prev,
+    [memberId]: choice,
+    at: new Date().toISOString(),
+  });
+}
+
+/** Réapplique les votes locaux après un reload / pull (évite les boutons qui réapparaissent) */
+function applyPendingLocalVotesToPrets() {
+  if (!pendingLocalVotes.size || !Array.isArray(prets)) return false;
+  let changed = false;
+  pendingLocalVotes.forEach((voteMap, loanId) => {
+    const loan = prets.find((l) => l && l.id === loanId && !isLoanDeleted(l));
+    if (!loan) return;
+    if (!loan.votes || typeof loan.votes !== "object") loan.votes = {};
+    Object.entries(voteMap).forEach(([memberId, choice]) => {
+      if (memberId === "at") return;
+      if (choice !== "yes" && choice !== "no") return;
+      if (loan.votes[memberId] !== choice) {
+        loan.votes[memberId] = choice;
+        changed = true;
+      }
+    });
+    if (changed) {
+      const at = voteMap.at || new Date().toISOString();
+      if (!loan.updatedAt || new Date(at).getTime() >= new Date(loan.updatedAt).getTime()) {
+        loan.updatedAt = at;
+      }
+    }
+  });
+  return changed;
+}
+
+function clearConfirmedLocalVotes() {
+  pendingLocalVotes.forEach((voteMap, loanId) => {
+    const loan = prets.find((l) => l && l.id === loanId);
+    if (!loan || !loan.votes) return;
+    let allPresent = true;
+    Object.entries(voteMap).forEach(([memberId, choice]) => {
+      if (memberId === "at") return;
+      if (loan.votes[memberId] !== choice) allPresent = false;
+    });
+    if (allPresent) pendingLocalVotes.delete(loanId);
+  });
+}
+
 async function votePret(loanId, vote) {
   const current = getCurrentMember();
   if (!current) return;
@@ -6113,6 +6173,7 @@ async function votePret(loanId, vote) {
   // Déjà voté → on ne propose plus les boutons
   if (!loan.votes || typeof loan.votes !== "object") loan.votes = {};
   if (loan.votes[current.id] === "yes" || loan.votes[current.id] === "no") {
+    rememberLocalVote(loanId, current.id, loan.votes[current.id]);
     renderPrets();
     return;
   }
@@ -6120,6 +6181,7 @@ async function votePret(loanId, vote) {
   const choice = vote === "yes" ? "yes" : "no";
   loan.votes[current.id] = choice;
   loan.updatedAt = new Date().toISOString();
+  rememberLocalVote(loanId, current.id, choice);
   confirmVoterNotification(loan, current.id);
 
   const stats = getVoteStats(loan);
@@ -6134,17 +6196,37 @@ async function votePret(loanId, vote) {
     saveNotifications(false);
   }
 
-  // Affichage immédiat : le vote apparaît tout de suite
+  // Affichage immédiat
   savePrets();
+  renderPrets();
 
-  // Envoi serveur tout de suite pour ne pas perdre le vote au prochain pull
-  try {
-    if (typeof potoFlushSync === "function") {
-      await potoFlushSync();
+  // Sync serveur avec retries + réapplication si un pull a écrasé
+  const flush = window.potoFlushSync || window.flushPotoServerSync;
+  if (typeof flush !== "function") return;
+
+  for (let attempt = 0; attempt < 6; attempt++) {
+    try {
+      const live = getLoanById(loanId);
+      if (live) {
+        if (!live.votes || typeof live.votes !== "object") live.votes = {};
+        if (live.votes[current.id] !== choice) {
+          live.votes[current.id] = choice;
+          live.updatedAt = new Date().toISOString();
+          rememberLocalVote(loanId, current.id, choice);
+          savePrets(false);
+        }
+      }
+      const ok = await flush();
+      if (ok) {
+        clearConfirmedLocalVotes();
+        return;
+      }
+    } catch (err) {
+      console.warn("Synchronisation du vote échouée, nouvel essai…", err);
     }
-  } catch (err) {
-    console.warn("Synchronisation du vote échouée, nouvel essai automatique.", err);
+    await new Promise((r) => setTimeout(r, 250 + attempt * 200));
   }
+  console.warn("Vote enregistré localement mais sync serveur non confirmée.");
 }
 
 const PENDING_FINANCIER_STATUSES = ["voting", "awaiting_financier"];
