@@ -1036,9 +1036,8 @@ function renderFinancePrets() {
 }
 
 function renderFinanceArchives() {
+  // Ancienne tournée et Amendes : uniquement dans leurs onglets dédiés (éviter les doublons)
   return `<div class="finance-archives-stack">
-    ${renderFinanceAncienneTournee()}
-    ${renderFinanceAmendes()}
     ${renderFinancePrets()}
   </div>`;
 }
