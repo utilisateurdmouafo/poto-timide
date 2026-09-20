@@ -6693,21 +6693,22 @@ function renderPretSummary() {
     (loan) => !isLoanDeleted(loan) && (loan.status === "active" || loan.status === "defaulted")
   );
   const activePretLabel = activeLoans.length === 1 ? "1 prêt" : `${activeLoans.length} prêts`;
-  const activeTotal = activeLoans.reduce((sum, loan) => sum + loan.amount, 0);
+  // Afficher le capital encore dû (prêt − déjà remboursé), pas le montant initial
   const activeLoansDetails = [...activeLoans]
     .sort((loanA, loanB) => {
       const nameA = getMemberById(loanA.borrowerId)?.name || "";
       const nameB = getMemberById(loanB.borrowerId)?.name || "";
       return nameA.localeCompare(nameB, "fr", { sensitivity: "base" });
     })
-    .map(
-      (loan) => `
+    .map((loan) => {
+      const restant = Math.max(0, (Number(loan.amount) || 0) - (Number(loan.totalRepaid) || 0));
+      return `
       <span class="pret-active-detail-item">
         <span class="pret-active-detail-name">${escapeHtml(getMemberById(loan.borrowerId)?.name || "—")}</span>
-        <span class="pret-active-detail-amount">${formatEuro(loan.amount)}</span>
+        <span class="pret-active-detail-amount">${formatEuro(restant)}</span>
       </span>
-    `
-    )
+    `;
+    })
     .join("");
 
   const fond = getFondCaisse();
