@@ -3,8 +3,12 @@ const ROLES_KEY = "poto-timide-roles";
 const COTISATIONS_KEY = "poto-timide-cotisations";
 const TOURNEE_KEY = "poto-timide-tournee";
 const TOURNEE_PARTNERS_KEY = "partners";
-/** Membres ayant déjà « bouffé » / pris leur tournée (marqué OK par le Financier) */
+/** Membres ayant déjà « bouffé » / pris leur tournée (legacy → migré vers receptionOk) */
 const TOURNEE_BOUFFE_OK_KEY = "bouffeOk";
+/** OK : le poto a reçu sa tournée */
+const TOURNEE_RECEPTION_OK_KEY = "receptionOk";
+/** OK : le poto a reçu sa ristourne */
+const TOURNEE_RISTOURNE_OK_KEY = "ristourneOk";
 /** Date de réception choisie par membre (YYYY-MM-DD) — conservé, plus affiché */
 const TOURNEE_RECEPTION_DATES_KEY = "receptionDates";
 /** Ordre de réception / ristourne : { "8": [memberIds], ... } */
@@ -13,6 +17,8 @@ const TOURNEE_RISTOURNE_KEY = "ristourne";
 const TOURNEE_META_KEYS = new Set([
   TOURNEE_PARTNERS_KEY,
   TOURNEE_BOUFFE_OK_KEY,
+  TOURNEE_RECEPTION_OK_KEY,
+  TOURNEE_RISTOURNE_OK_KEY,
   TOURNEE_RECEPTION_DATES_KEY,
   TOURNEE_RECEPTION_KEY,
   TOURNEE_RISTOURNE_KEY,
@@ -1137,7 +1143,12 @@ function cloneTourneeData(data) {
         years[year][key] = cloneMonthMemberMap(value);
         return;
       }
-      if (key === TOURNEE_BOUFFE_OK_KEY || key === TOURNEE_RECEPTION_DATES_KEY) {
+      if (
+        key === TOURNEE_BOUFFE_OK_KEY ||
+        key === TOURNEE_RECEPTION_OK_KEY ||
+        key === TOURNEE_RISTOURNE_OK_KEY ||
+        key === TOURNEE_RECEPTION_DATES_KEY
+      ) {
         years[year][key] = { ...(value || {}) };
         return;
       }
@@ -1232,18 +1243,30 @@ function normalizeTourneeData(raw) {
       normalizedYear[TOURNEE_PARTNERS_KEY] = partners;
     }
 
-    // OK tournée / bouffe déjà prise
-    const rawBouffe = yearData[TOURNEE_BOUFFE_OK_KEY];
-    if (rawBouffe && typeof rawBouffe === "object") {
-      const validIds = new Set(members.map((m) => m.id));
-      const bouffeOk = {};
-      Object.entries(rawBouffe).forEach(([memberId, flag]) => {
-        if (validIds.has(memberId) && flag) bouffeOk[memberId] = true;
+    // OK réception / ristourne (memberId → true)
+    const validIds = new Set(members.map((m) => m.id));
+    const normalizeOkMap = (raw) => {
+      if (!raw || typeof raw !== "object") return {};
+      const out = {};
+      Object.entries(raw).forEach(([memberId, flag]) => {
+        if (validIds.has(memberId) && flag) out[memberId] = true;
       });
-      if (Object.keys(bouffeOk).length > 0) {
-        normalizedYear[TOURNEE_BOUFFE_OK_KEY] = bouffeOk;
-      }
+      return out;
+    };
+    let receptionOk = normalizeOkMap(yearData[TOURNEE_RECEPTION_OK_KEY]);
+    let ristourneOk = normalizeOkMap(yearData[TOURNEE_RISTOURNE_OK_KEY]);
+    // Compat : ancien bouffeOk → réception OK s'il n'y a pas encore de receptionOk
+    const legacyBouffe = normalizeOkMap(yearData[TOURNEE_BOUFFE_OK_KEY]);
+    if (Object.keys(receptionOk).length === 0 && Object.keys(legacyBouffe).length > 0) {
+      receptionOk = { ...legacyBouffe };
     }
+    // Si seulement bouffeOk existait sur la colonne ristourne auparavant, aussi en ristourne
+    if (Object.keys(ristourneOk).length === 0 && Object.keys(legacyBouffe).length > 0 && Object.keys(yearData[TOURNEE_RECEPTION_OK_KEY] || {}).length === 0) {
+      // ne pas tout copier en double si on a déjà migré reception — laisser admin décider
+    }
+    if (Object.keys(receptionOk).length > 0) normalizedYear[TOURNEE_RECEPTION_OK_KEY] = receptionOk;
+    if (Object.keys(ristourneOk).length > 0) normalizedYear[TOURNEE_RISTOURNE_OK_KEY] = ristourneOk;
+    if (Object.keys(legacyBouffe).length > 0) normalizedYear[TOURNEE_BOUFFE_OK_KEY] = legacyBouffe;
 
     const rawReception = yearData[TOURNEE_RECEPTION_DATES_KEY];
     if (rawReception && typeof rawReception === "object") {
@@ -1264,66 +1287,83 @@ function normalizeTourneeData(raw) {
   return { years };
 }
 
-/** Financier (ou admin en espace Admin) peut valider qu'un poto a déjà bouffé / pris sa tournée */
+/** Financier / admin / accès Tournée : peut cocher OK réception ou ristourne */
 function canMarkTourneeBouffeOk() {
   if (!isLoggedIn()) return false;
+  if (isGroupAdmin() && isAdminWorkspace()) return true;
   if (getMemberRole(getCurrentMember()?.id) === "tresorier") return true;
   return hasRoleTabAccess("tournee") && isAdminWorkspace();
 }
 
-function getTourneeBouffeOkMap(year = tourneeYear, useDraft = false) {
+function getTourneeOkStorageKey(kind) {
+  return kind === "ristourne" ? TOURNEE_RISTOURNE_OK_KEY : TOURNEE_RECEPTION_OK_KEY;
+}
+
+function getTourneeOkMap(kind, year = tourneeYear, useDraft = false) {
   const source = useDraft && canEditTourneePlanning() ? tourneeDraft : tourneeData;
   const yearRecord = source.years?.[year] || {};
-  return yearRecord[TOURNEE_BOUFFE_OK_KEY] || {};
+  const key = getTourneeOkStorageKey(kind);
+  const map = yearRecord[key] || {};
+  // Compat legacy bouffeOk → réception
+  if (kind === "reception" && Object.keys(map).length === 0) {
+    return yearRecord[TOURNEE_BOUFFE_OK_KEY] || {};
+  }
+  return map;
+}
+
+function isTourneeMarkOk(kind, memberId, year = tourneeYear, useDraft = false) {
+  return Boolean(getTourneeOkMap(kind, year, useDraft)[memberId]);
 }
 
 function isTourneeBouffeOk(memberId, year = tourneeYear, useDraft = false) {
-  return Boolean(getTourneeBouffeOkMap(year, useDraft)[memberId]);
+  return isTourneeMarkOk("reception", memberId, year, useDraft);
 }
 
-function setTourneeBouffeOk(memberId, isOk) {
+function setTourneeMarkOk(kind, memberId, isOk) {
   if (!canMarkTourneeBouffeOk()) {
     if (!isLoggedIn()) {
       alert("Veuillez vous connecter.");
       openLoginModal();
       return false;
     }
-    alert("Seul le Financier (ou un administrateur) peut valider une tournée prise.");
+    alert("Seul le Financier ou un administrateur (accès Tournée) peut valider un OK.");
     return false;
   }
   if (!memberId) return false;
+  if (kind !== "reception" && kind !== "ristourne") return false;
 
   const year = tourneeYear;
+  const key = getTourneeOkStorageKey(kind);
   if (!tourneeData.years[year]) tourneeData.years[year] = {};
-  if (!tourneeData.years[year][TOURNEE_BOUFFE_OK_KEY]) {
-    tourneeData.years[year][TOURNEE_BOUFFE_OK_KEY] = {};
-  }
-  const map = tourneeData.years[year][TOURNEE_BOUFFE_OK_KEY];
+  if (!tourneeData.years[year][key]) tourneeData.years[year][key] = {};
+  const map = tourneeData.years[year][key];
   if (isOk) map[memberId] = true;
   else delete map[memberId];
-  if (Object.keys(map).length === 0) delete tourneeData.years[year][TOURNEE_BOUFFE_OK_KEY];
+  if (Object.keys(map).length === 0) delete tourneeData.years[year][key];
 
-  // Garder le brouillon admin aligné
   if (tourneeDraft?.years) {
     if (!tourneeDraft.years[year]) tourneeDraft.years[year] = {};
-    if (!tourneeDraft.years[year][TOURNEE_BOUFFE_OK_KEY]) {
-      tourneeDraft.years[year][TOURNEE_BOUFFE_OK_KEY] = {};
-    }
-    const draftMap = tourneeDraft.years[year][TOURNEE_BOUFFE_OK_KEY];
+    if (!tourneeDraft.years[year][key]) tourneeDraft.years[year][key] = {};
+    const draftMap = tourneeDraft.years[year][key];
     if (isOk) draftMap[memberId] = true;
     else delete draftMap[memberId];
-    if (Object.keys(draftMap).length === 0) {
-      delete tourneeDraft.years[year][TOURNEE_BOUFFE_OK_KEY];
-    }
+    if (Object.keys(draftMap).length === 0) delete tourneeDraft.years[year][key];
   }
 
   saveTourneeData();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
   renderTourneeTable();
   return true;
 }
 
+function toggleTourneeMarkOk(kind, memberId) {
+  setTourneeMarkOk(kind, memberId, !isTourneeMarkOk(kind, memberId));
+}
+
 function toggleTourneeBouffeOk(memberId) {
-  setTourneeBouffeOk(memberId, !isTourneeBouffeOk(memberId));
+  toggleTourneeMarkOk("reception", memberId);
 }
 
 function loadTourneeData() {
@@ -3916,7 +3956,8 @@ function formatTourneePersonLabel(memberId, withAmount) {
 function buildTourneeOrderReadout(kind, memberIds) {
   const currentMember = getCurrentMember();
   const withAmount = kind === "ristourne";
-  const canMarkOk = kind === "ristourne" && canMarkTourneeBouffeOk();
+  const okLabel = kind === "ristourne" ? "Ristourne reçue" : "Tournée reçue";
+  // Lecture seule publique : badge OK seulement (pas de bouton)
   if (!memberIds.length) {
     return `<span class="tournee-order-empty">—</span>`;
   }
@@ -3926,17 +3967,12 @@ function buildTourneeOrderReadout(kind, memberIds) {
       .map((id) => {
         const member = getMemberById(id);
         if (!member) return "";
-        const bouffeOk = kind === "ristourne" && isTourneeBouffeOk(id, tourneeYear, false);
+        const markedOk = isTourneeMarkOk(kind, id, tourneeYear, false);
         const isYou = currentMember?.id === id;
-        return `<span class="tournee-person${bouffeOk ? " is-ok" : ""}${isYou ? " is-you" : ""}">
+        return `<span class="tournee-person${markedOk ? " is-ok" : ""}${isYou ? " is-you" : ""}">
+          ${markedOk ? `<span class="tag-bouffe-ok" title="${okLabel}">OK</span>` : ""}
           ${escapeHtml(formatTourneePersonLabel(id, withAmount))}
           ${isYou ? '<span class="tag-you">Vous</span>' : ""}
-          ${bouffeOk ? '<span class="tag-bouffe-ok" title="Tournée déjà prise">OK</span>' : ""}
-          ${
-            canMarkOk
-              ? `<button type="button" class="btn-bouffe-ok${bouffeOk ? " is-done" : ""}" data-member-id="${escapeHtml(id)}" title="${bouffeOk ? "Retirer la validation" : "Valider : a déjà bouffé / pris sa tournée"}">${bouffeOk ? "Retirer OK" : "OK"}</button>`
-              : ""
-          }
         </span>`;
       })
       .join("")}
@@ -3946,12 +3982,21 @@ function buildTourneeOrderReadout(kind, memberIds) {
 function buildTourneeOrderEditor(kind, monthIndex, memberIds) {
   const withAmount = kind === "ristourne";
   const selected = new Set(memberIds);
+  const canMarkOk = canMarkTourneeBouffeOk();
+  const okLabel = kind === "ristourne" ? "ristourne reçue" : "tournée reçue";
   const chips = memberIds
     .map((id) => {
       const member = getMemberById(id);
       if (!member) return "";
-      return `<span class="tournee-order-chip">
+      const markedOk = isTourneeMarkOk(kind, id, tourneeYear, true);
+      return `<span class="tournee-order-chip${markedOk ? " is-ok" : ""}">
+        ${markedOk ? `<span class="tag-bouffe-ok" title="${okLabel}">OK</span>` : ""}
         ${escapeHtml(formatTourneePersonLabel(id, withAmount))}
+        ${
+          canMarkOk
+            ? `<button type="button" class="btn-bouffe-ok${markedOk ? " is-done" : ""}" data-kind="${escapeHtml(kind)}" data-member-id="${escapeHtml(id)}" title="${markedOk ? `Retirer OK (${okLabel})` : `Valider : ${okLabel}`}">${markedOk ? "Retirer OK" : "OK"}</button>`
+            : ""
+        }
         <button type="button" class="tournee-order-remove" data-kind="${escapeHtml(kind)}" data-month="${monthIndex}" data-member="${escapeHtml(id)}" aria-label="Retirer ${escapeHtml(member.name)}">×</button>
       </span>`;
     })
@@ -8920,7 +8965,12 @@ function purgeMemberFromTourneeYear(yearData, memberId) {
       return;
     }
 
-    if (key === TOURNEE_BOUFFE_OK_KEY || key === TOURNEE_RECEPTION_DATES_KEY) {
+    if (
+      key === TOURNEE_BOUFFE_OK_KEY ||
+      key === TOURNEE_RECEPTION_OK_KEY ||
+      key === TOURNEE_RISTOURNE_OK_KEY ||
+      key === TOURNEE_RECEPTION_DATES_KEY
+    ) {
       if (yearData[key]?.[memberId]) {
         delete yearData[key][memberId];
         if (!Object.keys(yearData[key]).length) delete yearData[key];
@@ -9484,13 +9534,14 @@ function onTourneeYearChange(selectEl) {
 tourneeYearSelect?.addEventListener("change", () => onTourneeYearChange(tourneeYearSelect));
 tourneeYearPublic?.addEventListener("change", () => onTourneeYearChange(tourneeYearPublic));
 
-// Financier / Admin : marquer OK (tournée déjà prise / bouffe)
+// Admin / Financier : marquer OK réception ou ristourne
 document.addEventListener("click", (e) => {
   const btn = e.target.closest(".btn-bouffe-ok");
   if (!btn) return;
   e.preventDefault();
   const memberId = btn.dataset.memberId;
-  if (memberId) toggleTourneeBouffeOk(memberId);
+  const kind = btn.dataset.kind === "ristourne" ? "ristourne" : "reception";
+  if (memberId) toggleTourneeMarkOk(kind, memberId);
 });
 
 saveTabPermissionsBtn?.addEventListener("click", () => saveTabPermissionsFromUI({ silent: false }));
