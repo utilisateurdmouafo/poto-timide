@@ -8151,7 +8151,7 @@ function buildLoiCardHtml(item, { manage = false } = {}) {
     </article>`;
 }
 
-/** Résultat de recherche : uniquement les phrases où apparaît le mot */
+/** Résultat de recherche : uniquement les phrases où apparaît le mot (cliquable → article entier) */
 function buildLoiSearchResultHtml(result, query) {
   const item = result.article;
   const titleHtml = result.titleMatch
@@ -8166,10 +8166,42 @@ function buildLoiSearchResultHtml(result, query) {
         ? `<p class="loi-search-phrase loi-search-phrase-title-only">Mot trouvé dans le titre de l'article.</p>`
         : "";
   return `
-    <article class="loi-card loi-card-search" id="loi-search-${escapeHtml(item.id)}">
+    <article
+      class="loi-card loi-card-search"
+      id="loi-search-${escapeHtml(item.id)}"
+      data-loi-open-id="${escapeHtml(item.id)}"
+      role="button"
+      tabindex="0"
+      title="Voir l'article entier"
+    >
       <h3 class="loi-card-title">${titleHtml}</h3>
       <div class="loi-card-body loi-search-excerpts">${phraseBlocks}</div>
+      <p class="loi-search-open-hint">Cliquer pour voir l'article entier →</p>
     </article>`;
+}
+
+/** Ouvre l'article complet depuis un résultat de recherche */
+function openLoiArticleFromSearch(articleId) {
+  if (!articleId) return;
+  // Quitter le mode recherche pour réafficher tous les articles
+  loiSearchQuery = "";
+  if (loiSearchInput) loiSearchInput.value = "";
+  renderLoiList();
+  // Faire défiler jusqu'à l'article et le mettre en évidence
+  requestAnimationFrame(() => {
+    const target = document.getElementById(`loi-${articleId}`);
+    if (!target) return;
+    target.classList.add("loi-card-focus");
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => target.classList.remove("loi-card-focus"), 2800);
+  });
+}
+
+function handleLoiMemberListClick(e) {
+  const openCard = e.target.closest("[data-loi-open-id]");
+  if (!openCard || !loiList?.contains(openCard)) return;
+  e.preventDefault();
+  openLoiArticleFromSearch(openCard.dataset.loiOpenId);
 }
 
 function cancelEditLoi() {
@@ -9373,6 +9405,14 @@ loiCancelBtn?.addEventListener("click", () => {
   renderLoiAdmin();
 });
 loiAdminList?.addEventListener("click", handleLoiListClick);
+loiList?.addEventListener("click", handleLoiMemberListClick);
+loiList?.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const openCard = e.target.closest?.("[data-loi-open-id]");
+  if (!openCard || !loiList?.contains(openCard)) return;
+  e.preventDefault();
+  openLoiArticleFromSearch(openCard.dataset.loiOpenId);
+});
 loiSearchInput?.addEventListener("input", handleLoiSearchInput);
 loiSearchInput?.addEventListener("search", handleLoiSearchInput);
 
