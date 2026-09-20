@@ -484,6 +484,23 @@ const VERSIONED_OBJECT_KEYS = new Set([
   "poto-timide-admin-ids",
 ]);
 
+
+/** Clients SSE branchés pour la synchro quasi temps réel (votes prêts) */
+const liveClients = new Set();
+
+function broadcastLive(eventName, payload = {}) {
+  if (!liveClients.size) return;
+  const body = `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`;
+  for (const client of [...liveClients]) {
+    try {
+      client.write(body);
+      if (typeof client.flush === "function") client.flush();
+    } catch {
+      liveClients.delete(client);
+    }
+  }
+}
+
 async function persistStorageValue(key, value) {
   try {
     const existingRaw = await getRawData(key);
@@ -1406,11 +1423,44 @@ function createApp() {
       }
 
       await enforceOwnerSafeguards();
+
+      // Notifier tous les clients connectés (votes, prêts, etc.)
+      const changedKeys = Object.keys(payload || {}).filter((k) => STORAGE_KEYS.includes(k));
+      if (changedKeys.length) {
+        broadcastLive("data", {
+          keys: changedKeys,
+          at: new Date().toISOString(),
+          prets: changedKeys.includes("poto-timide-prets"),
+        });
+      }
+
       res.json({ ok: true });
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Erreur serveur" });
     }
+  });
+
+  app.get("/api/live", requireAuth, (req, res) => {
+    res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
+    res.setHeader("Cache-Control", "no-cache, no-transform");
+    res.setHeader("Connection", "keep-alive");
+    res.setHeader("X-Accel-Buffering", "no");
+    if (typeof res.flushHeaders === "function") res.flushHeaders();
+    res.write(`event: connected\ndata: ${JSON.stringify({ at: new Date().toISOString() })}\n\n`);
+    liveClients.add(res);
+    const heartbeat = setInterval(() => {
+      try {
+        res.write(`event: ping\ndata: {}\n\n`);
+      } catch {
+        clearInterval(heartbeat);
+        liveClients.delete(res);
+      }
+    }, 25000);
+    req.on("close", () => {
+      clearInterval(heartbeat);
+      liveClients.delete(res);
+    });
   });
 
   app.get("/api/admin/db-status", requireAuth, requireAdmin, async (req, res) => {

@@ -508,13 +508,22 @@ async function flushServerSync() {
   }
 }
 
+let liveEventSource = null;
+let liveReconnectTimer = null;
+/** Intervalle court quand des votes sont en cours */
+const SYNC_INTERVAL_MS = 800;
+const SYNC_INTERVAL_VOTING_MS = 400;
+
 function startPeriodicSync() {
   stopPeriodicSync();
-  periodicSyncTimer = setInterval(async () => {
+  const tick = async () => {
     if (!authState.loggedIn) return;
     await flushServerSync();
     await pullSharedUpdatesFromServer();
-  }, 1500);
+  };
+  // Base rapide (800 ms) — quasi temps réel même sans SSE
+  periodicSyncTimer = setInterval(tick, SYNC_INTERVAL_MS);
+  startLiveEventSource();
 }
 
 function stopPeriodicSync() {
@@ -522,6 +531,67 @@ function stopPeriodicSync() {
     clearInterval(periodicSyncTimer);
     periodicSyncTimer = null;
   }
+  stopLiveEventSource();
+}
+
+function stopLiveEventSource() {
+  if (liveReconnectTimer) {
+    clearTimeout(liveReconnectTimer);
+    liveReconnectTimer = null;
+  }
+  if (liveEventSource) {
+    try {
+      liveEventSource.close();
+    } catch {
+      /* ignore */
+    }
+    liveEventSource = null;
+  }
+}
+
+/** Canal SSE : le serveur pousse dès qu'un poto vote / modifie les prêts */
+function startLiveEventSource() {
+  if (typeof window === "undefined" || typeof EventSource === "undefined") return;
+  if (!authState.loggedIn) return;
+  stopLiveEventSource();
+  try {
+    // withCredentials pour envoyer le cookie de session
+    liveEventSource = new EventSource("/api/live", { withCredentials: true });
+  } catch (err) {
+    console.warn("SSE indisponible, polling seul.", err);
+    return;
+  }
+
+  const onData = async () => {
+    if (!authState.loggedIn) return;
+    // D'abord envoyer nos votes en attente, puis tirer le reste
+    await flushServerSync();
+    await pullSharedUpdatesFromServer();
+  };
+
+  liveEventSource.addEventListener("data", () => {
+    onData().catch(() => {});
+  });
+  liveEventSource.addEventListener("connected", () => {
+    onData().catch(() => {});
+  });
+  liveEventSource.onerror = () => {
+    stopLiveEventSource();
+    if (!authState.loggedIn) return;
+    liveReconnectTimer = setTimeout(() => startLiveEventSource(), 2000);
+  };
+}
+
+/** Accélère le polling pendant un vote (appelé depuis app.js) */
+function setVotingSyncBoost(enabled) {
+  if (!periodicSyncTimer) return;
+  clearInterval(periodicSyncTimer);
+  const ms = enabled ? SYNC_INTERVAL_VOTING_MS : SYNC_INTERVAL_MS;
+  periodicSyncTimer = setInterval(async () => {
+    if (!authState.loggedIn) return;
+    await flushServerSync();
+    await pullSharedUpdatesFromServer();
+  }, ms);
 }
 
 function stampSyncedValue(key, value) {
@@ -581,4 +651,6 @@ window.potoFlushSync = flushServerSync;
 window.potoPullSharedUpdates = pullSharedUpdatesFromServer;
 window.potoStartPeriodicSync = startPeriodicSync;
 window.potoStopPeriodicSync = stopPeriodicSync;
+window.potoSetVotingSyncBoost = setVotingSyncBoost;
+window.potoStartLiveSync = startLiveEventSource;
 window.apiFetchOnline = apiFetchOnline;

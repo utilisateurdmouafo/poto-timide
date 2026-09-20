@@ -6219,6 +6219,11 @@ async function votePret(loanId, vote) {
       const ok = await flush();
       if (ok) {
         clearConfirmedLocalVotes();
+        // Tirer immédiatement les votes des autres
+        if (typeof window.potoPullSharedUpdates === "function") {
+          await window.potoPullSharedUpdates();
+        }
+        renderPrets();
         return;
       }
     } catch (err) {
@@ -6853,6 +6858,10 @@ function renderPrets() {
   renderPretNotifications();
 
   const votingLoans = prets.filter((loan) => !isLoanDeleted(loan) && loan.status === "voting");
+  // Mode vote : polling accéléré (400 ms) pour quasi temps réel
+  if (typeof window.potoSetVotingSyncBoost === "function") {
+    window.potoSetVotingSyncBoost(votingLoans.length > 0 || prets.some((l) => !isLoanDeleted(l) && l.status === "awaiting_financier"));
+  }
   const awaitingLoans = prets.filter((loan) => !isLoanDeleted(loan) && loan.status === "awaiting_financier");
 
   const activeLoans = prets.filter(
