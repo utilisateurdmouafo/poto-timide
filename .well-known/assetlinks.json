@@ -3,9 +3,9 @@
     "relation": ["delegate_permission/common.handle_all_urls"],
     "target": {
       "namespace": "android_app",
-      "package_name": "com.pototimide.app",
+      "package_name": "com.pototimide.twa",
       "sha256_cert_fingerprints": [
-        "REMPLACER_PAR_LE_SHA256_DU_KEYSTORE"
+        "DE:E0:DD:27:27:DF:82:4E:0E:B1:38:4C:91:1F:F8:C2:C9:2B:D3:F0:27:AC:9B:C1:C5:C1:CE:2A:33:5B:87:D2"
       ]
     }
   }
