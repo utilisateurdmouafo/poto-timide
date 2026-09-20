@@ -6760,21 +6760,11 @@ function renderPretSummary() {
       <span class="pret-summary-formula">Capital encore dehors (prêt − remboursé)</span>
       ${activeLoans.length ? `<div class="pret-active-details">${activeLoansDetails}</div>` : ""}
     </div>
-    ${
-      horsGroupe > 0
-        ? `<div class="pret-summary-card pret-summary-out">
-        <span class="pret-summary-label">Argent dehors (ex-membres)</span>
-        <strong class="pret-summary-amount">${formatEuro(horsGroupe)}</strong>
-        <span class="pret-summary-formula">Prêts / créances hors groupe (pas en caisse, mais dans le total)</span>
-        ${horsItems ? `<div class="pret-active-details">${horsItems}</div>` : ""}
-      </div>`
-        : ""
-    }
     ${fondCard}
     <div class="pret-summary-card pret-summary-total">
       <span class="pret-summary-label">Caisse total</span>
       <strong class="pret-summary-amount">${formatEuro(getCaisseTotal())}</strong>
-      <span class="pret-summary-formula">Dispo ${formatEuro(caisseDisponible)} + prêts ${formatEuro(loansOut)} + hors groupe ${formatEuro(horsGroupe)}</span>
+      <span class="pret-summary-formula">Caisse disponible ${formatEuro(caisseDisponible)} + dehors ${formatEuro(totalOut)}</span>
     </div>
   `;
 }
