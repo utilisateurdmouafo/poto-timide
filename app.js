@@ -5502,7 +5502,9 @@ function getLoansCapitalOut() {
 /** Argent dehors hors groupe (ex-membre, prêt non récupéré, etc.) */
 function loadCapitalHorsGroupe() {
   const parsed = readSynced(CAPITAL_HORS_GROUPE_KEY, []);
-  return Array.isArray(parsed) ? parsed.filter((e) => e && !e.deletedAt) : [];
+  if (!Array.isArray(parsed)) return [];
+  // Garder les tombes (deletedAt) pour la synchro, le total ignore les supprimés
+  return parsed.filter((e) => e && e.id);
 }
 
 function saveCapitalHorsGroupe(shouldRender = true) {
@@ -5531,19 +5533,20 @@ function getTotalCapitalOut() {
 }
 
 /**
- * Caisse disponible : fond + amendes + dons − prêts sortis − hors groupe + remboursements.
+ * Caisse disponible : fond + amendes + dons − prêts sortis (membres) + remboursements.
+ * L'argent "hors groupe" (ex-membres) n'y figure pas : il n'est plus en caisse.
  * Sert aux prêts (argent libre).
  */
 function getCaisseDisponible() {
-  return Math.max(
-    0,
-    getCaisseBase() + getTotalAutreArgent() + getLoansCashImpact() - getCapitalHorsGroupeTotal()
-  );
+  return Math.max(0, getCaisseBase() + getTotalAutreArgent() + getLoansCashImpact());
 }
 
-/** Caisse total = caisse disponible + tout l'argent encore dehors */
+/**
+ * Caisse total = argent encore en caisse + prêts sortis + créances hors groupe (ex-membres).
+ * Les 850 € d'un ex-membre augmentent bien ce total sans être "disponibles".
+ */
 function getCaisseTotal() {
-  return getCaisseDisponible() + getTotalCapitalOut();
+  return getCaisseDisponible() + getLoansCapitalOut() + getCapitalHorsGroupeTotal();
 }
 
 function addCapitalHorsGroupe(label, amount) {
@@ -6744,7 +6747,7 @@ function renderPretSummary() {
     <div class="pret-summary-card">
       <span class="pret-summary-label">Caisse disponible</span>
       <strong>${formatEuro(caisseDisponible)}</strong>
-      <span class="pret-summary-formula">Amendes + dons − prêts sortis − hors groupe + remboursements</span>
+      <span class="pret-summary-formula">Amendes + dons − prêts sortis + remboursements</span>
     </div>
     <div class="pret-summary-card">
       <span class="pret-summary-label">Caisse brute</span>
@@ -6771,7 +6774,7 @@ function renderPretSummary() {
     <div class="pret-summary-card pret-summary-total">
       <span class="pret-summary-label">Caisse total</span>
       <strong class="pret-summary-amount">${formatEuro(getCaisseTotal())}</strong>
-      <span class="pret-summary-formula">Caisse disponible ${formatEuro(caisseDisponible)} + dehors ${formatEuro(totalOut)}</span>
+      <span class="pret-summary-formula">Dispo ${formatEuro(caisseDisponible)} + prêts ${formatEuro(loansOut)} + hors groupe ${formatEuro(horsGroupe)}</span>
     </div>
   `;
 }
