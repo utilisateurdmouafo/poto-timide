@@ -1573,6 +1573,13 @@ function createApp() {
     }
   });
 
+  // Digital Asset Links : obligatoire pour cacher la barre d'URL (TWA / APK)
+  app.get("/.well-known/assetlinks.json", (req, res) => {
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    res.sendFile(path.join(__dirname, ".well-known", "assetlinks.json"));
+  });
+
   app.use(
     express.static(__dirname, {
       etag: false,
@@ -1584,6 +1591,9 @@ function createApp() {
         if (/\.webmanifest$/i.test(filePath)) {
           res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
           res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        }
+        if (/assetlinks\.json$/i.test(filePath)) {
+          res.setHeader("Content-Type", "application/json; charset=utf-8");
         }
       },
     })
