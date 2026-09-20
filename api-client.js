@@ -271,16 +271,31 @@ function mergeLoansPreferringNewer(existing, incoming) {
     const base = preferIncoming ? loan : prev;
     const other = preferIncoming ? prev : loan;
 
+    // Soft-delete collant : dès qu'un côté a deletedAt, on ne le perd jamais
+    // (évite qu'un vote/remboursement plus récent fasse réapparaître le prêt)
+    const prevDel = prev.deletedAt ? new Date(prev.deletedAt).getTime() || 0 : 0;
+    const nextDel = loan.deletedAt ? new Date(loan.deletedAt).getTime() || 0 : 0;
     const newerDeleted =
-      (loan.deletedAt && new Date(loan.deletedAt).getTime() >= prevTime) ? loan.deletedAt :
-      (prev.deletedAt && new Date(prev.deletedAt).getTime() >= nextTime) ? prev.deletedAt :
-      null;
+      nextDel >= prevDel && nextDel > 0
+        ? loan.deletedAt
+        : prevDel > 0
+          ? prev.deletedAt
+          : null;
 
     let status = base.status;
     if (!newerDeleted && loanStatusRank(other.status) > loanStatusRank(base.status)) {
       status = other.status;
     }
     if (newerDeleted) status = "rejected";
+
+    const mergedUpdatedAt =
+      nextTime >= prevTime
+        ? loan.updatedAt || loan.deletedAt || prev.updatedAt || new Date().toISOString()
+        : prev.updatedAt || prev.deletedAt || loan.updatedAt || new Date().toISOString();
+    const finalUpdatedAt =
+      newerDeleted && new Date(mergedUpdatedAt).getTime() < new Date(newerDeleted).getTime()
+        ? newerDeleted
+        : mergedUpdatedAt;
 
     const merged = {
       ...other,
@@ -289,10 +304,7 @@ function mergeLoansPreferringNewer(existing, incoming) {
       votes: mergeLoanVotes(prev.votes, loan.votes),
       repayments: mergeLoanRepayments(prev.repayments, loan.repayments),
       deletedAt: newerDeleted || null,
-      updatedAt:
-        nextTime >= prevTime
-          ? loan.updatedAt || loan.deletedAt || prev.updatedAt || new Date().toISOString()
-          : prev.updatedAt || prev.deletedAt || loan.updatedAt || new Date().toISOString(),
+      updatedAt: finalUpdatedAt,
     };
     map.set(loan.id, recomputeLoanRepaid(merged));
   };

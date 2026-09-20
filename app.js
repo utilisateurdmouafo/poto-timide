@@ -6377,12 +6377,15 @@ async function deletePret(loanId) {
     { loanId, tab: "prets", title: "Prêt supprimé" }
   );
   savePrets();
+  saveNotifications(false);
   try {
     if (typeof potoFlushSync === "function") await potoFlushSync();
     else if (typeof window.flushPotoServerSync === "function") await window.flushPotoServerSync();
   } catch (err) {
     console.warn("Sync suppression prêt échouée", err);
   }
+  renderPrets();
+  if (typeof renderAdminPrets === "function") renderAdminPrets();
 }
 
 function isPretNotification(notif) {
