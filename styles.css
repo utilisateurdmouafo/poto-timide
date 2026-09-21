@@ -7437,3 +7437,83 @@ html.phone-nav .menu-toggle-icon {
   border-radius: 14px;
   background: #fff;
 }
+
+.evenement-pay-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin-top: 0.75rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: #f8fafc;
+}
+.evenement-pay-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.evenement-pay-title {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+}
+.evenement-pay-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 0.75rem;
+  align-items: flex-end;
+}
+.evenement-pay-select-label,
+.evenement-pay-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.evenement-pay-select,
+.evenement-pay-input-single {
+  min-width: 10rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.95rem;
+}
+.evenement-pay-input-single {
+  width: 6.5rem;
+  min-width: 6.5rem;
+}
+.evenement-paid-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+.evenement-paid-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  background: #dcfce7;
+  color: #166534;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border: 1px solid #86efac;
+}
+.evenement-paid-empty {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+@media (max-width: 640px) {
+  .evenement-pay-select,
+  .evenement-pay-input-single,
+  .evenement-pay-row .btn-primary,
+  .evenement-pay-row .btn-secondary {
+    width: 100%;
+    min-width: 0;
+  }
+}

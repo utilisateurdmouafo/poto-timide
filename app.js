@@ -8165,58 +8165,76 @@ function buildEvenementManagerCard(evt, current) {
 
   const reimbursed = isEvenementReimbursed(evt);
 
-  const memberRows = getSortedMembers()
-    .map((member, index) => {
-      const isBeneficiary = isEvenementBeneficiary(evt, member.id);
-      const paid = isEvenementPaid(evt, member.id);
-      const paidAmount = getEvenementPaidAmount(evt, member.id);
-      const convertedToDebt = reimbursed && Boolean(evt.payments?.[member.id]?.convertedToDebt);
-      const isCurrentUser = current?.id === member.id;
+  // Cotisants uniquement (hors bénéficiaire)
+  const cotisants = getSortedMembers().filter((m) => !isEvenementBeneficiary(evt, m.id));
+  const unpaidMembers = cotisants.filter((m) => {
+    if (reimbursed && evt.payments?.[m.id]?.convertedToDebt) return false;
+    return !isEvenementPaid(evt, m.id);
+  });
+  const paidMembers = cotisants.filter((m) => isEvenementPaid(evt, m.id));
 
-      return `
-        <tr class="${isCurrentUser ? "row-current" : ""}">
-          <td>
-            <span class="table-num">#${index + 1}</span>
-            ${escapeHtml(member.name)}
-            ${isCurrentUser ? '<span class="tag-you">Vous</span>' : ""}
-            ${isBeneficiary ? '<span class="tag-beneficiary">Poto concerné</span>' : ""}
-          </td>
-          <td>${isBeneficiary ? "—" : formatEuro(share)}</td>
-          <td>
-            ${
-              isBeneficiary
-                ? "—"
-                : paid
-                  ? `<strong>${formatEuro(paidAmount)}</strong>${paidAmount > share ? `<span class="evenement-extra-tag">+${formatEuro(paidAmount - share)}</span>` : ""}`
-                  : convertedToDebt
-                    ? formatEuro(share)
-                    : "—"
-            }
-          </td>
-          <td>
-            ${
-              isBeneficiary
-                ? '<span class="evenement-status evenement-exempt">Ne cotise pas</span>'
-                : convertedToDebt
-                  ? '<span class="evenement-status evenement-debt">Dette</span>'
-                  : `<span class="evenement-status ${paid ? "evenement-paid" : "evenement-unpaid"}">
-                      ${paid ? "Payé" : "À payer"}
-                    </span>`
-            }
-          </td>
-          <td>
-            ${
-              isBeneficiary
-                ? "—"
-                : convertedToDebt
-                  ? '<span class="evenement-debt-hint">Dettes et amendes</span>'
-                  : buildEvenementPaymentActions(evt, member, canManage, reimbursed)
-            }
-          </td>
-        </tr>
-      `;
+  const unpaidOptions = unpaidMembers
+    .map((m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`)
+    .join("");
+  const paidOptions = paidMembers
+    .map((m) => {
+      const amt = getEvenementPaidAmount(evt, m.id);
+      return `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)} — ${formatEuro(amt)}</option>`;
     })
     .join("");
+
+  const paidChips = paidMembers.length
+    ? paidMembers
+        .map((m) => {
+          const amt = getEvenementPaidAmount(evt, m.id);
+          return `<span class="evenement-paid-chip">${escapeHtml(m.name)} · ${formatEuro(amt)}</span>`;
+        })
+        .join("")
+    : `<span class="evenement-paid-empty">Personne n'a encore payé</span>`;
+
+  const paymentPanel = canManage && !reimbursed
+    ? `
+      <div class="evenement-pay-panel">
+        <div class="evenement-pay-block">
+          <h4 class="evenement-pay-title">Enregistrer un paiement</h4>
+          <div class="evenement-pay-row">
+            <label class="evenement-pay-select-label">
+              Poto
+              <select class="evenement-pay-select" data-event-id="${escapeHtml(evt.id)}" data-role="pay">
+                <option value="">— Choisir —</option>
+                ${unpaidOptions || '<option value="" disabled>Tous ont payé</option>'}
+              </select>
+            </label>
+            <label class="evenement-pay-label">
+              Versé (€)
+              <input type="number" class="evenement-pay-input evenement-pay-input-single" data-event-id="${escapeHtml(evt.id)}" min="0.5" step="0.5" value="${share}" placeholder="${share}" />
+            </label>
+            <button type="button" class="btn-primary btn-evenement-pay-selected" data-event-id="${escapeHtml(evt.id)}">Valider le paiement</button>
+          </div>
+        </div>
+        ${
+          paidMembers.length
+            ? `<div class="evenement-pay-block evenement-pay-block-paid">
+                <h4 class="evenement-pay-title">Déjà payé</h4>
+                <div class="evenement-paid-chips">${paidChips}</div>
+                <div class="evenement-pay-row">
+                  <label class="evenement-pay-select-label">
+                    Annuler un paiement
+                    <select class="evenement-pay-select" data-event-id="${escapeHtml(evt.id)}" data-role="unpay">
+                      <option value="">— Choisir —</option>
+                      ${paidOptions}
+                    </select>
+                  </label>
+                  <button type="button" class="btn-secondary btn-evenement-unpay-selected" data-event-id="${escapeHtml(evt.id)}">Annuler</button>
+                </div>
+              </div>`
+            : ""
+        }
+      </div>`
+    : canManage && reimbursed
+      ? `<div class="evenement-pay-panel"><p class="panel-desc">Événement remboursé — paiements figés.</p>
+          <div class="evenement-paid-chips">${paidChips}</div></div>`
+      : `<div class="evenement-pay-panel"><div class="evenement-paid-chips">${paidChips}</div></div>`;
 
   const collected = getEvenementCollectedAmount(evt);
   const potoReceivable = getEvenementPotoReceivable(evt);
@@ -8283,20 +8301,7 @@ function buildEvenementManagerCard(evt, current) {
             : `<p class="evenement-reimbursed-msg">Remboursé au poto le ${formatDate(evt.reimbursedAt.split("T")[0])} — ${formatEuro(evt.reimbursedAmount || collected)} (déduit de la caisse brute)</p>`
           : ""
       }
-      <div class="table-wrap">
-        <table class="cotisation-table evenement-table">
-          <thead>
-            <tr>
-              <th>Membre</th>
-              <th>Cotisation</th>
-              <th>Montant payé</th>
-              <th>Statut</th>
-              ${canManage ? "<th>Action</th>" : ""}
-            </tr>
-          </thead>
-          <tbody>${memberRows}</tbody>
-        </table>
-      </div>
+      ${paymentPanel}
     </article>
   `;
 }
@@ -10672,6 +10677,31 @@ function handleEvenementActionClick(e) {
       payBtn.dataset.memberId,
       getPayInputValue(payBtn.dataset.eventId, payBtn.dataset.memberId)
     );
+  }
+  const paySelectedBtn = e.target.closest(".btn-evenement-pay-selected");
+  if (paySelectedBtn) {
+    const eventId = paySelectedBtn.dataset.eventId;
+    const root = paySelectedBtn.closest(".evenement-card") || e.currentTarget;
+    const select = root.querySelector(`.evenement-pay-select[data-event-id="${eventId}"][data-role="pay"]`);
+    const input = root.querySelector(`.evenement-pay-input-single[data-event-id="${eventId}"]`);
+    const memberId = select?.value;
+    if (!memberId) {
+      alert("Choisis un poto.");
+      return;
+    }
+    validateEvenementPayment(eventId, memberId, input?.value);
+  }
+  const unpaySelectedBtn = e.target.closest(".btn-evenement-unpay-selected");
+  if (unpaySelectedBtn) {
+    const eventId = unpaySelectedBtn.dataset.eventId;
+    const root = unpaySelectedBtn.closest(".evenement-card") || e.currentTarget;
+    const select = root.querySelector(`.evenement-pay-select[data-event-id="${eventId}"][data-role="unpay"]`);
+    const memberId = select?.value;
+    if (!memberId) {
+      alert("Choisis un poto déjà payé.");
+      return;
+    }
+    cancelEvenementPayment(eventId, memberId);
   }
   if (editPayBtn) {
     updateEvenementPayment(
