@@ -7609,3 +7609,76 @@ html.phone-nav .menu-toggle-icon {
 @keyframes toast-out {
   to { opacity: 0; transform: translateY(8px) scale(0.98); }
 }
+
+/* Accueil — Ma situation */
+.accueil-hello {
+  margin: 0 0 1rem;
+  font-size: 1.05rem;
+  color: var(--text);
+}
+.accueil-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+  gap: 0.85rem;
+}
+.accueil-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.05rem;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: #fff;
+  min-height: 9rem;
+}
+.accueil-card-kicker {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+.accueil-card-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.2;
+}
+.accueil-card-body {
+  margin: 0;
+  flex: 1;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+.accueil-card-cta {
+  align-self: flex-start;
+  margin-top: 0.35rem;
+}
+.accueil-card-ok {
+  background: linear-gradient(180deg, #ecfdf5, #fff);
+  border-color: #a7f3d0;
+}
+.accueil-card-warn {
+  background: linear-gradient(180deg, #fff7ed, #fff);
+  border-color: #fed7aa;
+}
+.accueil-card-info {
+  background: linear-gradient(180deg, #eff6ff, #fff);
+  border-color: #bfdbfe;
+}
+.accueil-card-neutral {
+  background: linear-gradient(180deg, #f8fafc, #fff);
+}
+.accueil-login-prompt {
+  padding: 1.25rem;
+  border-radius: 16px;
+  border: 1px dashed var(--border);
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
