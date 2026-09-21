@@ -8003,8 +8003,8 @@ function getEvenementTypeLabel(typeId) {
 }
 
 /**
- * Peut gérer les événements (créer, paiements, remboursement)
- * — aussi hors de l'onglet Admin (mobile / onglet Événements).
+ * Peut gérer les événements (créer, paiements, remboursement).
+ * UI de gestion uniquement dans Admin → Événements (onglet public en lecture seule).
  */
 function canManageEvenements() {
   if (!isLoggedIn()) return false;
@@ -9044,24 +9044,21 @@ function renderEvenements() {
   if (!current) return;
 
   const canManage = canManageEvenements();
+  // Onglet public Événements = lecture seule uniquement
   const createPublic = document.getElementById("evenementCreatePanelPublic");
-  if (createPublic) createPublic.hidden = !canManage;
+  if (createPublic) createPublic.hidden = true;
   if (canManage) {
     fillEvenementMemberSelect(document.getElementById("evenementMember"));
-    fillEvenementMemberSelect(document.getElementById("evenementMemberPublic"));
   }
   if (addEvenementPanel) addEvenementPanel.hidden = !canManage;
 
   if (evenementListTitle) {
-    evenementListTitle.textContent = canManage
-      ? "Gérer les événements"
-      : `Mes événements — ${current.name}`;
+    evenementListTitle.textContent = `Mes événements — ${current.name}`;
   }
   if (evenementListSubtitle) {
     evenementListSubtitle.hidden = false;
-    evenementListSubtitle.textContent = canManage
-      ? "Création, paiements, remboursement au poto et clôture (aussi sur mobile)."
-      : "Tes cotisations et le statut des événements du groupe.";
+    evenementListSubtitle.textContent =
+      "Lecture seule. La création et les paiements se gèrent dans Admin → Événements.";
   }
 
   if (evenementMemberSummary) {
@@ -9078,8 +9075,8 @@ function renderEvenements() {
         : "Réinitialiser les clôturés";
   }
 
-  // Gestion complète aussi dans l'onglet Événements (mobile + desktop)
-  renderEvenementListInto(evenementList, { manage: canManage });
+  // Public : lecture seule — Admin : gestion complète (cartes visibles aussi sur mobile)
+  renderEvenementListInto(evenementList, { manage: false });
   renderEvenementListInto(document.getElementById("evenementAdminList"), { manage: canManage });
   refreshFinancierPayBoxes();
   scheduleFitTables();
