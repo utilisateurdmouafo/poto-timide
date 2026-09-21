@@ -7834,3 +7834,136 @@ html.phone-nav .menu-toggle-icon {
     width: 100%;
   }
 }
+
+/* Admin événements — version compacte */
+.evenement-card-admin {
+  padding: 0.55rem 0.7rem;
+  margin-bottom: 0.55rem;
+  border-radius: 12px;
+}
+.evenement-card-admin .evenement-head {
+  margin-bottom: 0.35rem;
+  gap: 0.4rem;
+}
+.evenement-card-admin .evenement-head h3 {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.25;
+}
+.evenement-card-admin .evenement-meta,
+.evenement-card-admin .evenement-desc {
+  font-size: 0.7rem;
+  margin: 0.1rem 0 0;
+}
+.evenement-card-admin .evenement-totals {
+  gap: 0.25rem;
+  margin-bottom: 0.35rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.evenement-card-admin .evenement-totals div {
+  padding: 0.28rem 0.4rem;
+  border-radius: 6px;
+}
+.evenement-card-admin .evenement-totals span {
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+}
+.evenement-card-admin .evenement-totals strong {
+  font-size: 0.8rem;
+}
+.evenement-card-admin .evenement-totals-poto {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem 0.75rem;
+  padding: 0.35rem 0.55rem;
+}
+.evenement-card-admin .evenement-totals-poto > strong {
+  font-size: 0.95rem;
+}
+.evenement-card-admin .evenement-pay-panel {
+  margin-top: 0.4rem;
+  padding: 0.5rem 0.55rem;
+  gap: 0.45rem;
+  border-radius: 10px;
+}
+.evenement-card-admin .evenement-pay-row {
+  gap: 0.4rem;
+  align-items: flex-end;
+}
+.evenement-card-admin .evenement-pay-select,
+.evenement-card-admin .evenement-pay-input-single {
+  padding: 0.4rem 0.5rem;
+  font-size: 0.88rem;
+  min-height: 2.2rem;
+  border-radius: 8px;
+}
+.evenement-card-admin .evenement-pay-input-single {
+  width: 4.5rem;
+  min-width: 4.5rem;
+}
+.evenement-card-admin .evenement-pay-select-label,
+.evenement-card-admin .evenement-pay-label {
+  font-size: 0.72rem;
+  gap: 0.2rem;
+}
+.evenement-card-admin .btn-evenement-pay-selected,
+.evenement-card-admin .btn-evenement-pay-all,
+.evenement-card-admin .btn-evenement-unpay-selected,
+.evenement-card-admin .btn-evenement-reimburse,
+.evenement-card-admin .btn-evenement-close,
+.evenement-card-admin .btn-evenement-delete {
+  padding: 0.4rem 0.7rem;
+  font-size: 0.82rem;
+  min-height: 2.2rem;
+  border-radius: 8px;
+}
+.evenement-card-admin .evenement-paid-chips {
+  gap: 0.25rem;
+}
+.evenement-card-admin .evenement-paid-chip {
+  padding: 0.15rem 0.45rem;
+  font-size: 0.72rem;
+}
+.evenement-card-admin .evenement-reimburse-row {
+  margin: 0.35rem 0;
+  padding: 0.4rem 0.55rem;
+  gap: 0.4rem;
+  border-radius: 8px;
+  align-items: center;
+}
+.evenement-card-admin .evenement-reimburse-row p {
+  font-size: 0.8rem;
+  margin: 0;
+}
+.evenement-card-admin .btn-pret-delete {
+  padding: 0.3rem 0.55rem;
+  font-size: 0.75rem;
+}
+#adminSub-evenements .evenement-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+#adminSub-evenements .evenement-form {
+  gap: 0.5rem;
+}
+#adminSub-evenements .evenement-form input,
+#adminSub-evenements .evenement-form select {
+  padding: 0.5rem 0.65rem;
+  font-size: 0.9rem;
+}
+@media (max-width: 640px) {
+  .evenement-card-admin .evenement-totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .evenement-card-admin .evenement-pay-row {
+    flex-wrap: wrap;
+  }
+  .evenement-card-admin .evenement-pay-select {
+    width: 100%;
+    max-width: none;
+  }
+}

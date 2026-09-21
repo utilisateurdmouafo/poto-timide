@@ -8714,7 +8714,6 @@ function buildEvenementManagerCard(evt, current) {
     ? `
       <div class="evenement-pay-panel">
         <div class="evenement-pay-block">
-          <h4 class="evenement-pay-title">Enregistrer un paiement</h4>
           <div class="evenement-pay-row">
             <label class="evenement-pay-select-label">
               Poto
@@ -8727,33 +8726,23 @@ function buildEvenementManagerCard(evt, current) {
               Versé (€)
               <input type="number" class="evenement-pay-input evenement-pay-input-single" data-event-id="${escapeHtml(evt.id)}" min="0.5" step="0.5" value="${share}" placeholder="${share}" />
             </label>
-            <button type="button" class="btn-primary btn-evenement-pay-selected" data-event-id="${escapeHtml(evt.id)}">Valider le paiement</button>
-          </div>
-          ${
-            unpaidMembers.length > 1
-              ? `<div class="evenement-pay-bulk">
-                  <button type="button" class="btn-secondary btn-evenement-pay-all" data-event-id="${escapeHtml(evt.id)}">
-                    Tout le monde a payé (${unpaidMembers.length} restants · ${formatEuro(share)} chacun)
-                  </button>
-                  <p class="evenement-pay-bulk-hint">Marque tous les impayés comme payés au montant de cotisation. Tu pourras annuler un par un si besoin.</p>
-                </div>`
-              : unpaidMembers.length === 1
-                ? `<div class="evenement-pay-bulk">
-                    <button type="button" class="btn-secondary btn-evenement-pay-all" data-event-id="${escapeHtml(evt.id)}">
-                      Valider le dernier (${escapeHtml(unpaidMembers[0].name)})
-                    </button>
-                  </div>`
+            <button type="button" class="btn-primary btn-evenement-pay-selected" data-event-id="${escapeHtml(evt.id)}">Valider</button>
+            ${
+              unpaidMembers.length > 0
+                ? `<button type="button" class="btn-secondary btn-evenement-pay-all" data-event-id="${escapeHtml(evt.id)}" title="Marquer tous les impayés à ${formatEuro(share)}">
+                    Tous payés (${unpaidMembers.length})
+                  </button>`
                 : ""
-          }
+            }
+          </div>
         </div>
         ${
           paidMembers.length
             ? `<div class="evenement-pay-block evenement-pay-block-paid">
-                <h4 class="evenement-pay-title">Déjà payé</h4>
                 <div class="evenement-paid-chips">${paidChips}</div>
                 <div class="evenement-pay-row">
                   <label class="evenement-pay-select-label">
-                    Annuler un paiement
+                    Annuler
                     <select class="evenement-pay-select" data-event-id="${escapeHtml(evt.id)}" data-role="unpay">
                       <option value="">— Choisir —</option>
                       ${paidOptions}
@@ -8781,7 +8770,7 @@ function buildEvenementManagerCard(evt, current) {
     : "";
 
   return `
-    <article class="evenement-card" id="admin-evenement-${escapeHtml(evt.id)}">
+    <article class="evenement-card evenement-card-admin" id="admin-evenement-${escapeHtml(evt.id)}">
       <div class="evenement-head">
         <div>
           ${evt.type ? `<span class="evenement-type-badge type-${evt.type}">${escapeHtml(getEvenementTypeLabel(evt.type))}</span>` : ""}
@@ -8816,12 +8805,12 @@ function buildEvenementManagerCard(evt, current) {
           ? `<div class="evenement-reimburse-row">
               <p>${
                 collected > 0
-                  ? `<strong>${escapeHtml(beneficiary?.name || "Le poto")}</strong> percevra <strong>${formatEuro(potoReceivable)}</strong> — à remettre depuis la caisse brute.`
+                  ? `<strong>${formatEuro(potoReceivable)}</strong> → ${escapeHtml(beneficiary?.name || "poto")}`
                   : unpaidCount > 0
-                    ? "Aucun paiement collecté — les impayés seront enregistrés comme dettes."
-                    : "Finaliser l'événement."
+                    ? "0 collecté — impayés → dettes"
+                    : "Finaliser"
               }</p>
-              <button type="button" class="btn-primary btn-evenement-reimburse" data-event-id="${evt.id}">Rembourser au poto</button>
+              <button type="button" class="btn-primary btn-evenement-reimburse" data-event-id="${evt.id}">Rembourser</button>
             </div>`
           : ""
       }
