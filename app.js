@@ -7535,10 +7535,24 @@ function loadEvenements() {
 }
 
 function saveEvenements(shouldRender = true) {
+  // Horodatage global pour la fusion serveur
+  const stamp = new Date().toISOString();
+  evenements.forEach((evt) => {
+    if (evt && typeof evt === "object" && !evt.updatedAt) evt.updatedAt = evt.createdAt || stamp;
+  });
   localStorage.setItem(EVENEMENTS_KEY, JSON.stringify(evenements));
+  bumpLiveDataRevision();
+  const flush = window.potoFlushSync || window.flushPotoServerSync;
+  if (typeof flush === "function") {
+    Promise.resolve(flush()).catch(() => {});
+  }
   if (shouldRender) {
     renderEvenements();
     renderPrets();
+    if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
+    if (typeof renderFinance === "function") {
+      try { renderFinance(); } catch { /* ignore */ }
+    }
   }
 }
 
@@ -7713,6 +7727,7 @@ function parseEvenementPaymentAmount(value) {
 }
 
 function setEvenementMemberPayment(evt, memberId, paidAmount) {
+  if (!evt.payments) evt.payments = {};
   if (!evt.payments[memberId]) {
     evt.payments[memberId] = { paid: false, paidAt: null, validatedBy: null };
   }
@@ -7727,6 +7742,7 @@ function setEvenementMemberPayment(evt, memberId, paidAmount) {
 
   delete evt.payments[memberId].convertedToDebt;
   delete evt.payments[memberId].debtCreatedAt;
+  evt.updatedAt = new Date().toISOString();
 }
 
 function validateEvenementPayment(eventId, memberId, amountValue) {
@@ -7828,6 +7844,7 @@ function cancelEvenementPayment(eventId, memberId) {
     paidAmount: null,
   };
 
+  if (evt) evt.updatedAt = new Date().toISOString();
   saveEvenements();
   showEvenementSaveMessage(
     `Paiement annulé pour ${member.name}${previousAmount > 0 ? ` (${formatEuro(previousAmount)} retiré de la caisse)` : ""}.`

@@ -563,11 +563,70 @@ function mergeTourneeData(existing, incoming) {
   };
 }
 
+
+/** Fusion événements : union des paiements par membre (ne jamais perdre un "payé") */
+function mergeEvenementPayments(a, b) {
+  const out = {};
+  const add = (src) => {
+    if (!src || typeof src !== "object") return;
+    Object.entries(src).forEach(([memberId, pay]) => {
+      if (!pay || typeof pay !== "object") return;
+      const prev = out[memberId];
+      if (!prev) {
+        out[memberId] = { ...pay };
+        return;
+      }
+      // Si l'un des deux est payé, garder payé ; prendre le paidAt le plus récent
+      const prevPaid = Boolean(prev.paid);
+      const nextPaid = Boolean(pay.paid);
+      const prevT = new Date(prev.paidAt || prev.debtCreatedAt || 0).getTime() || 0;
+      const nextT = new Date(pay.paidAt || pay.debtCreatedAt || 0).getTime() || 0;
+      if (nextPaid && !prevPaid) out[memberId] = { ...pay };
+      else if (prevPaid && !nextPaid) out[memberId] = { ...prev };
+      else if (nextT >= prevT) out[memberId] = { ...prev, ...pay };
+      else out[memberId] = { ...pay, ...prev };
+    });
+  };
+  add(a);
+  add(b);
+  return out;
+}
+
+function mergeEvenementsWithPayments(existing, incoming) {
+  const map = new Map();
+  const add = (evt) => {
+    if (!evt || typeof evt !== "object" || !evt.id) return;
+    const prev = map.get(evt.id);
+    if (!prev) {
+      map.set(evt.id, { ...evt, payments: { ...(evt.payments || {}) } });
+      return;
+    }
+    const prevT = itemTimestamp(prev);
+    const nextT = itemTimestamp(evt);
+    const base = nextT >= prevT ? evt : prev;
+    const other = nextT >= prevT ? prev : evt;
+    map.set(evt.id, {
+      ...other,
+      ...base,
+      payments: mergeEvenementPayments(prev.payments, evt.payments),
+      updatedAt:
+        nextT >= prevT
+          ? evt.updatedAt || prev.updatedAt || new Date().toISOString()
+          : prev.updatedAt || evt.updatedAt || new Date().toISOString(),
+    });
+  };
+  (Array.isArray(existing) ? existing : []).forEach(add);
+  (Array.isArray(incoming) ? incoming : []).forEach(add);
+  return [...map.values()].sort((a, b) => itemTimestamp(b) - itemTimestamp(a));
+}
+
 async function persistStorageValue(key, value) {
   try {
     const existingRaw = await getRawData(key);
     if (key === "poto-timide-prets") {
       value = mergeLoansWithVotes(unwrapStored(existingRaw) || [], unwrapStored(value) || []);
+    } else if (key === "poto-timide-evenements") {
+      value = mergeEvenementsWithPayments(unwrapStored(existingRaw) || [], unwrapStored(value) || []);
     } else if (key === "poto-timide-tournee") {
       value = mergeTourneeData(unwrapStored(existingRaw) || { years: {} }, unwrapStored(value) || { years: {} });
     } else if (MERGE_BY_ID_KEYS.has(key)) {

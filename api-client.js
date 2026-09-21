@@ -376,6 +376,57 @@ function mergeTourneeDataClient(local, incoming) {
   return { years, updatedAt: new Date().toISOString() };
 }
 
+
+function mergeEvenementPaymentsClient(a, b) {
+  const out = {};
+  const add = (src) => {
+    if (!src || typeof src !== "object") return;
+    Object.entries(src).forEach(([memberId, pay]) => {
+      if (!pay || typeof pay !== "object") return;
+      const prev = out[memberId];
+      if (!prev) {
+        out[memberId] = { ...pay };
+        return;
+      }
+      if (pay.paid && !prev.paid) out[memberId] = { ...pay };
+      else if (prev.paid && !pay.paid) out[memberId] = { ...prev };
+      else {
+        const prevT = new Date(prev.paidAt || 0).getTime() || 0;
+        const nextT = new Date(pay.paidAt || 0).getTime() || 0;
+        out[memberId] = nextT >= prevT ? { ...prev, ...pay } : { ...pay, ...prev };
+      }
+    });
+  };
+  add(a);
+  add(b);
+  return out;
+}
+
+function mergeEvenementsWithPaymentsClient(local, incoming) {
+  const map = new Map();
+  const add = (evt) => {
+    if (!evt || typeof evt !== "object" || !evt.id) return;
+    const prev = map.get(evt.id);
+    if (!prev) {
+      map.set(evt.id, { ...evt, payments: { ...(evt.payments || {}) } });
+      return;
+    }
+    const prevT = new Date(prev.updatedAt || prev.createdAt || 0).getTime() || 0;
+    const nextT = new Date(evt.updatedAt || evt.createdAt || 0).getTime() || 0;
+    const base = nextT >= prevT ? evt : prev;
+    const other = nextT >= prevT ? prev : evt;
+    map.set(evt.id, {
+      ...other,
+      ...base,
+      payments: mergeEvenementPaymentsClient(prev.payments, evt.payments),
+      updatedAt: new Date(Math.max(prevT, nextT, Date.now())).toISOString(),
+    });
+  };
+  (Array.isArray(local) ? local : []).forEach(add);
+  (Array.isArray(incoming) ? incoming : []).forEach(add);
+  return [...map.values()];
+}
+
 function writeServerDataToLocal(serverData) {
   Object.entries(serverData || {}).forEach(([key, value]) => {
     if (!API_SYNC_KEYS.has(key)) return;
@@ -397,6 +448,20 @@ function writeServerDataToLocal(serverData) {
         const local = raw ? unwrapLocalSynced(JSON.parse(raw)) : [];
         const incoming = unwrapLocalSynced(value);
         value = mergeLoansPreferringNewer(Array.isArray(local) ? local : [], Array.isArray(incoming) ? incoming : []);
+      }
+      if (key === "poto-timide-evenements") {
+        const raw = localStorage.getItem(key);
+        let local = [];
+        try {
+          local = raw ? unwrapLocalSynced(JSON.parse(raw)) : [];
+        } catch {
+          local = [];
+        }
+        const incoming = unwrapLocalSynced(value);
+        value = mergeEvenementsWithPaymentsClient(
+          Array.isArray(local) ? local : [],
+          Array.isArray(incoming) ? incoming : []
+        );
       }
       if (key === "poto-timide-tournee") {
         const raw = localStorage.getItem(key);
