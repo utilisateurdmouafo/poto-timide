@@ -1304,12 +1304,16 @@ function normalizeTourneeData(raw) {
     }
 
     // OK réception / ristourne (memberId → true)
-    const validIds = new Set(members.map((m) => m.id));
+    // Ne pas jeter les OK si la liste membres n'est pas encore chargée
+    const validIds = new Set((members || []).map((m) => m.id));
     const normalizeOkMap = (raw) => {
       if (!raw || typeof raw !== "object") return {};
       const out = {};
       Object.entries(raw).forEach(([memberId, flag]) => {
-        if (validIds.has(memberId) && flag) out[memberId] = true;
+        if (!flag) return;
+        // Garder l'OK même si le membre n'est pas encore dans la liste (évite perte au reload)
+        if (validIds.size === 0 || validIds.has(memberId)) out[memberId] = true;
+        else out[memberId] = true;
       });
       return out;
     };
@@ -1410,9 +1414,16 @@ function setTourneeMarkOk(kind, memberId, isOk) {
     if (Object.keys(draftMap).length === 0) delete tourneeDraft.years[year][key];
   }
 
+  // Forcer un horodatage pour gagner la fusion serveur
+  tourneeData.updatedAt = new Date().toISOString();
   saveTourneeData();
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
+  const flush = window.potoFlushSync || window.flushPotoServerSync;
+  if (typeof flush === "function") {
+    Promise.resolve(flush())
+      .then((ok) => {
+        if (!ok) return flush();
+      })
+      .catch(() => {});
   }
   renderTourneeTable();
   return true;
@@ -2719,9 +2730,10 @@ function reloadFromStorage() {
   adminIds = loadAdminIds();
   ensureDefaultAdmin();
   tourneeData = loadTourneeData();
+  // Toujours réaligner le draft (sinon les OK disparaissent à l'affichage admin)
+  tourneeDraft = cloneTourneeData(tourneeData);
   if (canEditTourneePlanning()) {
     cotisationsDraft = { ...cotisations };
-    tourneeDraft = cloneTourneeData(tourneeData);
   }
 }
 

@@ -339,6 +339,43 @@ function objectUpdatedAtMs(value) {
   return Number.isFinite(time) ? time : 0;
 }
 
+
+function mergeTourneeOkMapsClient(a, b) {
+  const out = { ...(a && typeof a === "object" ? a : {}) };
+  if (b && typeof b === "object") {
+    Object.entries(b).forEach(([id, flag]) => {
+      if (flag) out[id] = true;
+    });
+  }
+  return out;
+}
+
+function mergeTourneeDataClient(local, incoming) {
+  const a = local && typeof local === "object" ? local : { years: {} };
+  const b = incoming && typeof incoming === "object" ? incoming : { years: {} };
+  const yearsA = a.years && typeof a.years === "object" ? a.years : {};
+  const yearsB = b.years && typeof b.years === "object" ? b.years : {};
+  const yearKeys = new Set([...Object.keys(yearsA), ...Object.keys(yearsB)]);
+  const years = {};
+  yearKeys.forEach((y) => {
+    const base = yearsA[y] && typeof yearsA[y] === "object" ? { ...yearsA[y] } : {};
+    const inc = yearsB[y] && typeof yearsB[y] === "object" ? yearsB[y] : {};
+    const out = { ...base, ...inc };
+    for (const key of ["receptionOk", "ristourneOk", "bouffeOk"]) {
+      if (base[key] || inc[key]) {
+        out[key] = mergeTourneeOkMapsClient(base[key], inc[key]);
+        if (!Object.keys(out[key]).length) delete out[key];
+      }
+    }
+    for (const key of ["reception", "ristourne"]) {
+      if (inc[key] && typeof inc[key] === "object" && Object.keys(inc[key]).length > 0) out[key] = inc[key];
+      else if (base[key]) out[key] = base[key];
+    }
+    years[y] = out;
+  });
+  return { years, updatedAt: new Date().toISOString() };
+}
+
 function writeServerDataToLocal(serverData) {
   Object.entries(serverData || {}).forEach(([key, value]) => {
     if (!API_SYNC_KEYS.has(key)) return;
@@ -360,6 +397,17 @@ function writeServerDataToLocal(serverData) {
         const local = raw ? unwrapLocalSynced(JSON.parse(raw)) : [];
         const incoming = unwrapLocalSynced(value);
         value = mergeLoansPreferringNewer(Array.isArray(local) ? local : [], Array.isArray(incoming) ? incoming : []);
+      }
+      if (key === "poto-timide-tournee") {
+        const raw = localStorage.getItem(key);
+        let local = { years: {} };
+        try {
+          local = raw ? unwrapLocalSynced(JSON.parse(raw)) : { years: {} };
+        } catch {
+          local = { years: {} };
+        }
+        const incoming = unwrapLocalSynced(value) || { years: {} };
+        value = mergeTourneeDataClient(local, incoming);
       }
       // Accès / rôles / admins : ne pas écraser une version locale plus récente
       if (

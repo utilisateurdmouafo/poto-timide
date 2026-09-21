@@ -504,11 +504,72 @@ function broadcastLive(eventName, payload = {}) {
   }
 }
 
+
+/** Fusion profonde tournée : ne pas perdre receptionOk / ristourneOk */
+function mergeTourneeOkMaps(a, b) {
+  const out = { ...(a && typeof a === "object" ? a : {}) };
+  if (b && typeof b === "object") {
+    Object.entries(b).forEach(([id, flag]) => {
+      if (flag) out[id] = true;
+      else if (flag === false) delete out[id];
+    });
+  }
+  return out;
+}
+
+function mergeTourneeYear(existingYear, incomingYear) {
+  const base = existingYear && typeof existingYear === "object" ? { ...existingYear } : {};
+  const inc = incomingYear && typeof incomingYear === "object" ? incomingYear : {};
+  const out = { ...base, ...inc };
+
+  // Maps OK : union (ne jamais perdre un OK déjà présent)
+  for (const key of ["receptionOk", "ristourneOk", "bouffeOk"]) {
+    if (base[key] || inc[key]) {
+      out[key] = mergeTourneeOkMaps(base[key], inc[key]);
+      if (!Object.keys(out[key]).length) delete out[key];
+    }
+  }
+
+  // Ordres mois : préférer incoming s'il a des données, sinon garder base
+  for (const key of ["reception", "ristourne"]) {
+    if (inc[key] && typeof inc[key] === "object" && Object.keys(inc[key]).length > 0) {
+      out[key] = inc[key];
+    } else if (base[key]) {
+      out[key] = base[key];
+    }
+  }
+
+  if (inc.partners && typeof inc.partners === "object") out.partners = inc.partners;
+  else if (base.partners) out.partners = base.partners;
+
+  return out;
+}
+
+function mergeTourneeData(existing, incoming) {
+  const a = existing && typeof existing === "object" ? existing : { years: {} };
+  const b = incoming && typeof incoming === "object" ? incoming : { years: {} };
+  const yearsA = a.years && typeof a.years === "object" ? a.years : {};
+  const yearsB = b.years && typeof b.years === "object" ? b.years : {};
+  const yearKeys = new Set([...Object.keys(yearsA), ...Object.keys(yearsB)]);
+  const years = {};
+  yearKeys.forEach((y) => {
+    years[y] = mergeTourneeYear(yearsA[y], yearsB[y]);
+  });
+  const updatedAtA = new Date(a.updatedAt || 0).getTime() || 0;
+  const updatedAtB = new Date(b.updatedAt || 0).getTime() || 0;
+  return {
+    years,
+    updatedAt: new Date(Math.max(updatedAtA, updatedAtB, Date.now())).toISOString(),
+  };
+}
+
 async function persistStorageValue(key, value) {
   try {
     const existingRaw = await getRawData(key);
     if (key === "poto-timide-prets") {
       value = mergeLoansWithVotes(unwrapStored(existingRaw) || [], unwrapStored(value) || []);
+    } else if (key === "poto-timide-tournee") {
+      value = mergeTourneeData(unwrapStored(existingRaw) || { years: {} }, unwrapStored(value) || { years: {} });
     } else if (MERGE_BY_ID_KEYS.has(key)) {
       value = mergeById(unwrapStored(existingRaw) || [], unwrapStored(value) || []);
     } else if (objectUpdatedAt(existingRaw) > objectUpdatedAt(value)) {
