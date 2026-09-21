@@ -258,8 +258,8 @@
               <input type="number" id="pretAmount" min="1" step="1" placeholder="Ex : 200" required />
             </label>
             <label>
-              Motif (optionnel)
-              <input type="text" id="pretNote" placeholder="Ex : Urgence personnelle" maxlength="120" />
+              Motif <span class="required-mark" aria-hidden="true">*</span>
+              <input type="text" id="pretNote" placeholder="Ex : Urgence personnelle" maxlength="120" required minlength="3" />
             </label>
             <button type="submit" class="btn-primary">Initier un prêt</button>
           </form>

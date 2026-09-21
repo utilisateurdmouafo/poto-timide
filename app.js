@@ -5094,7 +5094,7 @@ function addAmende(memberId, type, amount, note) {
     amount: parsedAmount,
     originalAmount: parsedAmount,
     repaidAmount: 0,
-    note: note.trim(),
+    note: motif,
     date: new Date().toISOString(),
   });
 
@@ -6262,6 +6262,13 @@ function initiatePret(amount, note) {
   const parsedAmount = parseFloat(amount);
   if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
     alert("Montant invalide.");
+    return;
+  }
+
+  const motif = String(note || "").trim();
+  if (motif.length < 3) {
+    alert("Le motif est obligatoire (au moins 3 caractères).");
+    pretNoteInput?.focus();
     return;
   }
 
