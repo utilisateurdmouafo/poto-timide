@@ -7209,3 +7209,33 @@ html.phone-nav .menu-toggle-icon {
   display: block;
   margin: 0.15rem 0 0;
 }
+
+/* Liste nominative des votes */
+.pret-voters-box {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin: 0.5rem 0 0.65rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 10px;
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  font-size: 0.85rem;
+}
+.pret-voters-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+  align-items: baseline;
+}
+.pret-voters-label {
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.pret-voters-yes .pret-voters-label { color: #15803d; }
+.pret-voters-no .pret-voters-label { color: #b91c1c; }
+.pret-voters-pending .pret-voters-label { color: #a16207; }
+.pret-voters-names {
+  color: #334155;
+  line-height: 1.35;
+}

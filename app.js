@@ -5698,6 +5698,33 @@ function getVoteStats(loan) {
   };
 }
 
+/** Liste nominative des votes (Oui / Non / en attente) — pour Admin et suivi */
+function buildVotersBreakdownHtml(loan) {
+  const stats = getVoteStats(loan);
+  const votes = loan?.votes && typeof loan.votes === "object" ? loan.votes : {};
+  const yes = [];
+  const no = [];
+  const pending = [];
+  stats.voters.forEach((v) => {
+    const choice = votes[v.id];
+    if (choice === "yes") yes.push(v.name);
+    else if (choice === "no") no.push(v.name);
+    else pending.push(v.name);
+  });
+  const line = (label, names, cls) => {
+    if (!names.length) return "";
+    return `<div class="pret-voters-line pret-voters-${cls}">
+      <span class="pret-voters-label">${label} (${names.length})</span>
+      <span class="pret-voters-names">${names.map((n) => escapeHtml(n)).join(", ")}</span>
+    </div>`;
+  };
+  return `<div class="pret-voters-box" data-loan-id="${escapeHtml(loan.id || "")}">
+    ${line("Oui", yes, "yes")}
+    ${line("Non", no, "no")}
+    ${line("En attente", pending, "pending")}
+  </div>`;
+}
+
 function getLoanById(id) {
   return prets.find((loan) => loan.id === id);
 }
@@ -6303,15 +6330,18 @@ async function votePret(loanId, vote) {
     saveNotifications(false);
   }
 
-  // Affichage immédiat
+  // Affichage immédiat + forcer une synchro prioritaires des prêts
   savePrets();
   renderPrets();
+  if (typeof renderAdminPrets === "function" && isAdminWorkspace?.() && activeAdminSub === "prets") {
+    try { renderAdminPrets(); } catch { /* ignore */ }
+  }
 
   // Sync serveur avec retries + réapplication si un pull a écrasé
   const flush = window.potoFlushSync || window.flushPotoServerSync;
   if (typeof flush !== "function") return;
 
-  for (let attempt = 0; attempt < 6; attempt++) {
+  for (let attempt = 0; attempt < 8; attempt++) {
     try {
       const live = getLoanById(loanId);
       if (live) {
@@ -6875,6 +6905,7 @@ function buildLoanCard(loan, mode) {
             ? `<p class="pret-my-vote">Votre vote : <strong>${myVote === "yes" ? "Oui" : "Non"}</strong></p>`
             : ""
       }
+      ${canManagePretsActions() ? buildVotersBreakdownHtml(loan) : ""}
       ${
         canManagePretsActions()
           ? `<p class="pret-financier-msg">Vous pouvez accorder ce prêt à tout moment.</p>`
@@ -6899,6 +6930,7 @@ function buildLoanCard(loan, mode) {
         <span class="pret-stat pret-stat-yes">${stats.yesCount} Oui</span>
         <span class="pret-stat pret-stat-no">${stats.noCount} Non</span>
       </div>
+      ${buildVotersBreakdownHtml(loan)}
       ${buildFinancierActions(loan)}
     `;
   }
@@ -7100,10 +7132,12 @@ function buildPretVoteActionsHtml(loan, mode) {
   const canVote = current && current.id !== loan.borrowerId;
   const votesMap = loan?.votes && typeof loan.votes === "object" ? loan.votes : {};
   const myVote = current ? votesMap[current.id] : null;
+  const votersList = buildVotersBreakdownHtml(loan);
   if (mode === "voting") {
     return `
       <div class="amende-admin-actions">
         <p class="pret-vote-inline">${stats.yesCount} oui · ${stats.noCount} non · ${stats.pendingCount} en attente · ${formatRemainingTime(loan.deadlineAt)}</p>
+        ${votersList}
         ${
           canVote && !myVote
             ? `<div class="pret-vote-actions">
@@ -7120,6 +7154,7 @@ function buildPretVoteActionsHtml(loan, mode) {
   return `
     <div class="amende-admin-actions">
       <p class="pret-vote-inline">${stats.yesCount} oui · ${stats.noCount} non${loan.autoApprovedByTimeout ? " · délai dépassé" : ""}</p>
+      ${votersList}
       ${buildFinancierActions(loan)}
     </div>`;
 }
