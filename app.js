@@ -93,6 +93,15 @@ const COMMUNICATION_KINDS = [
     titlePlaceholder: "Ex : Réunion du 15 mars",
     bodyPlaceholder: "Compte rendu : présents, décisions, suites à donner…",
   },
+  {
+    id: "guide",
+    label: "Guide site",
+    singular: "guide",
+    composerTitle: "Guide du site",
+    titlePlaceholder: "",
+    bodyPlaceholder: "",
+    isStaticGuide: true,
+  },
 ];
 const FINANCE_SUBTABS = ["caisse", "archives"];
 const FINANCE_LIVE_DETTE_SUB = "dettes-amendes";
@@ -8876,9 +8885,13 @@ function getCommunicationPostsForKind(kindId) {
 
 function renderCommunicationSubtabCounts() {
   COMMUNICATION_KINDS.forEach((kind) => {
-    const count = getCommunicationPostsForKind(kind.id).length;
     document.querySelectorAll(`[data-comm-sub="${kind.id}"]`).forEach((btn) => {
       let countEl = btn.querySelector(".comm-count");
+      if (kind.isStaticGuide) {
+        if (countEl) countEl.hidden = true;
+        return;
+      }
+      const count = getCommunicationPostsForKind(kind.id).length;
       if (!countEl) {
         countEl = document.createElement("span");
         countEl.className = "comm-count";
@@ -8983,12 +8996,37 @@ function focusCommunicationCursor() {
   });
 }
 
+function isCommunicationGuideSub() {
+  return getCommunicationKind(activeCommunicationSub)?.isStaticGuide === true;
+}
+
+function renderCommunicationGuidePanels() {
+  const show = isCommunicationGuideSub();
+  const panel = document.getElementById("communicationGuidePanel");
+  const panelAdmin = document.getElementById("communicationGuidePanelAdmin");
+  if (panel) panel.hidden = !show;
+  if (panelAdmin) panelAdmin.hidden = !show;
+  if (communicationList) communicationList.hidden = show;
+  if (typeof communicationAdminList !== "undefined" && communicationAdminList) {
+    communicationAdminList.hidden = show;
+  }
+  // Cacher le compositeur admin sur le guide (PDF figé)
+  if (communicationComposer) {
+    if (show) communicationComposer.hidden = true;
+  }
+}
+
 function renderCommunication() {
   try {
     document.querySelectorAll("[data-comm-sub]").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.commSub === activeCommunicationSub);
     });
     renderCommunicationSubtabCounts();
+    if (isCommunicationGuideSub()) {
+      renderCommunicationGuidePanels();
+      return;
+    }
+    renderCommunicationGuidePanels();
     renderCommunicationComposer();
     renderCommunicationList(communicationList, { manage: false });
     renderCommunicationList(communicationAdminList, { manage: true });
@@ -8999,6 +9037,10 @@ function renderCommunication() {
 
 async function publishCommunication() {
   if (!requireTabAccess("communication", "publier dans Communication")) return;
+  if (isCommunicationGuideSub()) {
+    alert("Le guide du site est un document fixe. Il ne se publie pas ici.");
+    return;
+  }
   const title = String(communicationTitleInput?.value || "").trim();
   const body = String(communicationBodyInput?.value || "").trim();
   if (!title || !body) {

@@ -419,9 +419,17 @@
             <button type="button" class="finance-subtab active" data-comm-sub="communique">Communiqué</button>
             <button type="button" class="finance-subtab" data-comm-sub="ordre-du-jour">Ordre du jour</button>
             <button type="button" class="finance-subtab" data-comm-sub="rapport">Rapports de réunions</button>
+            <button type="button" class="finance-subtab" data-comm-sub="guide">Guide site</button>
           </nav>
           <p class="panel-desc" id="communicationLockMsg" hidden></p>
           <div id="communicationList" class="communication-list"></div>
+          <div id="communicationGuidePanel" class="communication-guide-panel" hidden>
+            <div class="communication-guide-actions">
+              <a class="btn-primary" href="/assets/guide-poto-timide.pdf" target="_blank" rel="noopener">Ouvrir le guide (PDF)</a>
+              <a class="btn-secondary" href="/assets/guide-poto-timide.pdf" download="Guide_Poto_Timide.pdf">Télécharger</a>
+            </div>
+            <iframe class="communication-guide-frame" title="Guide Poto Timide" src="/assets/guide-poto-timide.pdf"></iframe>
+          </div>
         </section>
       </div>
 
@@ -908,6 +916,7 @@
                   <button type="button" class="finance-subtab active" data-comm-sub="communique">Communiqué</button>
                   <button type="button" class="finance-subtab" data-comm-sub="ordre-du-jour">Ordre du jour</button>
                   <button type="button" class="finance-subtab" data-comm-sub="rapport">Rapports de réunions</button>
+                  <button type="button" class="finance-subtab" data-comm-sub="guide">Guide site</button>
                 </nav>
                 <section class="communication-composer" id="communicationComposer">
                   <h3 id="communicationComposerTitle">Publier un communiqué</h3>
@@ -928,6 +937,13 @@
                   <p class="save-msg" id="communicationSaveMsg" hidden></p>
                 </section>
                 <div id="communicationAdminList" class="communication-list"></div>
+                <div id="communicationGuidePanelAdmin" class="communication-guide-panel" hidden>
+                  <div class="communication-guide-actions">
+                    <a class="btn-primary" href="/assets/guide-poto-timide.pdf" target="_blank" rel="noopener">Ouvrir le guide (PDF)</a>
+                    <a class="btn-secondary" href="/assets/guide-poto-timide.pdf" download="Guide_Poto_Timide.pdf">Télécharger</a>
+                  </div>
+                  <iframe class="communication-guide-frame" title="Guide Poto Timide" src="/assets/guide-poto-timide.pdf"></iframe>
+                </div>
               </section>
             </div>
 
