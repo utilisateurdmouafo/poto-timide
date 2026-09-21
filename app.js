@@ -1036,8 +1036,9 @@ function renderFinancePrets() {
 }
 
 function renderFinanceArchives() {
-  // Ancienne tournée et Amendes : uniquement dans leurs onglets dédiés (éviter les doublons)
+  // Ancienne tournée et Amendes : onglets dédiés. Historique caisse + prêts ici (lecture seule).
   return `<div class="finance-archives-stack">
+    ${renderFinanceCaisseHistorique()}
     ${renderFinancePrets()}
   </div>`;
 }
@@ -9068,6 +9069,33 @@ async function deleteAutreArgent(entryId) {
   );
 }
 
+/** Lignes de l'historique caisse (dons / retraits) — withActions=false = lecture seule */
+function buildAutreArgentHistoryRows(withActions = false) {
+  return [...autreArgent]
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .map((entry) => {
+      const member = getMemberById(entry.memberId);
+      const isWithdraw = isAutreArgentRetrait(entry);
+      const amount = Math.abs(getEntryAmount(entry));
+      return {
+        id: entry.id,
+        date: entry.createdAt,
+        typeLabel: isWithdraw ? "Retrait" : "Don ou aide",
+        type: isWithdraw ? "dette" : "cotisation",
+        detail: `${member?.name || "Le groupe"}${entry.note ? ` — ${entry.note}` : ""}`,
+        original: amount,
+        repaid: isWithdraw ? 0 : amount,
+        remaining: isWithdraw ? amount : 0,
+        settled: !isWithdraw,
+        statusLabel: isWithdraw ? "Sortie" : "Entrée",
+        chipClass: isWithdraw ? "is-rejected" : "is-paid",
+        actions: withActions
+          ? `<button type="button" class="btn-secondary btn-autre-argent-delete" data-id="${escapeHtml(entry.id)}">Supprimer</button>`
+          : "",
+      };
+    });
+}
+
 function renderAutreArgent() {
   renderFondCaissePanel();
 
@@ -9096,35 +9124,36 @@ function renderAutreArgent() {
 
   if (!autreArgentList) return;
 
-  const rows = [...autreArgent]
-    .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-    .map((entry) => {
-      const member = getMemberById(entry.memberId);
-      const isWithdraw = isAutreArgentRetrait(entry);
-      const amount = Math.abs(getEntryAmount(entry));
-      return {
-        id: entry.id,
-        date: entry.createdAt,
-        typeLabel: isWithdraw ? "Retrait" : "Don ou aide",
-        type: isWithdraw ? "dette" : "cotisation",
-        detail: `${member?.name || "Le groupe"}${entry.note ? ` — ${entry.note}` : ""}`,
-        original: amount,
-        repaid: isWithdraw ? 0 : amount,
-        remaining: isWithdraw ? amount : 0,
-        settled: !isWithdraw,
-        statusLabel: isWithdraw ? "Sortie" : "Entrée",
-        chipClass: isWithdraw ? "is-rejected" : "is-paid",
-        actions: `<button type="button" class="btn-secondary btn-autre-argent-delete" data-id="${escapeHtml(entry.id)}">Supprimer</button>`,
-      };
-    });
-
   renderLedgerInto(autreArgentList, {
     noun: "sortie",
     emptyMeta: "Aucun mouvement",
     emptyText: "Aucun mouvement pour le moment.",
     rowIdPrefix: "autre-argent",
-    rows,
+    rows: buildAutreArgentHistoryRows(true),
   });
+}
+
+/** Historique caisse en lecture seule pour l'onglet Finance (tous les membres) */
+function renderFinanceCaisseHistorique() {
+  const rows = buildAutreArgentHistoryRows(false);
+  const dons = getTotalDonsOuAides();
+  const retraits = getTotalRetraitsCaisse();
+  const summary = `
+    <p class="panel-desc finance-caisse-hist-summary">
+      Dons ou aides : <strong>${formatEuro(dons)}</strong>
+      · Retraits : <strong>${formatEuro(retraits)}</strong>
+      · Caisse disponible : <strong>${formatEuro(getCaisseDisponible())}</strong>
+    </p>`;
+  return `
+    <div class="amende-ledger finance-caisse-historique">
+      <h3 class="finance-ledger-title">Historique caisse</h3>
+      ${summary}
+      ${buildLedgerTableHtml(rows, {
+        emptyText: "Aucun mouvement de caisse pour le moment.",
+        rowIdPrefix: "finance-caisse-hist",
+        hasActions: false,
+      })}
+    </div>`;
 }
 
 async function assignRole(memberId, roleId) {
