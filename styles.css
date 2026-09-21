@@ -7973,3 +7973,69 @@ html.phone-nav .menu-toggle-icon {
     max-width: none;
   }
 }
+
+.reunion-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(9rem, 0.7fr);
+  gap: 0.85rem 1rem;
+  align-items: center;
+}
+.reunion-chart-side h3 {
+  margin: 0 0 0.45rem;
+  font-size: 0.95rem;
+}
+.reunion-pct {
+  margin: 0.35rem 0 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.reunion-bar {
+  display: flex;
+  height: 0.85rem;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #e2e8f0;
+  width: 100%;
+}
+.reunion-bar-seg {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  transition: width 0.25s ease;
+}
+.reunion-raw {
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.55rem 0.7rem;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+}
+.reunion-raw > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.reunion-raw dt {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+.reunion-raw dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+@media (max-width: 640px) {
+  .reunion-row {
+    grid-template-columns: 1fr;
+  }
+}
