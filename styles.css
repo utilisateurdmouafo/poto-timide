@@ -6151,8 +6151,19 @@ textarea {
     min-width: 0;
   }
 
+  /* Masquer les détails génériques, mais garder la gestion événements */
   .amende-table tbody tr.amende-detail-row {
     display: none;
+  }
+  .amende-table tbody tr.amende-detail-row.amende-detail-row-manage {
+    display: table-row;
+  }
+  .amende-table tbody tr.amende-detail-row.amende-detail-row-manage > td {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0;
+    border: none;
+    white-space: normal;
   }
 
   .th-full {

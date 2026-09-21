@@ -790,7 +790,7 @@ function buildLedgerDataRowHtml(row, rowIdPrefix, hasActions) {
   const chipClass = row.chipClass || (row.settled ? "is-paid" : "is-open");
   const rowId = row.domId || `${rowIdPrefix}-${row.id}`;
   const extraRow = row.extraRow
-    ? `<tr class="amende-detail-row"><td colspan="${hasActions ? 8 : 7}">${row.extraRow}</td></tr>`
+    ? `<tr class="amende-detail-row${row.extraRowManage ? " amende-detail-row-manage" : ""}"><td colspan="${hasActions ? 8 : 7}">${row.extraRow}</td></tr>`
     : "";
   return `
     <tr id="${escapeHtml(String(rowId))}" class="${row.settled ? "is-settled" : ""} ${row.rowClass || ""}">
@@ -8002,8 +8002,17 @@ function getEvenementTypeLabel(typeId) {
   return EVENEMENT_TYPES.find((t) => t.id === typeId)?.label || typeId;
 }
 
+/**
+ * Peut gérer les événements (créer, paiements, remboursement)
+ * — aussi hors de l'onglet Admin (mobile / onglet Événements).
+ */
 function canManageEvenements() {
-  return canManageTab("evenements");
+  if (!isLoggedIn()) return false;
+  if (typeof isNouveauMember === "function" && isNouveauMember(getCurrentMember())) return false;
+  if (isGroupAdmin()) return true;
+  // Financier / poste avec accès événements
+  if (typeof isFinancierPoste === "function" && isFinancierPoste()) return true;
+  return hasRoleTabAccess("evenements");
 }
 
 function getEvenementById(id) {
@@ -8969,18 +8978,30 @@ function renderEvenementListInto(listEl, { manage = false } = {}) {
   if (!current) return;
 
   if (evenements.length === 0) {
-    renderLedgerInto(listEl, {
-      noun: "événement",
-      emptyMeta: "Aucun événement",
-      emptyText: "Aucun événement pour le moment.",
-      rowIdPrefix: manage ? "admin-evenement" : "evenement",
-      rows: [],
-    });
+    listEl.innerHTML = `<p class="communication-empty">Aucun événement pour le moment.</p>`;
     return;
   }
 
   const closedEvents = evenements.filter((evt) => isEvenementClosed(evt));
-  const rows = manage ? buildAdminEvenementLedgerRows() : buildMemberEvenementLedgerRows(current);
+
+  // Mode gestion : cartes complètes (paiements visibles aussi sur mobile)
+  if (manage) {
+    const openEvents = evenements.filter((evt) => !isEvenementClosed(evt));
+    const cards = openEvents.map((evt) => buildEvenementManagerCard(evt, current)).join("");
+    const closedHtml = closedEvents.length
+      ? `<aside class="evenement-closed-aside" aria-label="Événements clôturés">
+          <p class="evenement-closed-label">Clôturés</p>
+          <div class="evenement-closed-list">
+            ${closedEvents.map((evt) => buildEvenementClosedChip(evt)).join("")}
+          </div>
+        </aside>`
+      : "";
+    listEl.innerHTML =
+      (cards || `<p class="communication-empty">Aucun événement en cours.</p>`) + closedHtml;
+    return;
+  }
+
+  const rows = buildMemberEvenementLedgerRows(current);
   const ledger = buildLedgerSectionHtml({
     noun: manage ? "événement" : "cotisation",
     emptyMeta: manage ? "Aucun événement en cours" : "Rien à payer",
