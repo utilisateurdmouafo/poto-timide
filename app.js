@@ -9147,6 +9147,58 @@ async function deleteAutreArgent(entryId) {
   );
 }
 
+
+/** Tableau historique caisse : Date | Type | Détail | Montant | Statut | Actions */
+function buildCaisseHistoryTableHtml(rows, { emptyText = "Aucun mouvement.", hasActions = false } = {}) {
+  const withActions = hasActions || rows.some((row) => row.actions);
+  const colCount = withActions ? 6 : 5;
+  const body = rows.length
+    ? rows
+        .map((row) => {
+          const dateLabel = formatAdaptiveDate(row.date) || formatDate(row.date) || "—";
+          const typeLabel = row.typeLabel || row.type || "—";
+          const statusClass = row.chipClass || (row.settled ? "is-paid" : "is-open");
+          return `<tr id="caisse-hist-${escapeHtml(row.id || "")}">
+            <td>${escapeHtml(dateLabel)}</td>
+            <td>${escapeHtml(typeLabel)}</td>
+            <td>${escapeHtml(row.detail || "—")}</td>
+            <td class="num">${formatEuro(row.original || 0)}</td>
+            <td><span class="status-chip ${statusClass}">${escapeHtml(row.statusLabel || "—")}</span></td>
+            ${withActions ? `<td class="actions-cell">${row.actions || ""}</td>` : ""}
+          </tr>`;
+        })
+        .join("")
+    : `<tr class="amende-empty-row"><td colspan="${colCount}">${escapeHtml(emptyText)}</td></tr>`;
+
+  const totalIn = rows.filter((r) => r.settled).reduce((s, r) => s + (Number(r.original) || 0), 0);
+  const totalOut = rows.filter((r) => !r.settled).reduce((s, r) => s + (Number(r.original) || 0), 0);
+  const foot = rows.length
+    ? `<tr class="amende-foot-row">
+        <td colspan="3">Total</td>
+        <td class="num">${formatEuro(totalIn + totalOut)}</td>
+        <td colspan="${withActions ? 2 : 1}"></td>
+      </tr>`
+    : "";
+
+  return `
+    <div class="amende-table-wrap">
+      <table class="amende-table caisse-history-table${withActions ? " amende-table-admin" : ""}">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Détail</th>
+            <th class="num">Montant</th>
+            <th>Statut</th>
+            ${withActions ? "<th>Actions</th>" : ""}
+          </tr>
+        </thead>
+        <tbody>${body}</tbody>
+        <tfoot>${foot}</tfoot>
+      </table>
+    </div>`;
+}
+
 /** Lignes de l'historique caisse (dons / retraits) — withActions=false = lecture seule */
 function buildAutreArgentHistoryRows(withActions = false) {
   return [...autreArgent]
@@ -9202,12 +9254,9 @@ function renderAutreArgent() {
 
   if (!autreArgentList) return;
 
-  renderLedgerInto(autreArgentList, {
-    noun: "sortie",
-    emptyMeta: "Aucun mouvement",
+  autreArgentList.innerHTML = buildCaisseHistoryTableHtml(buildAutreArgentHistoryRows(true), {
     emptyText: "Aucun mouvement pour le moment.",
-    rowIdPrefix: "autre-argent",
-    rows: buildAutreArgentHistoryRows(true),
+    hasActions: true,
   });
 }
 
@@ -9226,9 +9275,8 @@ function renderFinanceCaisseHistorique() {
     <div class="amende-ledger finance-caisse-historique">
       <h3 class="finance-ledger-title">Historique caisse</h3>
       ${summary}
-      ${buildLedgerTableHtml(rows, {
+      ${buildCaisseHistoryTableHtml(rows, {
         emptyText: "Aucun mouvement de caisse pour le moment.",
-        rowIdPrefix: "finance-caisse-hist",
         hasActions: false,
       })}
     </div>`;
