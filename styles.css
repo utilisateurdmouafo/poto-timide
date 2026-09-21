@@ -6905,14 +6905,16 @@ html.phone-nav .menu-toggle-icon {
     z-index: 220;
     padding: calc(env(safe-area-inset-top) + 4.5rem) 1rem max(1.1rem, env(safe-area-inset-bottom));
     overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
     background:
       radial-gradient(520px 180px at 100% 0%, rgba(14, 165, 233, 0.28), transparent 60%),
       linear-gradient(180deg, #0b2c46 0%, #072033 100%);
     box-shadow: -18px 0 40px rgba(7, 32, 51, 0.38);
     transform: translateX(110%);
     transition: transform 0.28s var(--ease);
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
     visibility: hidden;
     pointer-events: none;
   }
@@ -6933,7 +6935,8 @@ html.phone-nav .menu-toggle-icon {
     flex-direction: column;
     align-items: stretch;
     gap: 0.65rem;
-    margin: auto 0 0;
+    margin-top: 1rem;
+    flex-shrink: 0;
     padding: 0.9rem 0 0;
     border-top: 1px solid rgba(255, 255, 255, 0.12);
     border-bottom: 0;
@@ -6978,6 +6981,7 @@ html.phone-nav .menu-toggle-icon {
     flex-wrap: nowrap;
     align-items: stretch;
     overflow: visible;
+    flex: 0 0 auto;
     gap: 0.28rem;
     margin: 0;
     padding: 0;
@@ -7078,6 +7082,8 @@ html.phone-nav .menu-toggle-icon {
     overflow-x: hidden;
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    touch-action: pan-y;
     background:
       radial-gradient(480px 160px at 100% 0%, rgba(103, 232, 249, 0.18), transparent 58%),
       linear-gradient(180deg, #0b2c46 0%, #072033 100%);

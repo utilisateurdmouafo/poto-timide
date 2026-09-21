@@ -10458,8 +10458,9 @@ function setupMenuSwipe() {
       committed = false;
       const menuOpen = document.body.classList.contains("app-menu-open");
       if (menuOpen) {
+        // Menu ouvert : ne pas bloquer le scroll vertical ; fermeture = swipe horizontal clair
         tracking = true;
-        mode = "close";
+        mode = "maybe-close";
         return;
       }
       if (isHorizScrollable(target)) {
@@ -10485,10 +10486,21 @@ function setupMenuSwipe() {
       lastX = touch.clientX;
       const dx = lastX - startX;
       const dy = touch.clientY - startY;
-      if (!committed && Math.abs(dy) > 18 && Math.abs(dy) > Math.abs(dx) + 8) {
+      // Priorité au scroll vertical (menu + page)
+      if (!committed && Math.abs(dy) > 10 && Math.abs(dy) >= Math.abs(dx)) {
         tracking = false;
-        if (mode === "open") clearSwipeStyles();
+        mode = "";
+        clearSwipeStyles();
         return;
+      }
+      if (mode === "maybe-close") {
+        if (Math.abs(dx) < 14) return;
+        if (dx <= 0 || Math.abs(dx) < Math.abs(dy) + 6) {
+          tracking = false;
+          mode = "";
+          return;
+        }
+        mode = "close";
       }
       if (mode === "maybe-open") {
         if (dx > -24) return;
@@ -10498,6 +10510,7 @@ function setupMenuSwipe() {
         }
         mode = "open";
       }
+      if (mode !== "open" && mode !== "close") return;
       committed = true;
       if (e.cancelable) e.preventDefault();
       const width = drawerWidth();
