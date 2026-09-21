@@ -7725,3 +7725,49 @@ html.phone-nav .menu-toggle-icon {
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+.evenement-pay-bulk {
+  margin-top: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  align-items: flex-start;
+}
+.evenement-pay-bulk-hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.reunion-dashboard { display: flex; flex-direction: column; gap: 1rem; }
+.reunion-hero {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+}
+.reunion-stat {
+  padding: 1rem 1.1rem;
+  border-radius: 16px;
+  background: linear-gradient(180deg, #0e7490, #0c4a6e);
+  color: #f0f9ff;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.reunion-stat span { font-size: 0.78rem; opacity: 0.85; text-transform: uppercase; letter-spacing: 0.04em; }
+.reunion-stat strong { font-size: 1.55rem; font-weight: 800; }
+.reunion-block {
+  padding: 1rem 1.15rem;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  background: #fff;
+}
+.reunion-block h3 { margin: 0 0 0.4rem; font-size: 1.05rem; }
+.reunion-big { margin: 0; font-size: 1.35rem; font-weight: 700; color: var(--text); }
+.reunion-list { margin: 0.5rem 0 0; font-size: 0.95rem; line-height: 1.45; color: var(--text); }
+.reunion-ok { color: #166534; }
+.reunion-muted { background: #f8fafc; }
+.reunion-ul { margin: 0.4rem 0 0; padding-left: 1.2rem; font-size: 1rem; line-height: 1.55; }
+@media (min-width: 900px) {
+  .reunion-stat strong { font-size: 1.85rem; }
+  .reunion-big { font-size: 1.6rem; }
+}

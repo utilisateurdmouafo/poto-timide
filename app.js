@@ -68,7 +68,7 @@ const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["accueil", "communication", "membres", "tournee", "ex-tournee", "prets", "evenements", "dettes", "amendes", "finance", "loi", "admin"];
+const TAB_IDS = ["accueil", "reunion", "communication", "membres", "tournee", "ex-tournee", "prets", "evenements", "dettes", "amendes", "finance", "loi", "admin"];
 const LOI_KEY = "poto-timide-loi";
 const COMMUNICATION_KINDS = [
   {
@@ -4502,6 +4502,114 @@ function buildAccueilDashboardHtml() {
   return `<p class="accueil-hello">Salut <strong>${escapeHtml(current.name)}</strong></p><div class="accueil-grid">${grid}</div>`;
 }
 
+
+function buildReunionDashboardHtml() {
+  const caisseDispo = typeof getCaisseDisponible === "function" ? getCaisseDisponible() : 0;
+  const caisseTotal = typeof getCaisseTotal === "function" ? getCaisseTotal() : 0;
+  const caisseBrute = typeof getCaisseBrute === "function" ? getCaisseBrute() : caisseDispo;
+  const pretsOut = typeof getLoansCapitalOut === "function" ? getLoansCapitalOut() : 0;
+  const pendingVote = typeof getPendingVoteLoan === "function" ? getPendingVoteLoan() : null;
+  const votingLoans = (prets || []).filter((l) => !isLoanDeleted(l) && l.status === "voting");
+  const activeLoans = (prets || []).filter((l) => !isLoanDeleted(l) && ["active", "defaulted"].includes(l.status));
+
+  let voteBlock = "";
+  if (votingLoans.length) {
+    voteBlock = votingLoans
+      .map((loan) => {
+        const borrower = getMemberById(loan.borrowerId);
+        const stats = typeof getVoteStats === "function" ? getVoteStats(loan) : { yesCount: 0, noCount: 0, pendingCount: 0 };
+        const members = getSortedMembers().filter((m) => m.id !== loan.borrowerId && !isNouveauMember?.(m));
+        const pendingNames = members
+          .filter((m) => {
+            const v = loan.votes?.[m.id];
+            return v !== "yes" && v !== "no";
+          })
+          .map((m) => m.name);
+        return `<div class="reunion-block">
+          <h3>Vote prêt — ${escapeHtml(borrower?.name || "?")} · ${formatEuro(loan.amount)}</h3>
+          <p class="reunion-big">${stats.yesCount} oui · ${stats.noCount} non · ${stats.pendingCount} en attente</p>
+          ${
+            pendingNames.length
+              ? `<p class="reunion-list"><strong>Pas encore voté :</strong> ${escapeHtml(pendingNames.join(", "))}</p>`
+              : `<p class="reunion-list reunion-ok">Tous les votants ont répondu.</p>`
+          }
+        </div>`;
+      })
+      .join("");
+  } else {
+    voteBlock = `<div class="reunion-block reunion-muted"><h3>Votes prêts</h3><p class="reunion-big">Aucun vote en cours</p></div>`;
+  }
+
+  const openEvents = (evenements || []).filter((e) => !isEvenementClosed(e) && !isEvenementReimbursed(e));
+  let eventsBlock = "";
+  if (openEvents.length) {
+    eventsBlock = openEvents
+      .map((evt) => {
+        const unpaid = getSortedMembers().filter(
+          (m) => !isEvenementBeneficiary(evt, m.id) && !isEvenementPaid(evt, m.id)
+        );
+        const paidCount = getEvenementPaidCount(evt);
+        const cotisantCount = getEvenementCotisantCount(evt);
+        const beneficiary = getMemberById(getEvenementBeneficiaryId(evt));
+        return `<div class="reunion-block">
+          <h3>${escapeHtml(evt.title)}${beneficiary ? ` · ${escapeHtml(beneficiary.name)}` : ""}</h3>
+          <p class="reunion-big">${paidCount}/${cotisantCount} ont payé · ${formatEuro(getEvenementCollectedAmount(evt))} collecté</p>
+          ${
+            unpaid.length
+              ? `<p class="reunion-list"><strong>N'ont pas payé :</strong> ${escapeHtml(unpaid.map((m) => m.name).join(", "))}</p>`
+              : `<p class="reunion-list reunion-ok">Tout le monde a payé.</p>`
+          }
+        </div>`;
+      })
+      .join("");
+  } else {
+    eventsBlock = `<div class="reunion-block reunion-muted"><h3>Événements</h3><p class="reunion-big">Aucun événement ouvert</p></div>`;
+  }
+
+  const loansLines = activeLoans.length
+    ? activeLoans
+        .map((loan) => {
+          const b = getMemberById(loan.borrowerId);
+          const bal = typeof getLoanBalance === "function" ? getLoanBalance(loan) : loan.amount;
+          return `<li><strong>${escapeHtml(b?.name || "?")}</strong> — reste ${formatEuro(bal)} / ${formatEuro(loan.amount)}</li>`;
+        })
+        .join("")
+    : "<li>Aucun prêt sorti</li>";
+
+  return `
+    <div class="reunion-hero">
+      <div class="reunion-stat">
+        <span>Caisse disponible</span>
+        <strong>${formatEuro(caisseDispo)}</strong>
+      </div>
+      <div class="reunion-stat">
+        <span>Caisse totale</span>
+        <strong>${formatEuro(caisseTotal)}</strong>
+      </div>
+      <div class="reunion-stat">
+        <span>Caisse brute</span>
+        <strong>${formatEuro(caisseBrute)}</strong>
+      </div>
+      <div class="reunion-stat">
+        <span>Prêts dehors</span>
+        <strong>${formatEuro(pretsOut)}</strong>
+      </div>
+    </div>
+    ${voteBlock}
+    ${eventsBlock}
+    <div class="reunion-block">
+      <h3>Prêts en cours</h3>
+      <ul class="reunion-ul">${loansLines}</ul>
+    </div>
+  `;
+}
+
+function renderReunion() {
+  const root = document.getElementById("reunionDashboard");
+  if (!root) return;
+  root.innerHTML = buildReunionDashboardHtml();
+}
+
 function renderAccueil() {
   const root = document.getElementById("accueilDashboard");
   if (!root) return;
@@ -4547,6 +4655,11 @@ function showTab(tabId) {
   if (tabId === "accueil") {
     reloadFromStorage();
     renderAccueil();
+  }
+
+  if (tabId === "reunion") {
+    reloadFromStorage();
+    renderReunion();
   }
 
   if (tabId === "membres") {
@@ -8019,6 +8132,46 @@ function setEvenementMemberPayment(evt, memberId, paidAmount) {
   evt.updatedAt = new Date().toISOString();
 }
 
+
+async function markAllEvenementPaid(eventId) {
+  if (!canManageEvenements()) {
+    alert("Seuls les gestionnaires autorisés peuvent valider les paiements.");
+    return;
+  }
+  const evt = getEvenementById(eventId);
+  if (!evt) return;
+  if (isEvenementClosed(evt) || isEvenementReimbursed(evt)) {
+    alert("Cet événement est clôturé ou déjà remboursé.");
+    return;
+  }
+  const share = getEvenementShare(evt);
+  const unpaid = getSortedMembers().filter(
+    (m) => !isEvenementBeneficiary(evt, m.id) && !isEvenementPaid(evt, m.id)
+  );
+  if (!unpaid.length) {
+    alert("Tout le monde a déjà payé.");
+    return;
+  }
+  const names = unpaid.map((m) => m.name).join(", ");
+  if (
+    !(await appConfirm(
+      `Marquer ${unpaid.length} poto(s) comme payés à ${formatEuro(share)} chacun ?\n\n${names}`,
+      "Paiement groupé"
+    ))
+  ) {
+    return;
+  }
+  unpaid.forEach((m) => setEvenementMemberPayment(evt, m.id, share));
+  logAudit(
+    "Événement · paiement groupé",
+    `${unpaid.length} paiements · ${evt.title} · ${formatEuro(share)}`
+  );
+  saveEvenements();
+  showEvenementSaveMessage(
+    `${unpaid.length} paiement(s) validés à ${formatEuro(share)}. Collecté : ${formatEuro(getEvenementCollectedAmount(evt))}.`
+  );
+}
+
 function validateEvenementPayment(eventId, memberId, amountValue) {
   if (!canManageEvenements()) {
     alert("Seuls les gestionnaires autorisés peuvent valider un paiement.");
@@ -8508,6 +8661,22 @@ function buildEvenementManagerCard(evt, current) {
             </label>
             <button type="button" class="btn-primary btn-evenement-pay-selected" data-event-id="${escapeHtml(evt.id)}">Valider le paiement</button>
           </div>
+          ${
+            unpaidMembers.length > 1
+              ? `<div class="evenement-pay-bulk">
+                  <button type="button" class="btn-secondary btn-evenement-pay-all" data-event-id="${escapeHtml(evt.id)}">
+                    Tout le monde a payé (${unpaidMembers.length} restants · ${formatEuro(share)} chacun)
+                  </button>
+                  <p class="evenement-pay-bulk-hint">Marque tous les impayés comme payés au montant de cotisation. Tu pourras annuler un par un si besoin.</p>
+                </div>`
+              : unpaidMembers.length === 1
+                ? `<div class="evenement-pay-bulk">
+                    <button type="button" class="btn-secondary btn-evenement-pay-all" data-event-id="${escapeHtml(evt.id)}">
+                      Valider le dernier (${escapeHtml(unpaidMembers[0].name)})
+                    </button>
+                  </div>`
+                : ""
+          }
         </div>
         ${
           paidMembers.length
@@ -10974,6 +11143,11 @@ function handleEvenementActionClick(e) {
       payBtn.dataset.memberId,
       getPayInputValue(payBtn.dataset.eventId, payBtn.dataset.memberId)
     );
+  }
+  const payAllBtn = e.target.closest(".btn-evenement-pay-all");
+  if (payAllBtn) {
+    markAllEvenementPaid(payAllBtn.dataset.eventId);
+    return;
   }
   const paySelectedBtn = e.target.closest(".btn-evenement-pay-selected");
   if (paySelectedBtn) {
