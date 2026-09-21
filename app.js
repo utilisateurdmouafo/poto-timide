@@ -1043,6 +1043,8 @@ function buildFinanceHistoryRows() {
     typeLabel: row.typeLabel || "Caisse",
     detail: row.detail || "—",
     original: row.original || 0,
+    repaid: null,
+    remaining: null,
     statusLabel: row.statusLabel || "—",
     chipClass: row.chipClass || "",
     settled: row.settled,
@@ -1050,7 +1052,8 @@ function buildFinanceHistoryRows() {
   }));
 
   const pretRows = buildFinancePretRows().map((row) => {
-    const note = String(getLoanById(row.id)?.note || "").trim();
+    const loan = getLoanById(row.id);
+    const note = String(loan?.note || "").trim();
     const detail = note ? `${row.detail} — ${note}` : row.detail;
     return {
       id: `pret-${row.id}`,
@@ -1058,10 +1061,12 @@ function buildFinanceHistoryRows() {
       typeLabel: "Prêt",
       detail,
       original: row.original || 0,
+      repaid: row.repaid ?? 0,
+      remaining: row.remaining ?? 0,
       statusLabel: row.settled
         ? "Soldé"
-        : getPretStatusLabel(getLoanById(row.id)?.status || "active"),
-      chipClass: row.settled ? "is-paid" : "is-open",
+        : getPretStatusLabel(loan?.status || "active"),
+      chipClass: row.settled ? "is-paid" : row.remaining > 0 ? "is-open" : "is-paid",
       settled: row.settled,
       sortAt: row.sortAt || row.date,
     };
@@ -9208,35 +9213,62 @@ async function deleteAutreArgent(entryId) {
 }
 
 
-/** Tableau historique caisse : Date | Type | Détail | Montant | Statut | Actions */
+/** Tableau historique : Date | Type | Détail | Montant | Déjà payé | Reste | Statut | Actions?
+ *  Si repaid/remaining = null → tiret (mouvements sans suivi de solde, ex. sorties caisse)
+ */
 function buildCaisseHistoryTableHtml(rows, { emptyText = "Aucun mouvement.", hasActions = false } = {}) {
   const withActions = hasActions || rows.some((row) => row.actions);
-  const colCount = withActions ? 6 : 5;
+  const colCount = withActions ? 8 : 7;
+
+  const cellPaidRemain = (value) => {
+    if (value === null || value === undefined) return "—";
+    const n = Number(value);
+    if (!Number.isFinite(n)) return "—";
+    return formatEuro(n);
+  };
+
   const body = rows.length
     ? rows
         .map((row) => {
-          const dateLabel = formatAdaptiveDate(row.date) || formatDate(row.date) || "—";
+          const dateLabel =
+            (typeof formatAdaptiveDate === "function" ? formatAdaptiveDate(row.date) : "") ||
+            (row.date ? formatDate(row.date) : "—");
           const typeLabel = row.typeLabel || row.type || "—";
           const statusClass = row.chipClass || (row.settled ? "is-paid" : "is-open");
-          return `<tr id="caisse-hist-${escapeHtml(row.id || "")}">
-            <td>${escapeHtml(dateLabel)}</td>
-            <td>${escapeHtml(typeLabel)}</td>
-            <td>${escapeHtml(row.detail || "—")}</td>
-            <td class="num">${formatEuro(row.original || 0)}</td>
-            <td><span class="status-chip ${statusClass}">${escapeHtml(row.statusLabel || "—")}</span></td>
-            ${withActions ? `<td class="actions-cell">${row.actions || ""}</td>` : ""}
+          const hasPaidTrack = row.repaid !== null && row.repaid !== undefined;
+          const hasRemainTrack = row.remaining !== null && row.remaining !== undefined;
+          const repaid = hasPaidTrack ? Number(row.repaid) || 0 : null;
+          const remaining = hasRemainTrack ? Number(row.remaining) || 0 : null;
+          const paidClass = repaid !== null && repaid > 0 ? "num-paid" : "";
+          const remainClass =
+            remaining === null ? "" : remaining <= 0 ? "num-remain is-zero" : "num-remain";
+          return `<tr id="caisse-hist-${escapeHtml(String(row.id || ""))}" class="${row.settled ? "is-settled" : ""}">
+            <td class="amende-col-date" data-label="Date">${escapeHtml(dateLabel || "—")}</td>
+            <td class="amende-col-type" data-label="Type">${escapeHtml(typeLabel)}</td>
+            <td class="amende-col-detail" data-label="Détail">${escapeHtml(row.detail || "—")}</td>
+            <td class="num amende-col-amount" data-label="Montant">${formatEuro(row.original || 0)}</td>
+            <td class="num amende-col-paid ${paidClass}" data-label="Déjà payé">${cellPaidRemain(repaid)}</td>
+            <td class="num amende-col-remain ${remainClass}" data-label="Reste">${cellPaidRemain(remaining)}</td>
+            <td class="amende-col-status" data-label="Statut">
+              <span class="amende-chip ${statusClass}">${escapeHtml(row.statusLabel || "—")}</span>
+            </td>
+            ${withActions ? `<td class="amende-col-actions" data-label="Actions">${row.actions || "—"}</td>` : ""}
           </tr>`;
         })
         .join("")
     : `<tr class="amende-empty-row"><td colspan="${colCount}">${escapeHtml(emptyText)}</td></tr>`;
 
-  const totalIn = rows.filter((r) => r.settled).reduce((s, r) => s + (Number(r.original) || 0), 0);
-  const totalOut = rows.filter((r) => !r.settled).reduce((s, r) => s + (Number(r.original) || 0), 0);
+  const tracked = rows.filter((r) => r.repaid !== null && r.repaid !== undefined);
+  const originalTotal = rows.reduce((s, r) => s + (Number(r.original) || 0), 0);
+  const repaidTotal = tracked.reduce((s, r) => s + (Number(r.repaid) || 0), 0);
+  const remainingTotal = tracked.reduce((s, r) => s + (Number(r.remaining) || 0), 0);
   const foot = rows.length
-    ? `<tr class="amende-foot-row">
+    ? `<tr>
         <td colspan="3">Total</td>
-        <td class="num">${formatEuro(totalIn + totalOut)}</td>
-        <td colspan="${withActions ? 2 : 1}"></td>
+        <td class="num">${formatEuro(originalTotal)}</td>
+        <td class="num num-paid">${tracked.length ? formatEuro(repaidTotal) : "—"}</td>
+        <td class="num num-remain">${tracked.length ? formatEuro(remainingTotal) : "—"}</td>
+        <td${withActions ? ' colspan="2"' : ""}></td>
       </tr>`
     : "";
 
@@ -9249,6 +9281,8 @@ function buildCaisseHistoryTableHtml(rows, { emptyText = "Aucun mouvement.", has
             <th>Type</th>
             <th>Détail</th>
             <th class="num">Montant</th>
+            <th class="num"><span class="th-full">Déjà payé</span><span class="th-short">Payé</span></th>
+            <th class="num">Reste</th>
             <th>Statut</th>
             ${withActions ? "<th>Actions</th>" : ""}
           </tr>
@@ -9274,8 +9308,9 @@ function buildAutreArgentHistoryRows(withActions = false) {
         type: isWithdraw ? "dette" : "cotisation",
         detail: `${member?.name || "Le groupe"}${entry.note ? ` — ${entry.note}` : ""}`,
         original: amount,
-        repaid: isWithdraw ? 0 : amount,
-        remaining: isWithdraw ? amount : 0,
+        // Pas de suivi payé/reste pour dons et sorties → tiret dans le tableau
+        repaid: null,
+        remaining: null,
         settled: !isWithdraw,
         statusLabel: isWithdraw ? "Sortie" : "Entrée",
         chipClass: isWithdraw ? "is-rejected" : "is-paid",
