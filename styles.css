@@ -7777,3 +7777,49 @@ html.phone-nav .menu-toggle-icon {
 .reunion-chart-svg { width: 100%; height: auto; display: block; }
 .reunion-chart-label { font-size: 12px; fill: #475569; font-family: system-ui, sans-serif; }
 .reunion-chart-value { font-size: 12px; fill: #0f172a; font-weight: 700; font-family: system-ui, sans-serif; }
+
+/* Gestion événements lisible sur mobile */
+.evenement-card {
+  overflow: visible;
+}
+.evenement-pay-panel {
+  width: 100%;
+  box-sizing: border-box;
+}
+.evenement-pay-row {
+  width: 100%;
+}
+.evenement-pay-select {
+  max-width: 100%;
+  width: min(100%, 18rem);
+}
+@media (max-width: 640px) {
+  .evenement-pay-panel {
+    padding: 0.75rem;
+  }
+  .evenement-pay-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .evenement-pay-select,
+  .evenement-pay-input-single,
+  .evenement-pay-row .btn-primary,
+  .evenement-pay-row .btn-secondary,
+  .btn-evenement-pay-all {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .evenement-totals {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .evenement-reimburse-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.5rem;
+  }
+  .evenement-reimburse-row .btn-primary {
+    width: 100%;
+  }
+}

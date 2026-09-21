@@ -8089,10 +8089,13 @@ function createEvenementDebts(evt) {
 }
 
 function showEvenementSaveMessage(text, type = "success") {
-  if (!evenementSaveMsg) return;
-  evenementSaveMsg.textContent = text;
-  evenementSaveMsg.className = `save-msg save-msg-${type}`;
-  evenementSaveMsg.hidden = false;
+  const targets = [evenementSaveMsg, document.getElementById("evenementSaveMsgPublic")].filter(Boolean);
+  if (!targets.length) return;
+  targets.forEach((el) => {
+    el.textContent = text;
+    el.className = `save-msg save-msg-${type}`;
+    el.hidden = false;
+  });
 }
 
 function createEvenement(title, shareAmount, description, beneficiaryMemberId) {
@@ -8153,7 +8156,8 @@ function createEvenement(title, shareAmount, description, beneficiaryMemberId) {
   });
 
   saveEvenements();
-  evenementForm.reset();
+  evenementForm?.reset();
+  document.getElementById("evenementFormPublic")?.reset();
   showEvenementSaveMessage(
     `Événement créé pour ${beneficiary.name} — ${formatEuro(sharePerMember)} par cotisant (total ${formatEuro(totalAmount)}).`
   );
@@ -8998,18 +9002,45 @@ function renderEvenementListInto(listEl, { manage = false } = {}) {
   listEl.innerHTML = `${ledger}${closedHtml}`;
 }
 
+function fillEvenementMemberSelect(selectEl) {
+  if (!selectEl) return;
+  const currentVal = selectEl.value;
+  const options = ['<option value="">— Choisir le poto —</option>']
+    .concat(
+      getSortedMembers().map(
+        (m) => `<option value="${escapeHtml(m.id)}">${escapeHtml(m.name)}</option>`
+      )
+    )
+    .join("");
+  selectEl.innerHTML = options;
+  if (currentVal && [...selectEl.options].some((o) => o.value === currentVal)) {
+    selectEl.value = currentVal;
+  }
+}
+
 function renderEvenements() {
   const current = getCurrentMember();
   if (!current) return;
 
   const canManage = canManageEvenements();
+  const createPublic = document.getElementById("evenementCreatePanelPublic");
+  if (createPublic) createPublic.hidden = !canManage;
+  if (canManage) {
+    fillEvenementMemberSelect(document.getElementById("evenementMember"));
+    fillEvenementMemberSelect(document.getElementById("evenementMemberPublic"));
+  }
+  if (addEvenementPanel) addEvenementPanel.hidden = !canManage;
 
   if (evenementListTitle) {
-    evenementListTitle.textContent = `Mes événements — ${current.name}`;
+    evenementListTitle.textContent = canManage
+      ? "Gérer les événements"
+      : `Mes événements — ${current.name}`;
   }
   if (evenementListSubtitle) {
-    evenementListSubtitle.hidden = true;
-    evenementListSubtitle.textContent = "";
+    evenementListSubtitle.hidden = false;
+    evenementListSubtitle.textContent = canManage
+      ? "Création, paiements, remboursement au poto et clôture (aussi sur mobile)."
+      : "Tes cotisations et le statut des événements du groupe.";
   }
 
   if (evenementMemberSummary) {
@@ -9026,7 +9057,8 @@ function renderEvenements() {
         : "Réinitialiser les clôturés";
   }
 
-  renderEvenementListInto(evenementList, { manage: false });
+  // Gestion complète aussi dans l'onglet Événements (mobile + desktop)
+  renderEvenementListInto(evenementList, { manage: canManage });
   renderEvenementListInto(document.getElementById("evenementAdminList"), { manage: canManage });
   refreshFinancierPayBoxes();
   scheduleFitTables();
@@ -11174,6 +11206,16 @@ evenementForm?.addEventListener("submit", (e) => {
     evenementAmountInput.value,
     evenementDescInput.value,
     evenementMemberSelect?.value
+  );
+});
+
+document.getElementById("evenementFormPublic")?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  createEvenement(
+    document.getElementById("evenementTitlePublic")?.value,
+    document.getElementById("evenementAmountPublic")?.value,
+    document.getElementById("evenementDescPublic")?.value,
+    document.getElementById("evenementMemberPublic")?.value
   );
 });
 
