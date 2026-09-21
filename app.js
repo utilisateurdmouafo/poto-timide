@@ -2956,15 +2956,87 @@ function appConfirm(message, title = "Confirmation") {
   });
 }
 
-function appAlert(message, title = "Poto Timide") {
-  return openConfirmModal({
-    title,
-    message: String(message ?? ""),
-    okLabel: "OK",
-    showCancel: false,
-  });
+/** Toast non bloquant (remplace la plupart des alert) */
+function showToast(message, type = "info", options = {}) {
+  const host = document.getElementById("toastHost");
+  const text = String(message ?? "").trim();
+  if (!text) return;
+
+  if (!host) {
+    // Fallback ultime
+    try {
+      openConfirmModal({
+        title: options.title || "Poto Timide",
+        message: text,
+        okLabel: "OK",
+        showCancel: false,
+      });
+    } catch {
+      /* ignore */
+    }
+    return;
+  }
+
+  const duration = options.duration ?? (type === "error" ? 5500 : type === "success" ? 3200 : 4200);
+  const icons = { success: "✓", error: "!", info: "i", warn: "!" };
+  const el = document.createElement("div");
+  el.className = `toast toast-${type}`;
+  el.setAttribute("role", type === "error" ? "alert" : "status");
+  el.innerHTML = `
+    <span class="toast-icon" aria-hidden="true">${icons[type] || "i"}</span>
+    <div class="toast-body"></div>
+    <button type="button" class="toast-close" aria-label="Fermer">×</button>
+  `;
+  el.querySelector(".toast-body").textContent = text;
+
+  const remove = () => {
+    if (el.classList.contains("is-leaving")) return;
+    el.classList.add("is-leaving");
+    setTimeout(() => el.remove(), 220);
+  };
+  el.querySelector(".toast-close")?.addEventListener("click", remove);
+  host.appendChild(el);
+  // Max 4 toasts
+  while (host.children.length > 4) host.firstElementChild?.remove();
+  if (duration > 0) setTimeout(remove, duration);
 }
 
+function showToastSuccess(message, opts) {
+  showToast(message, "success", opts);
+}
+function showToastError(message, opts) {
+  showToast(message, "error", opts);
+}
+function showToastInfo(message, opts) {
+  showToast(message, "info", opts);
+}
+function showToastWarn(message, opts) {
+  showToast(message, "warn", opts);
+}
+
+/**
+ * Remplace alert() : toast non bloquant.
+ * Type auto : erreur si le texte ressemble à un refus / invalide.
+ */
+function appAlert(message, title = "Poto Timide") {
+  const text = String(message ?? "");
+  const lower = text.toLowerCase();
+  let type = "info";
+  if (
+    /invalide|impossible|erreur|refusé|refus|interdit|seul |seuls |veuillez|obligatoire|trop |maximum|aucun |pas (pu|encore|autoris)/i.test(
+      lower
+    )
+  ) {
+    type = "error";
+  } else if (/enregistr|validé|ajouté|supprimé|publié|succès|ok —|remboursé|à jour/i.test(lower)) {
+    type = "success";
+  } else if (/attention|déjà|attendre|encore en vote/i.test(lower)) {
+    type = "warn";
+  }
+  showToast(text, type, { title });
+}
+
+// Toutes les alert() natives → toast
 window.alert = (message) => {
   appAlert(message);
 };
