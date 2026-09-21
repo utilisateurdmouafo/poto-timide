@@ -1035,12 +1035,65 @@ function renderFinancePrets() {
   });
 }
 
+/** Lignes unifiées caisse + prêts pour l'historique finance (lecture seule) */
+function buildFinanceHistoryRows() {
+  const caisseRows = buildAutreArgentHistoryRows(false).map((row) => ({
+    id: `caisse-${row.id}`,
+    date: row.date,
+    typeLabel: row.typeLabel || "Caisse",
+    detail: row.detail || "—",
+    original: row.original || 0,
+    statusLabel: row.statusLabel || "—",
+    chipClass: row.chipClass || "",
+    settled: row.settled,
+    sortAt: row.date,
+  }));
+
+  const pretRows = buildFinancePretRows().map((row) => {
+    const note = String(getLoanById(row.id)?.note || "").trim();
+    const detail = note ? `${row.detail} — ${note}` : row.detail;
+    return {
+      id: `pret-${row.id}`,
+      date: row.date,
+      typeLabel: "Prêt",
+      detail,
+      original: row.original || 0,
+      statusLabel: row.settled
+        ? "Soldé"
+        : getPretStatusLabel(getLoanById(row.id)?.status || "active"),
+      chipClass: row.settled ? "is-paid" : "is-open",
+      settled: row.settled,
+      sortAt: row.sortAt || row.date,
+    };
+  });
+
+  return [...caisseRows, ...pretRows].sort(
+    (a, b) => new Date(b.sortAt || 0) - new Date(a.sortAt || 0)
+  );
+}
+
 function renderFinanceArchives() {
-  // Ancienne tournée et Amendes : onglets dédiés. Historique caisse + prêts ici (lecture seule).
-  return `<div class="finance-archives-stack">
-    ${renderFinanceCaisseHistorique()}
-    ${renderFinancePrets()}
-  </div>`;
+  // Un seul historique finance : caisse + prêts (lecture seule)
+  const rows = buildFinanceHistoryRows();
+  const dons = getTotalDonsOuAides();
+  const retraits = getTotalRetraitsCaisse();
+  const pretsOut = getLoansCapitalOut();
+  const summary = `
+    <p class="panel-desc finance-caisse-hist-summary">
+      Dons ou aides : <strong>${formatEuro(dons)}</strong>
+      · Retraits : <strong>${formatEuro(retraits)}</strong>
+      · Prêts dehors : <strong>${formatEuro(pretsOut)}</strong>
+      · Caisse disponible : <strong>${formatEuro(getCaisseDisponible())}</strong>
+    </p>`;
+  return `
+    <div class="amende-ledger finance-caisse-historique">
+      <h3 class="finance-ledger-title">Historique finance</h3>
+      ${summary}
+      ${buildCaisseHistoryTableHtml(rows, {
+        emptyText: "Aucun mouvement financier pour le moment.",
+        hasActions: false,
+      })}
+    </div>`;
 }
 
 function renderFinanceSubcontent() {
