@@ -7771,3 +7771,9 @@ html.phone-nav .menu-toggle-icon {
   .reunion-stat strong { font-size: 1.85rem; }
   .reunion-big { font-size: 1.6rem; }
 }
+
+.reunion-chart-block { overflow-x: auto; }
+.reunion-chart-wrap { width: 100%; max-width: 32rem; }
+.reunion-chart-svg { width: 100%; height: auto; display: block; }
+.reunion-chart-label { font-size: 12px; fill: #475569; font-family: system-ui, sans-serif; }
+.reunion-chart-value { font-size: 12px; fill: #0f172a; font-weight: 700; font-family: system-ui, sans-serif; }

@@ -4503,80 +4503,124 @@ function buildAccueilDashboardHtml() {
 }
 
 
+function buildReunionCaisseChartSvg() {
+  const dispo = Math.max(0, Number(typeof getCaisseDisponible === "function" ? getCaisseDisponible() : 0) || 0);
+  const events = Math.max(0, Number(typeof getTotalEvenementsInCaisse === "function" ? getTotalEvenementsInCaisse() : 0) || 0);
+  const pretsOut = Math.max(0, Number(typeof getLoansCapitalOut === "function" ? getLoansCapitalOut() : 0) || 0);
+  const hors = Math.max(0, Number(typeof getCapitalHorsGroupeTotal === "function" ? getCapitalHorsGroupeTotal() : 0) || 0);
+  const parts = [
+    { label: "Disponible", value: dispo, color: "#0e7490" },
+    { label: "Événements", value: events, color: "#2563eb" },
+    { label: "Prêts dehors", value: pretsOut, color: "#d97706" },
+    { label: "Hors groupe", value: hors, color: "#7c3aed" },
+  ];
+  const max = Math.max(...parts.map((p) => p.value), 1);
+  const w = 420;
+  const rowH = 36;
+  const h = parts.length * rowH + 16;
+  const labelW = 110;
+  const barMax = w - labelW - 70;
+  const bars = parts
+    .map((p, i) => {
+      const y = 12 + i * rowH;
+      const bw = Math.max(2, Math.round((p.value / max) * barMax));
+      return `
+        <text x="0" y="${y + 14}" class="reunion-chart-label">${escapeHtml(p.label)}</text>
+        <rect x="${labelW}" y="${y}" width="${bw}" height="22" rx="6" fill="${p.color}"></rect>
+        <text x="${labelW + bw + 8}" y="${y + 15}" class="reunion-chart-value">${formatEuro(p.value)}</text>
+      `;
+    })
+    .join("");
+  return `<svg class="reunion-chart-svg" viewBox="0 0 ${w} ${h}" role="img" aria-label="Répartition de la caisse">${bars}</svg>`;
+}
+
 function buildReunionDashboardHtml() {
-  const caisseDispo = typeof getCaisseDisponible === "function" ? getCaisseDisponible() : 0;
-  const caisseTotal = typeof getCaisseTotal === "function" ? getCaisseTotal() : 0;
-  const caisseBrute = typeof getCaisseBrute === "function" ? getCaisseBrute() : caisseDispo;
-  const pretsOut = typeof getLoansCapitalOut === "function" ? getLoansCapitalOut() : 0;
-  const pendingVote = typeof getPendingVoteLoan === "function" ? getPendingVoteLoan() : null;
-  const votingLoans = (prets || []).filter((l) => !isLoanDeleted(l) && l.status === "voting");
-  const activeLoans = (prets || []).filter((l) => !isLoanDeleted(l) && ["active", "defaulted"].includes(l.status));
+  try {
+    const caisseDispo = typeof getCaisseDisponible === "function" ? getCaisseDisponible() : 0;
+    const caisseTotal = typeof getCaisseTotal === "function" ? getCaisseTotal() : 0;
+    const caisseBrute = typeof getCaisseBrute === "function" ? getCaisseBrute() : caisseDispo;
+    const pretsOut = typeof getLoansCapitalOut === "function" ? getLoansCapitalOut() : 0;
+    const votingLoans = (Array.isArray(prets) ? prets : []).filter(
+      (l) => l && !isLoanDeleted(l) && l.status === "voting"
+    );
+    const activeLoans = (Array.isArray(prets) ? prets : []).filter(
+      (l) => l && !isLoanDeleted(l) && ["active", "defaulted"].includes(l.status)
+    );
 
-  let voteBlock = "";
-  if (votingLoans.length) {
-    voteBlock = votingLoans
-      .map((loan) => {
-        const borrower = getMemberById(loan.borrowerId);
-        const stats = typeof getVoteStats === "function" ? getVoteStats(loan) : { yesCount: 0, noCount: 0, pendingCount: 0 };
-        const members = getSortedMembers().filter((m) => m.id !== loan.borrowerId && !isNouveauMember?.(m));
-        const pendingNames = members
-          .filter((m) => {
-            const v = loan.votes?.[m.id];
-            return v !== "yes" && v !== "no";
-          })
-          .map((m) => m.name);
-        return `<div class="reunion-block">
-          <h3>Vote prêt — ${escapeHtml(borrower?.name || "?")} · ${formatEuro(loan.amount)}</h3>
-          <p class="reunion-big">${stats.yesCount} oui · ${stats.noCount} non · ${stats.pendingCount} en attente</p>
-          ${
-            pendingNames.length
-              ? `<p class="reunion-list"><strong>Pas encore voté :</strong> ${escapeHtml(pendingNames.join(", "))}</p>`
-              : `<p class="reunion-list reunion-ok">Tous les votants ont répondu.</p>`
-          }
-        </div>`;
-      })
-      .join("");
-  } else {
-    voteBlock = `<div class="reunion-block reunion-muted"><h3>Votes prêts</h3><p class="reunion-big">Aucun vote en cours</p></div>`;
-  }
-
-  const openEvents = (evenements || []).filter((e) => !isEvenementClosed(e) && !isEvenementReimbursed(e));
-  let eventsBlock = "";
-  if (openEvents.length) {
-    eventsBlock = openEvents
-      .map((evt) => {
-        const unpaid = getSortedMembers().filter(
-          (m) => !isEvenementBeneficiary(evt, m.id) && !isEvenementPaid(evt, m.id)
-        );
-        const paidCount = getEvenementPaidCount(evt);
-        const cotisantCount = getEvenementCotisantCount(evt);
-        const beneficiary = getMemberById(getEvenementBeneficiaryId(evt));
-        return `<div class="reunion-block">
-          <h3>${escapeHtml(evt.title)}${beneficiary ? ` · ${escapeHtml(beneficiary.name)}` : ""}</h3>
-          <p class="reunion-big">${paidCount}/${cotisantCount} ont payé · ${formatEuro(getEvenementCollectedAmount(evt))} collecté</p>
-          ${
-            unpaid.length
-              ? `<p class="reunion-list"><strong>N'ont pas payé :</strong> ${escapeHtml(unpaid.map((m) => m.name).join(", "))}</p>`
-              : `<p class="reunion-list reunion-ok">Tout le monde a payé.</p>`
-          }
-        </div>`;
-      })
-      .join("");
-  } else {
-    eventsBlock = `<div class="reunion-block reunion-muted"><h3>Événements</h3><p class="reunion-big">Aucun événement ouvert</p></div>`;
-  }
-
-  const loansLines = activeLoans.length
-    ? activeLoans
+    let voteBlock = "";
+    if (votingLoans.length) {
+      voteBlock = votingLoans
         .map((loan) => {
-          const b = getMemberById(loan.borrowerId);
-          const bal = typeof getLoanBalance === "function" ? getLoanBalance(loan) : loan.amount;
-          return `<li><strong>${escapeHtml(b?.name || "?")}</strong> — reste ${formatEuro(bal)} / ${formatEuro(loan.amount)}</li>`;
+          const borrower = getMemberById(loan.borrowerId);
+          const stats =
+            typeof getVoteStats === "function"
+              ? getVoteStats(loan)
+              : { yesCount: 0, noCount: 0, pendingCount: 0 };
+          const members = getSortedMembers().filter((m) => {
+            if (m.id === loan.borrowerId) return false;
+            if (typeof isNouveauMember === "function" && isNouveauMember(m)) return false;
+            return true;
+          });
+          const pendingNames = members
+            .filter((m) => {
+              const v = loan.votes && loan.votes[m.id];
+              return v !== "yes" && v !== "no";
+            })
+            .map((m) => m.name);
+          return `<div class="reunion-block">
+            <h3>Vote prêt — ${escapeHtml(borrower?.name || "?")} · ${formatEuro(loan.amount)}</h3>
+            <p class="reunion-big">${stats.yesCount} oui · ${stats.noCount} non · ${stats.pendingCount} en attente</p>
+            ${
+              pendingNames.length
+                ? `<p class="reunion-list"><strong>Pas encore voté :</strong> ${escapeHtml(pendingNames.join(", "))}</p>`
+                : `<p class="reunion-list reunion-ok">Tous les votants ont répondu.</p>`
+            }
+          </div>`;
         })
-        .join("")
-    : "<li>Aucun prêt sorti</li>";
+        .join("");
+    } else {
+      voteBlock = `<div class="reunion-block reunion-muted"><h3>Votes prêts</h3><p class="reunion-big">Aucun vote en cours</p></div>`;
+    }
 
-  return `
+    const openEvents = (Array.isArray(evenements) ? evenements : []).filter(
+      (e) => e && !isEvenementClosed(e) && !isEvenementReimbursed(e)
+    );
+    let eventsBlock = "";
+    if (openEvents.length) {
+      eventsBlock = openEvents
+        .map((evt) => {
+          const unpaid = getSortedMembers().filter(
+            (m) => !isEvenementBeneficiary(evt, m.id) && !isEvenementPaid(evt, m.id)
+          );
+          const paidCount = getEvenementPaidCount(evt);
+          const cotisantCount = getEvenementCotisantCount(evt);
+          const beneficiary = getMemberById(getEvenementBeneficiaryId(evt));
+          return `<div class="reunion-block">
+            <h3>${escapeHtml(evt.title)}${beneficiary ? ` · ${escapeHtml(beneficiary.name)}` : ""}</h3>
+            <p class="reunion-big">${paidCount}/${cotisantCount} ont payé · ${formatEuro(getEvenementCollectedAmount(evt))} collecté</p>
+            ${
+              unpaid.length
+                ? `<p class="reunion-list"><strong>N'ont pas payé :</strong> ${escapeHtml(unpaid.map((m) => m.name).join(", "))}</p>`
+                : `<p class="reunion-list reunion-ok">Tout le monde a payé.</p>`
+            }
+          </div>`;
+        })
+        .join("");
+    } else {
+      eventsBlock = `<div class="reunion-block reunion-muted"><h3>Événements</h3><p class="reunion-big">Aucun événement ouvert</p></div>`;
+    }
+
+    const loansLines = activeLoans.length
+      ? activeLoans
+          .map((loan) => {
+            const b = getMemberById(loan.borrowerId);
+            const bal = typeof getLoanBalance === "function" ? getLoanBalance(loan) : loan.amount;
+            return `<li><strong>${escapeHtml(b?.name || "?")}</strong> — reste ${formatEuro(bal)} / ${formatEuro(loan.amount)}</li>`;
+          })
+          .join("")
+      : "<li>Aucun prêt sorti</li>";
+
+    return `
     <div class="reunion-hero">
       <div class="reunion-stat">
         <span>Caisse disponible</span>
@@ -4595,6 +4639,10 @@ function buildReunionDashboardHtml() {
         <strong>${formatEuro(pretsOut)}</strong>
       </div>
     </div>
+    <div class="reunion-block reunion-chart-block">
+      <h3>Répartition de la caisse</h3>
+      <div class="reunion-chart-wrap">${buildReunionCaisseChartSvg()}</div>
+    </div>
     ${voteBlock}
     ${eventsBlock}
     <div class="reunion-block">
@@ -4602,11 +4650,18 @@ function buildReunionDashboardHtml() {
       <ul class="reunion-ul">${loansLines}</ul>
     </div>
   `;
+  } catch (err) {
+    console.warn("Mode réunion:", err);
+    return `<div class="reunion-block"><p class="reunion-list">Impossible d'afficher le mode réunion. Recharge la page (Ctrl+F5).</p></div>`;
+  }
 }
 
 function renderReunion() {
   const root = document.getElementById("reunionDashboard");
-  if (!root) return;
+  if (!root) {
+    console.warn("reunionDashboard introuvable dans le HTML");
+    return;
+  }
   root.innerHTML = buildReunionDashboardHtml();
 }
 
