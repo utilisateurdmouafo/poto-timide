@@ -20,6 +20,7 @@ const API_SYNC_KEYS = new Set([
   "poto-timide-fond-caisse-annuel",
   "poto-timide-financier-account",
   "poto-timide-data-revision",
+  "poto-timide-audit-log",
 ]);
 
 const LAST_USER_KEY = "poto-last-user";

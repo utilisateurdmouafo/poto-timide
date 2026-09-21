@@ -54,6 +54,8 @@ const NOTIFICATIONS_KEY = "poto-timide-notifications";
 
 const EVENEMENTS_KEY = "poto-timide-evenements";
 const COMMUNICATION_KEY = "poto-timide-communication";
+const AUDIT_LOG_KEY = "poto-timide-audit-log";
+const AUDIT_LOG_MAX = 250;
 const COMMUNICATION_SUBTAB_KEY = "poto-timide-communication-subtab";
 const ADMIN_IDS_KEY = "poto-timide-admin-ids";
 const AUTRE_ARGENT_KEY = "poto-timide-autre-argent";
@@ -2620,6 +2622,7 @@ function showAdminSub(subId) {
   }
   if (subId === "sauvegarde") {
     loadBackupPanel();
+    renderAuditLog();
   }
   highlightNotificationItem();
 }
@@ -2726,6 +2729,7 @@ function reloadFromStorage() {
   }
   notifications = loadNotifications();
   evenements = loadEvenements();
+  auditLog = loadAuditLog();
   communicationPosts = loadCommunicationPosts();
   activeCommunicationSub = loadCommunicationSubtab();
   loiArticles = loadLoiArticles();
@@ -6594,6 +6598,7 @@ function initiatePret(amount, note) {
 
   prets.unshift(loan);
   notifyAllMembersOnLoanInitiated(loan);
+  logAudit("Prêt · demande", `${current.name} demande ${formatEuro(parsedAmount)}${motif ? ` — ${motif}` : ""}`);
   savePrets();
   pretForm.reset();
 }
@@ -6670,6 +6675,7 @@ async function votePret(loanId, vote) {
   loan.votes[current.id] = choice;
   loan.updatedAt = new Date().toISOString();
   rememberLocalVote(loanId, current.id, choice);
+  logAudit("Prêt · vote", `${current.name} vote ${choice === "yes" ? "Oui" : "Non"}`);
   confirmVoterNotification(loan, current.id);
 
   const stats = getVoteStats(loan);
@@ -6764,6 +6770,10 @@ function financierDecidePret(loanId, decision) {
     `${actor} a ${action} le prêt de ${borrower?.name || "un membre"} (${formatEuro(loan.amount)}).`,
     { loanId: loan.id, tab: "prets", title: decision === "approved" ? "Prêt accordé" : "Prêt refusé" }
   );
+  logAudit(
+    decision === "approved" ? "Prêt · accordé" : "Prêt · refusé",
+    `${borrower?.name || "membre"} — ${formatEuro(loan.amount)}`
+  );
   savePrets();
 }
 
@@ -6840,6 +6850,10 @@ function recordRepayment(loanId, amount) {
     );
   }
 
+  logAudit(
+    "Prêt · remboursement",
+    `${borrower?.name || "membre"} — ${formatEuro(parsedAmount)} (prêt ${formatEuro(loan.amount)})`
+  );
   savePrets();
   if (typeof potoFlushSync === "function") {
     Promise.resolve(potoFlushSync()).catch(() => {});
@@ -6954,6 +6968,7 @@ async function deletePret(loanId) {
     `${getActorLabel()} a supprimé le prêt de ${borrowerName} (${formatEuro(loan.amount)}).`,
     { loanId, tab: "prets", title: "Prêt supprimé" }
   );
+  logAudit("Prêt · suppression", `Prêt ${loanId} supprimé`);
   savePrets();
   saveNotifications(false);
   try {
@@ -7718,6 +7733,76 @@ function renderAdminPrets() {
   renderAdminPretLedger();
 }
 
+
+let auditLog = [];
+
+function loadAuditLog() {
+  const parsed = readSynced(AUDIT_LOG_KEY, []);
+  return Array.isArray(parsed) ? parsed : [];
+}
+
+function saveAuditLog() {
+  localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(auditLog.slice(0, AUDIT_LOG_MAX)));
+}
+
+/** Enregistre une action sensible (visible Admin → Sauvegarde) */
+function logAudit(action, detail = "") {
+  try {
+    const actor = getCurrentMember();
+    auditLog.unshift({
+      id: generateId(),
+      at: new Date().toISOString(),
+      actorId: actor?.id || null,
+      actorName: actor?.name || "Système",
+      action: String(action || "").slice(0, 120),
+      detail: String(detail || "").slice(0, 280),
+    });
+    if (auditLog.length > AUDIT_LOG_MAX) auditLog = auditLog.slice(0, AUDIT_LOG_MAX);
+    saveAuditLog();
+  } catch (err) {
+    console.warn("Journal audit:", err);
+  }
+}
+
+function renderAuditLog() {
+  const list = document.getElementById("auditLogList");
+  if (!list) return;
+  if (!auditLog.length) {
+    list.innerHTML = `<p class="panel-desc">Aucune action enregistrée pour le moment.</p>`;
+    return;
+  }
+  list.innerHTML = `
+    <div class="amende-table-wrap audit-log-wrap">
+      <table class="amende-table audit-log-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Par</th>
+            <th>Action</th>
+            <th>Détail</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${auditLog
+            .slice(0, 100)
+            .map((row) => {
+              const dateLabel =
+                typeof formatAdaptiveDate === "function"
+                  ? formatAdaptiveDate(row.at)
+                  : formatDate((row.at || "").split("T")[0]);
+              return `<tr>
+                <td data-label="Date">${escapeHtml(dateLabel || "—")}</td>
+                <td data-label="Par">${escapeHtml(row.actorName || "—")}</td>
+                <td data-label="Action">${escapeHtml(row.action || "—")}</td>
+                <td data-label="Détail">${escapeHtml(row.detail || "—")}</td>
+              </tr>`;
+            })
+            .join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
 function loadEvenements() {
   const parsed = readSynced(EVENEMENTS_KEY, []);
   return Array.isArray(parsed) ? parsed : [];
@@ -7964,6 +8049,10 @@ function validateEvenementPayment(eventId, memberId, amountValue) {
 
   setEvenementMemberPayment(evt, memberId, paidAmount);
 
+  logAudit(
+    "Événement · paiement",
+    `${member.name} a payé ${formatEuro(paidAmount)} — ${evt.title}`
+  );
   saveEvenements();
   const potoReceivable = getEvenementPotoReceivable(evt);
   const extra =
@@ -8034,6 +8123,7 @@ function cancelEvenementPayment(eventId, memberId) {
   };
 
   if (evt) evt.updatedAt = new Date().toISOString();
+  logAudit("Événement · annulation paiement", member?.name || memberId);
   saveEvenements();
   showEvenementSaveMessage(
     `Paiement annulé pour ${member.name}${previousAmount > 0 ? ` (${formatEuro(previousAmount)} retiré de la caisse)` : ""}.`
@@ -8104,6 +8194,7 @@ async function reimburseEvenementToBeneficiary(eventId) {
   evt.caisseDebtDeduction = unpaidTotal;
 
   saveAmendes(false);
+  logAudit("Événement · remboursement", evt?.title || eventId);
   saveEvenements();
 
   let message = collected > 0

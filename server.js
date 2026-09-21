@@ -45,6 +45,7 @@ const STORAGE_KEYS = [
   "poto-timide-fond-caisse-annuel",
   "poto-timide-financier-account",
   "poto-timide-data-revision",
+  "poto-timide-audit-log",
 ];
 
 const DUMP_KIND = "poto-timide-full-dump";
@@ -81,6 +82,7 @@ const EMPTY_APP_DEFAULTS = {
   "poto-timide-prets": [],
   "poto-timide-notifications": [],
   "poto-timide-evenements": [],
+  "poto-timide-audit-log": [],
   "poto-timide-communication": [],
   "poto-timide-loi": [],
   "poto-timide-autre-argent": [],
@@ -332,6 +334,7 @@ const MERGE_BY_ID_KEYS = new Set([
   "poto-timide-communication",
   "poto-timide-notifications",
   "poto-timide-loi",
+  "poto-timide-audit-log",
 ]);
 
 function itemTimestamp(item) {

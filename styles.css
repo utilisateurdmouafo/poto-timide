@@ -7682,3 +7682,46 @@ html.phone-nav .menu-toggle-icon {
   gap: 0.75rem;
   align-items: flex-start;
 }
+
+.audit-log-list { margin-top: 0.5rem; }
+.audit-log-table td { font-size: 0.88rem; }
+.audit-log-wrap { max-height: 28rem; overflow: auto; }
+
+/* Tableaux uniformes : en-tête collant */
+.amende-table-wrap,
+.table-wrap,
+.dette-table-wrap,
+.finance-table-wrap {
+  position: relative;
+}
+.amende-table thead th,
+.cotisation-table thead th,
+.dette-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #e8f4fc;
+  box-shadow: 0 1px 0 var(--border);
+}
+
+/* Tables uniformes Poto */
+.amende-table,
+.cotisation-table,
+.dette-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.amende-table th,
+.amende-table td,
+.cotisation-table th,
+.cotisation-table td {
+  padding: 0.55rem 0.7rem;
+  vertical-align: middle;
+}
+.amende-table .num,
+.cotisation-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
