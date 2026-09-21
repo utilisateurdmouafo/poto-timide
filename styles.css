@@ -6183,10 +6183,60 @@ textarea {
   font-size: 1.05rem;
 }
 
-.communication-form.pret-form {
+.communication-form.pret-form,
+#communicationForm,
+#loiForm.pret-form {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 0.85rem;
+  width: 100% !important;
+  max-width: 40rem;
+  grid-template-columns: none !important;
+}
+
+.communication-form.pret-form label,
+#communicationForm label,
+#loiForm label {
+  width: 100%;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
+  gap: 0.4rem;
+}
+
+.communication-form.pret-form input,
+.communication-form.pret-form textarea,
+#communicationForm input,
+#communicationForm textarea,
+#loiForm input,
+#loiForm textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.communication-form .amende-form-actions,
+#loiForm .fond-caisse-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  width: 100%;
+  justify-content: flex-start;
+}
+
+.communication-form.pret-form button,
+#communicationForm button,
+#loiForm button {
+  grid-column: auto !important;
+  justify-self: start !important;
+  width: auto;
+}
+
+.communication-composer {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .communication-body-field textarea {
