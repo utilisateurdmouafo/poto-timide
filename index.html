@@ -252,16 +252,18 @@
           <h2>Initier un prêt</h2>
           <p class="panel-desc">Une demande en vote à la fois. Max : (caisse disponible − 300 €) ÷ 2.</p>
           <p class="info-msg" id="pretLockMsg" hidden></p>
-          <form id="pretForm" class="pret-form">
-            <label>
-              Montant (€)
+          <form id="pretForm" class="pret-form pret-form-inline">
+            <label class="pret-field-amount">
+              <span class="pret-field-label">Montant (€)</span>
               <input type="number" id="pretAmount" min="1" step="1" placeholder="Ex : 200" required />
             </label>
-            <label>
-              Motif <span class="required-mark" aria-hidden="true">*</span>
+            <label class="pret-field-motif">
+              <span class="pret-field-label">Motif *</span>
               <input type="text" id="pretNote" placeholder="Ex : Urgence personnelle" maxlength="120" required minlength="3" />
             </label>
-            <button type="submit" class="btn-primary">Initier un prêt</button>
+            <div class="pret-form-actions">
+              <button type="submit" class="btn-primary">Initier un prêt</button>
+            </div>
           </form>
         </section>
 

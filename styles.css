@@ -2160,6 +2160,7 @@ body::after {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
+  align-items: end;
 }
 
 .pret-form label {
@@ -2179,11 +2180,51 @@ body::after {
   color: var(--text);
   font-family: inherit;
   font-size: 0.95rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .pret-form button {
   grid-column: 1 / -1;
   justify-self: start;
+}
+
+/* Initier un prêt : montant + motif + bouton sur une ligne */
+.pret-form-inline {
+  display: grid;
+  grid-template-columns: minmax(7rem, 8.5rem) minmax(0, 1fr) auto;
+  gap: 0.65rem 0.75rem;
+  align-items: end;
+}
+
+.pret-form-inline .pret-field-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  line-height: 1.2;
+}
+
+.pret-form-inline .pret-form-actions {
+  display: flex;
+  align-items: flex-end;
+  padding-bottom: 1px;
+}
+
+.pret-form-inline button {
+  grid-column: auto;
+  justify-self: stretch;
+  white-space: nowrap;
+  min-height: 2.65rem;
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .pret-form-inline {
+    grid-template-columns: 1fr;
+  }
+  .pret-form-inline button {
+    width: 100%;
+  }
 }
 
 .pret-loan-list {
