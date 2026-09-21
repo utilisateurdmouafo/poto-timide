@@ -3102,6 +3102,39 @@ async function logoutMember() {
   openLoginModal();
 }
 
+function canAccessMainTab(tabId) {
+  if (!isLoggedIn()) return false;
+  if (isNouveauMember(getCurrentMember())) {
+    return tabId === "loi";
+  }
+  return true;
+}
+
+/** Restreint la navigation pour un compte "nouveau" (La loi seulement) */
+function applyNouveauTabRestrictions() {
+  const isNouveau = isNouveauMember(getCurrentMember());
+  document.querySelectorAll(".tab[data-tab]").forEach((btn) => {
+    const tabId = btn.dataset.tab;
+    if (!tabId) return;
+    if (isNouveau) {
+      btn.hidden = tabId !== "loi";
+    } else if (tabId === "admin" || tabId === "gestion") {
+      // géré ailleurs
+    } else {
+      // réafficher les onglets standards (sauf admin géré au-dessus)
+      if (tabId !== "admin") btn.hidden = false;
+    }
+  });
+  if (isNouveau) {
+    if (tabBtnAdmin) tabBtnAdmin.hidden = true;
+    if (tabBtnGestion) tabBtnGestion.hidden = true;
+    const active = document.querySelector(".tab-content.active");
+    if (active && active.id !== "tab-loi") {
+      showTab("loi");
+    }
+  }
+}
+
 function updateSessionUI() {
   const loggedIn = isAuthenticated();
   const canUseApp = isLoggedIn();
@@ -3158,6 +3191,9 @@ function updateSessionUI() {
   if (tabBtnGestion) tabBtnGestion.hidden = !canAccessAdminTab();
   if (tabBtnTournee) tabBtnTournee.hidden = false;
   if (tabBtnAutreArgent) tabBtnAutreArgent.hidden = true;
+
+  // Nouveau (invité) : uniquement l'onglet La loi
+  applyNouveauTabRestrictions();
 
   // Fond de caisse : pas dans Finance public
   if (financeSubCaisse) financeSubCaisse.hidden = true;
@@ -3338,8 +3374,26 @@ function compareMemberNames(a, b) {
   return a.name.localeCompare(b.name, "fr", { sensitivity: "base" });
 }
 
-function getSortedMembers() {
+function isNouveauMember(memberOrId) {
+  if (!memberOrId) return false;
+  const member = typeof memberOrId === "string" ? getMemberById(memberOrId) : memberOrId;
+  return Boolean(member && member.kind === "nouveau");
+}
+
+/** Membres du groupe (exclut les "nouveaux" invités La loi) */
+/** Tous les comptes (membres + nouveaux), triés */
+function getAllAccountsSorted() {
   return [...members].sort(compareMemberNames);
+}
+
+/** Membres du groupe uniquement (sans les comptes "nouveau") */
+function getGroupMembers() {
+  return getAllAccountsSorted().filter((m) => !isNouveauMember(m));
+}
+
+/** Alias historique : membres du groupe (pas les invités La loi) */
+function getSortedMembers() {
+  return getGroupMembers();
 }
 
 function isLimitReached() {
@@ -3674,15 +3728,20 @@ function fillMemberList(listEl, { withAdminActions }) {
   if (!listEl) return;
   listEl.innerHTML = "";
 
-  if (members.length === 0) {
-    listEl.innerHTML = `<li class="empty">Aucun membre pour le moment.</li>`;
+  // Liste publique : membres du groupe. Admin : tout le monde (y compris nouveaux).
+  const source = withAdminActions ? getAllAccountsSorted() : getGroupMembers();
+
+  if (source.length === 0) {
+    listEl.innerHTML = `<li class="empty">${
+      withAdminActions ? "Aucun compte pour le moment." : "Aucun membre pour le moment."
+    }</li>`;
     return;
   }
 
   const currentMember = getCurrentMember();
   const showActions = withAdminActions && hasRoleTabAccess("membres");
 
-  getSortedMembers().forEach((member, index) => {
+  source.forEach((member, index) => {
     const roleId = getMemberRole(member.id);
     const memberIsAdmin = isMemberAdmin(member.id);
     const isCurrentUser = currentMember?.id === member.id;
@@ -3699,11 +3758,18 @@ function fillMemberList(listEl, { withAdminActions }) {
             ${escapeHtml(member.name)}
             <span class="member-cotisation">: ${formatEuro(getMemberCotisationAmount(member.id))}</span>
             ${memberIsAdmin ? '<span class="tag-admin">Admin</span>' : ""}
+            ${isNouveauMember(member) ? '<span class="tag-nouveau">Nouveau · La loi</span>' : ""}
             ${isCurrentUser ? '<span class="tag-you">Vous</span>' : ""}
             ${isOnline ? '<span class="tag-online">En ligne</span>' : ""}
           </p>
           <p class="member-date">
-            ${roleId ? `<span class="role-badge">${escapeHtml(getRoleLabel(roleId))}</span>` : "Membre"}
+            ${
+              isNouveauMember(member)
+                ? '<span class="role-badge role-badge-nouveau">Nouveau — accès La loi</span>'
+                : roleId
+                  ? `<span class="role-badge">${escapeHtml(getRoleLabel(roleId))}</span>`
+                  : "Membre du groupe"
+            }
           </p>
         </div>
       </div>
@@ -3738,8 +3804,15 @@ function fillMemberList(listEl, { withAdminActions }) {
 
 function renderMemberList() {
   const totalEl = document.getElementById("memberTotalCount");
-  if (totalEl) totalEl.textContent = String(members.length);
-  if (memberCounter) memberCounter.textContent = `${members.length} / ${MAX_MEMBERS} membres`;
+  const groupCount = getGroupMembers().length;
+  const nouveauCount = getAllAccountsSorted().filter((m) => isNouveauMember(m)).length;
+  if (totalEl) totalEl.textContent = String(groupCount);
+  if (memberCounter) {
+    memberCounter.textContent =
+      nouveauCount > 0
+        ? `${groupCount} membres · ${nouveauCount} nouveau${nouveauCount > 1 ? "x" : ""} / ${MAX_MEMBERS}`
+        : `${groupCount} / ${MAX_MEMBERS} membres`;
+  }
   fillMemberList(memberList, { withAdminActions: false });
   fillMemberList(memberListAdmin, { withAdminActions: true });
 }
@@ -4178,6 +4251,10 @@ function showTab(tabId) {
   if (resolved) tabId = resolved;
 
   if (!TAB_IDS.includes(tabId)) tabId = "membres";
+  // Compte "nouveau" : forcer La loi uniquement
+  if (isNouveauMember(getCurrentMember()) && tabId !== "loi") {
+    tabId = "loi";
+  }
   if (tabId === "admin" && !canAccessAdminTab()) tabId = "membres";
   if (tabId === "finance" && activeFinanceSub === FINANCE_CAISSE_SUB && !canAccessCaisse()) {
     activeFinanceSub = FINANCE_ARCHIVES_SUB;
@@ -5675,7 +5752,8 @@ function getBorrowableAmount() {
 }
 
 function getLoanVoters(borrowerId) {
-  return getSortedMembers().filter((member) => member.id !== borrowerId);
+  // Seuls les vrais membres du groupe votent (pas les "nouveaux")
+  return getGroupMembers().filter((member) => member.id !== borrowerId);
 }
 
 function getVoteStats(loan) {
@@ -9201,7 +9279,7 @@ async function clearRole(roleId) {
   }
 }
 
-async function addMember(name) {
+async function addMember(name, kind = "member") {
   if (!requireTabAccess("membres", "ajouter des membres")) return;
 
   const trimmed = name.trim();
@@ -9213,39 +9291,51 @@ async function addMember(name) {
   }
 
   if (members.some((m) => m.name.toLowerCase() === trimmed.toLowerCase())) {
-    alert("Ce membre existe déjà.");
+    alert("Ce nom existe déjà.");
     return;
   }
 
+  const accountKind = kind === "nouveau" ? "nouveau" : "member";
   const newMember = {
     id: generateId(),
     name: trimmed,
+    kind: accountKind,
     createdAt: new Date().toISOString(),
   };
 
   members.push(newMember);
   saveMembers();
 
+  const kindLabel =
+    accountKind === "nouveau"
+      ? "Nouveau (accès uniquement à l'onglet La loi)"
+      : "Membre du groupe";
+
   if (authState.loggedIn) {
     try {
       if (typeof potoFlushSync === "function") await potoFlushSync();
       const result = await apiEnsureMemberUser(newMember.id);
       if (result?.created) {
-        alert(`${trimmed} peut se connecter avec le mot de passe : 1234`);
+        alert(
+          `${trimmed} ajouté — ${kindLabel}.\nMot de passe : 1234`
+        );
+      } else {
+        alert(`${trimmed} ajouté — ${kindLabel}.`);
       }
     } catch (err) {
       console.warn("Compte non créé immédiatement :", err.message);
       alert(
-        `Membre ajouté, mais le compte n'a pas pu être créé tout de suite.\nRéessayez ou réinitialisez le mot de passe depuis la liste.`
+        `${trimmed} enregistré (${kindLabel}), mais le compte n'a pas pu être créé tout de suite.\nRéinitialisez le mot de passe depuis la liste.`
       );
     }
   } else {
     alert(
-      `${trimmed} est enregistré localement. Connectez-vous en admin pour activer son compte (mot de passe : 1234).`
+      `${trimmed} est enregistré localement (${kindLabel}). Connectez-vous en admin pour activer son compte (mot de passe : 1234).`
     );
   }
 
   memberForm.reset();
+  if (memberKindSelect) memberKindSelect.value = "member";
   memberNameInput.focus();
 }
 
@@ -9410,7 +9500,7 @@ async function deleteMember(id) {
 
 memberForm?.addEventListener("submit", (e) => {
   e.preventDefault();
-  addMember(memberNameInput.value);
+  addMember(memberNameInput.value, memberKindSelect?.value || "member");
 });
 
 roleForm?.addEventListener("submit", (e) => {

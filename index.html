@@ -462,7 +462,14 @@
                   <p class="counter" id="memberCounter">0 / 50 membres</p>
                 </div>
                 <form id="memberForm" class="add-form">
-                  <input type="text" id="memberName" placeholder="Nom du membre" maxlength="50" required />
+                  <input type="text" id="memberName" placeholder="Nom" maxlength="50" required />
+                  <label class="member-kind-label">
+                    Type de compte
+                    <select id="memberKind" aria-label="Type de compte">
+                      <option value="member">Membre du groupe</option>
+                      <option value="nouveau">Nouveau (accès La loi seulement)</option>
+                    </select>
+                  </label>
                   <button type="submit" class="btn-primary" id="submitBtn">Ajouter</button>
                 </form>
                 <p class="limit-msg" id="limitMsg" hidden>Maximum de 50 membres atteint.</p>
