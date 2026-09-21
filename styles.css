@@ -7315,3 +7315,51 @@ html.phone-nav .menu-toggle-icon {
   gap: 0.65rem;
   align-items: flex-end;
 }
+
+/* Boutons vote dans la bannière Total à régler */
+.amende-hero {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1.25rem;
+}
+.amende-hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem;
+  margin-left: auto;
+}
+.pret-vote-actions-hero {
+  display: flex;
+  gap: 0.5rem;
+}
+.pret-vote-actions-hero .btn-pret-yes,
+.pret-vote-actions-hero .btn-pret-no {
+  min-width: 4.5rem;
+  min-height: 2.6rem;
+  padding: 0.55rem 1.1rem;
+  font-weight: 700;
+  font-size: 0.95rem;
+  border-radius: 12px;
+}
+.pret-hero-my-vote,
+.pret-hero-vote-note {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+@media (max-width: 640px) {
+  .amende-hero-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+  .pret-vote-actions-hero {
+    width: 100%;
+  }
+  .pret-vote-actions-hero .btn-pret-yes,
+  .pret-vote-actions-hero .btn-pret-no {
+    flex: 1;
+  }
+}

@@ -7051,16 +7051,7 @@ function buildLoanCard(loan, mode) {
         <span class="pret-stat">Objectif : ${stats.voters.length}/${stats.voters.length} Oui</span>
       </div>
       <p class="pret-deadline">${formatRemainingTime(loan.deadlineAt)}</p>
-      ${
-        canVote && !myVote
-          ? `<div class="pret-vote-actions">
-              <button type="button" class="btn-pret-yes" data-loan-id="${loan.id}" data-vote="yes">Voter Oui</button>
-              <button type="button" class="btn-pret-no" data-loan-id="${loan.id}" data-vote="no">Voter Non</button>
-            </div>`
-          : myVote
-            ? `<p class="pret-my-vote">Votre vote : <strong>${myVote === "yes" ? "Oui" : "Non"}</strong></p>`
-            : ""
-      }
+      ${myVote ? `<p class="pret-my-vote">Votre vote : <strong>${myVote === "yes" ? "Oui" : "Non"}</strong></p>` : ""}
       ${canManagePretsActions() ? buildVotersBreakdownHtml(loan) : ""}
       ${
         canManagePretsActions()
@@ -7185,6 +7176,7 @@ function renderPrets() {
       emptyText: "Aucune demande en vote.",
       rowIdPrefix: "loan",
       rows: votingLoans.map((loan) => loanToLedgerRow(loan, "voting")),
+      heroActions: buildVotingHeroActionsHtml(votingLoans),
     });
   }
 
@@ -7282,6 +7274,33 @@ function buildAdminPretActionsHtml(loan) {
   `;
 }
 
+
+/** Boutons Oui / Non pour la bannière « Total à régler » (demandes en vote) */
+function buildVotingHeroActionsHtml(loans) {
+  const current = getCurrentMember();
+  if (!current || !Array.isArray(loans) || !loans.length) return "";
+
+  const blocks = loans
+    .filter((loan) => loan && !isLoanDeleted(loan) && loan.status === "voting")
+    .map((loan) => {
+      if (loan.borrowerId === current.id) {
+        return `<p class="pret-hero-vote-note">Ta demande — en attente des votes</p>`;
+      }
+      const votesMap = loan.votes && typeof loan.votes === "object" ? loan.votes : {};
+      const myVote = votesMap[current.id];
+      if (myVote === "yes" || myVote === "no") {
+        return `<p class="pret-my-vote pret-hero-my-vote">Votre vote : <strong>${myVote === "yes" ? "Oui" : "Non"}</strong></p>`;
+      }
+      return `<div class="pret-vote-actions pret-vote-actions-hero" data-loan-id="${escapeHtml(loan.id)}">
+        <button type="button" class="btn-pret-yes" data-loan-id="${escapeHtml(loan.id)}" data-vote="yes">Oui</button>
+        <button type="button" class="btn-pret-no" data-loan-id="${escapeHtml(loan.id)}" data-vote="no">Non</button>
+      </div>`;
+    })
+    .filter(Boolean);
+
+  return blocks.join("");
+}
+
 function buildPretVoteActionsHtml(loan, mode) {
   const current = getCurrentMember();
   const stats = getVoteStats(loan);
@@ -7290,20 +7309,12 @@ function buildPretVoteActionsHtml(loan, mode) {
   const myVote = current ? votesMap[current.id] : null;
   const votersList = buildVotersBreakdownHtml(loan);
   if (mode === "voting") {
+    // Boutons Oui/Non : dans la bannière haut (Total à régler), pas ici
     return `
       <div class="amende-admin-actions">
         <p class="pret-vote-inline">${stats.yesCount} oui · ${stats.noCount} non · ${stats.pendingCount} en attente · ${formatRemainingTime(loan.deadlineAt)}</p>
         ${votersList}
-        ${
-          canVote && !myVote
-            ? `<div class="pret-vote-actions">
-                <button type="button" class="btn-pret-yes" data-loan-id="${loan.id}" data-vote="yes">Voter Oui</button>
-                <button type="button" class="btn-pret-no" data-loan-id="${loan.id}" data-vote="no">Voter Non</button>
-              </div>`
-            : myVote
-              ? `<p class="pret-my-vote">Votre vote : <strong>${myVote === "yes" ? "Oui" : "Non"}</strong></p>`
-              : ""
-        }
+        ${myVote ? `<p class="pret-my-vote">Votre vote : <strong>${myVote === "yes" ? "Oui" : "Non"}</strong></p>` : ""}
         ${buildFinancierActions(loan)}
       </div>`;
   }
@@ -7492,6 +7503,7 @@ function renderAdminPrets() {
       emptyText: "Aucune demande en vote.",
       rowIdPrefix: "loan",
       rows: votingLoans.map((loan) => loanToLedgerRow(loan, "voting")),
+      heroActions: buildVotingHeroActionsHtml(votingLoans),
     });
   }
 
