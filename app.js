@@ -576,8 +576,11 @@ function saveAncienneTourneeDettes(shouldRender = true) {
   }
   if (shouldRender) {
     renderAncienneTourneeDettesAdmin();
+    renderAmendes();
     renderMesDettes();
-    renderExTournee();
+    if (typeof renderExTournee === "function") renderExTournee();
+    if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
+    if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
   }
 }
 
