@@ -812,7 +812,31 @@
             </div>
 
             <div class="gestion-subpanel" id="adminSub-amendes" data-admin-panel="amendes" hidden>
-              
+              <section class="panel" id="addAmendePanel" hidden>
+                <h2 id="amendeFormTitle">Ajouter</h2>
+                <p class="panel-desc">Une seule ligne : personne · type · montant · motif obligatoire.</p>
+                <form id="amendeForm" class="amende-form amende-form-inline">
+                  <select id="amendeMember" required aria-label="Personne">
+                    <option value="">Personne…</option>
+                  </select>
+                  <select id="amendeType" required aria-label="Type">
+                    <option value="">Type…</option>
+                    <optgroup label="Amende">
+                      <option value="absence">Absence</option>
+                      <option value="retard">Retard</option>
+                      <option value="bavardage">Bavardage</option>
+                      <option value="sanctions">Sanctions</option>
+                    </optgroup>
+                    <option value="ex-tournee">Ex tournée</option>
+                    <option value="dette">Dette</option>
+                  </select>
+                  <input type="number" id="amendeAmount" min="0.5" step="0.5" placeholder="Montant €" required inputmode="decimal" aria-label="Montant" />
+                  <input type="text" id="amendeNote" placeholder="Motif (obligatoire)" maxlength="120" required aria-label="Motif" />
+                  <button type="submit" class="btn-primary" id="amendeSubmitBtn">Ajouter</button>
+                  <button type="button" class="btn-secondary" id="amendeCancelBtn" hidden>Annuler</button>
+                </form>
+                <p class="save-msg" id="amendeSaveMsg" hidden></p>
+              </section>
               <section class="panel" id="amendeHistoryPanel">
                 <div class="panel-head">
                   <div>
