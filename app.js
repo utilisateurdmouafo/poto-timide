@@ -5897,6 +5897,7 @@ function loadNotifications() {
 
 function savePrets(shouldRender = true) {
   localStorage.setItem(PRETS_KEY, JSON.stringify(prets));
+  if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
   if (!shouldRender) return;
   renderPrets();
   renderMesDettes();
