@@ -8187,3 +8187,53 @@ html.phone-nav .menu-toggle-icon {
 .comm-read-pending {
   color: #9a3412;
 }
+
+.amende-form-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.5rem 0 0;
+}
+.amende-form-inline select,
+.amende-form-inline input[type="number"],
+.amende-form-inline input[type="text"] {
+  margin: 0;
+  min-height: 2.5rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 0.4rem 0.55rem;
+  font: inherit;
+  background: #fff;
+}
+.amende-form-inline #amendeMember {
+  flex: 1 1 9rem;
+  min-width: 8rem;
+}
+.amende-form-inline #amendeType {
+  flex: 0 1 8.5rem;
+  min-width: 7.5rem;
+}
+.amende-form-inline #amendeAmount {
+  flex: 0 0 6.5rem;
+  width: 6.5rem;
+}
+.amende-form-inline #amendeNote {
+  flex: 2 1 12rem;
+  min-width: 10rem;
+}
+.amende-form-inline .btn-primary,
+.amende-form-inline .btn-secondary {
+  flex: 0 0 auto;
+  min-height: 2.5rem;
+  padding: 0.4rem 0.9rem;
+}
+@media (max-width: 640px) {
+  .amende-form-inline {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .amende-form-inline #amendeAmount {
+    width: 100%;
+  }
+}

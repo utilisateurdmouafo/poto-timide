@@ -2665,7 +2665,7 @@ function saveAmendes(shouldRender = true) {
 function getAmendeTypeLabel(typeId) {
   if (typeId === "dette") return "Dette événement";
   if (typeId === "evenement") return "Événement";
-  if (typeId === "ancienne-tournee") return "Ex tournée";
+  if (typeId === "ancienne-tournee" || typeId === "ex-tournee") return "Ex tournée";
   if (typeId === "cotisation") return "Cotisation";
   if (typeId === "pret") return "Prêt";
   return AMENDE_TYPES.find((t) => t.id === typeId)?.label || typeId;
@@ -3367,7 +3367,7 @@ function updateSessionUI() {
   if (tabPermissionsPanel) tabPermissionsPanel.hidden = !isAdmin;
   if (adminRolesPanel) adminRolesPanel.hidden = !isAdmin;
 
-  if (addAmendePanel) addAmendePanel.hidden = !canManageTab("amendes");
+  if (addAmendePanel) addAmendePanel.hidden = !canAddDettesAmendesUnified();
   if (addEvenementPanel) addEvenementPanel.hidden = !canManageTab("evenements");
 
   if (fondCaissePanel) fondCaissePanel.hidden = true;
@@ -5137,6 +5137,7 @@ function addAncienneTourneeDette(memberId, amount) {
     return;
   }
 
+  const nowAt = new Date().toISOString();
   ancienneTourneeDettes.unshift({
     id: generateId(),
     memberId: member.id,
@@ -5144,7 +5145,9 @@ function addAncienneTourneeDette(memberId, amount) {
     originalAmount: parsedAmount,
     repaidAmount: 0,
     repayments: [],
-    createdAt: new Date().toISOString(),
+    note: "",
+    createdAt: nowAt,
+    updatedAt: nowAt,
     createdBy: getCurrentMember()?.id || null,
   });
 
@@ -5542,6 +5545,92 @@ function parseAmendeAmount(amount) {
     return null;
   }
   return parsedAmount;
+}
+
+
+function canAddDettesAmendesUnified() {
+  if (!isLoggedIn()) return false;
+  if (isGroupAdmin()) return true;
+  return (
+    hasRoleTabAccess("amendes") ||
+    hasRoleTabAccess("ancienne-tournee") ||
+    (typeof isFinancierPoste === "function" && isFinancierPoste())
+  );
+}
+
+/** Ajout unifié : amende | ex tournée | dette — motif obligatoire, sync par id */
+async function submitUnifiedDettesAmendesLine({ memberId, type, amount, note }) {
+  if (!canAddDettesAmendesUnified()) {
+    alert("Tu n'as pas l'accès pour ajouter une ligne.");
+    return false;
+  }
+  const motif = String(note || "").trim();
+  if (!motif) {
+    alert("Le motif est obligatoire.");
+    return false;
+  }
+  const member = getMemberById(memberId);
+  if (!member || member.id === "groupe") {
+    alert("Choisis la personne.");
+    return false;
+  }
+  const parsedAmount = Math.round(parseFloat(String(amount).replace(",", ".")) * 100) / 100;
+  if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+    alert("Montant invalide.");
+    return false;
+  }
+
+  const now = new Date().toISOString();
+  const kind = String(type || "").trim();
+
+  if (kind === "ex-tournee" || kind === "ancienne-tournee") {
+    ancienneTourneeDettes.unshift({
+      id: generateId(),
+      memberId: member.id,
+      amount: parsedAmount,
+      originalAmount: parsedAmount,
+      repaidAmount: 0,
+      repayments: [],
+      note: motif,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: getCurrentMember()?.id || null,
+    });
+    saveAncienneTourneeDettes();
+    if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
+  } else {
+    // absence, retard, bavardage, sanctions, dette
+    const amendeType = kind === "dette" ? "dette" : kind || "sanctions";
+    amendes.unshift({
+      id: generateId(),
+      memberId: member.id,
+      type: amendeType,
+      amount: parsedAmount,
+      originalAmount: parsedAmount,
+      repaidAmount: 0,
+      note: motif,
+      date: now,
+      createdAt: now,
+      updatedAt: now,
+    });
+    saveAmendes();
+  }
+
+  if (typeof potoFlushSync === "function") {
+    try {
+      await potoFlushSync();
+    } catch {
+      /* ignore */
+    }
+  }
+  renderAmendes();
+  renderAmendesAdminHistory();
+  if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
+  showToast?.(
+    `${formatEuro(parsedAmount)} ajouté pour ${member.name} (${getAmendeTypeLabel(kind === "ex-tournee" ? "ancienne-tournee" : kind)}).`,
+    "success"
+  );
+  return true;
 }
 
 function addAmende(memberId, type, amount, note) {
@@ -10934,20 +11023,30 @@ document.getElementById("capitalHorsGroupeList")?.addEventListener("click", (e) 
 saveTabPermissionsBtn?.addEventListener("click", () => saveTabPermissionsFromUI({ silent: false }));
 tabPermissionsBody?.addEventListener("change", handleTabPermissionCheckboxChange);
 
-amendeForm?.addEventListener("submit", (e) => {
+amendeForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const payload = {
-    memberId: amendeMemberSelect.value,
-    type: amendeTypeSelect.value,
-    amount: amendeAmountInput.value,
-    note: amendeNoteInput.value,
+    memberId: amendeMemberSelect?.value,
+    type: amendeTypeSelect?.value,
+    amount: amendeAmountInput?.value,
+    note: amendeNoteInput?.value,
   };
 
   if (editingAmendeId) {
+    if (payload.type === "ex-tournee" || payload.type === "ancienne-tournee") {
+      alert("Pour modifier une dette d'ex tournée, supprime-la puis rajoute-la.");
+      return;
+    }
+    if (!String(payload.note || "").trim()) {
+      alert("Le motif est obligatoire.");
+      return;
+    }
     updateAmende(editingAmendeId, payload.memberId, payload.type, payload.amount, payload.note);
-  } else {
-    addAmende(payload.memberId, payload.type, payload.amount, payload.note);
+    return;
   }
+
+  const ok = await submitUnifiedDettesAmendesLine(payload);
+  if (ok) amendeForm?.reset();
 });
 
 amendeCancelBtn?.addEventListener("click", cancelEditAmende);
