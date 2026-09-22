@@ -68,7 +68,7 @@ const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["accueil", "reunion", "communication", "membres", "tournee", "ex-tournee", "prets", "evenements", "dettes", "amendes", "finance", "loi", "admin"];
+const TAB_IDS = ["reunion", "communication", "membres", "tournee", "ex-tournee", "prets", "evenements", "dettes", "amendes", "finance", "loi", "admin"];
 const LOI_KEY = "poto-timide-loi";
 const COMMUNICATION_KINDS = [
   {
@@ -2451,7 +2451,7 @@ function getActiveMainTab() {
   if (activeBtn?.dataset?.tab) return activeBtn.dataset.tab;
   const activeContent = document.querySelector(".tab-content.active");
   if (activeContent?.id?.startsWith("tab-")) return activeContent.id.slice(4);
-  return "accueil";
+  return "reunion";
 }
 
 /**
@@ -3325,9 +3325,6 @@ function updateSessionUI() {
   }
   document.body.classList.toggle("is-logged-in", loggedIn);
   if (loggedIn) updatePretTabBadge();
-  if (document.getElementById("tab-accueil")?.classList.contains("active")) {
-    try { renderAccueil(); } catch { /* ignore */ }
-  }
 
   // Pas de bannière / messages « vue simple » pour les membres
   if (simpleViewBanner) simpleViewBanner.hidden = true;
@@ -4405,111 +4402,6 @@ function canAccessAutreArgentTab() {
 }
 
 
-document.getElementById("accueilDashboard")?.addEventListener("click", (e) => {
-  const loginBtn = e.target.closest("#accueilLoginBtn");
-  if (loginBtn) {
-    openLoginModal?.();
-    return;
-  }
-  const goBtn = e.target.closest("[data-accueil-go]");
-  if (goBtn) {
-    const tab = goBtn.getAttribute("data-accueil-go");
-    if (tab) showTab(tab);
-  }
-});
-
-
-function buildAccueilDashboardHtml() {
-  const current = getCurrentMember();
-  if (!current) {
-    return `<div class="accueil-login-prompt"><p>Connecte-toi pour voir ta situation personnelle.</p><button type="button" class="btn-primary" id="accueilLoginBtn">Se connecter</button></div>`;
-  }
-  if (typeof isNouveauMember === "function" && isNouveauMember(current)) {
-    return `<div class="accueil-login-prompt"><p>Compte <strong>Nouveau</strong> — accès à <strong>La loi</strong> uniquement.</p><button type="button" class="btn-primary" data-accueil-go="loi">Ouvrir La loi</button></div>`;
-  }
-
-  const unread = typeof getUnreadPretNotificationCount === "function" ? getUnreadPretNotificationCount(current.id) : 0;
-  const pendingVote = typeof getPendingVoteLoan === "function" ? getPendingVoteLoan() : null;
-  const needVote = pendingVote && pendingVote.borrowerId !== current.id;
-  const votesMap = pendingVote?.votes && typeof pendingVote.votes === "object" ? pendingVote.votes : {};
-  const myVote = votesMap[current.id];
-  const canStillVote = needVote && !myVote;
-  const ownLoan = typeof getBorrowerActiveLoan === "function" ? getBorrowerActiveLoan(current.id) : null;
-  const ancienne = typeof getAncienneTourneeDette === "function" ? getAncienneTourneeDette(current.id) : 0;
-  const evtTotals = typeof getMemberEvenementTotals === "function" ? getMemberEvenementTotals(current.id) : { totalRemaining: 0 };
-
-  const amendesOpen = (typeof getAmendesForMember === "function" ? getAmendesForMember(current.id) : []).filter((a) => {
-    if (typeof isDetteAmende === "function" && isDetteAmende(a)) return false;
-    const amount = Number(a.amount) || 0;
-    const repaid = typeof getAmendeRepaidAmount === "function" ? getAmendeRepaidAmount(a) : 0;
-    return amount - repaid > 0.001;
-  });
-  const amendesTotal = amendesOpen.reduce((s, a) => {
-    const amount = Number(a.amount) || 0;
-    const repaid = typeof getAmendeRepaidAmount === "function" ? getAmendeRepaidAmount(a) : 0;
-    return s + Math.max(0, amount - repaid);
-  }, 0);
-
-  const cards = [];
-  if (canStillVote) {
-    const borrower = getMemberById(pendingVote.borrowerId);
-    cards.push({
-      tone: "warn",
-      kicker: "Action requise",
-      title: "Vote prêt",
-      body: `Demande de ${borrower?.name || "un poto"} — ${formatEuro(pendingVote.amount)}.`,
-      go: "prets",
-      cta: "Aller voter",
-    });
-  }
-  // Pas de récap de vote ici (voir Mode réunion)
-  if (ownLoan) {
-    const st = ownLoan.status;
-    let body = `Statut : ${typeof getPretStatusLabel === "function" ? getPretStatusLabel(st) : st}`;
-    if (st === "active" || st === "defaulted") {
-      const bal = typeof getLoanBalance === "function" ? getLoanBalance(ownLoan) : ownLoan.amount;
-      body = `Reste à rembourser : ${formatEuro(bal)}`;
-    } else if (st === "voting") body = "Ta demande est en vote.";
-    else if (st === "awaiting_financier") body = "En attente de validation.";
-    cards.push({ tone: st === "active" || st === "defaulted" ? "warn" : "info", kicker: "Mon prêt", title: formatEuro(ownLoan.amount), body, go: "prets", cta: "Voir mon prêt" });
-  }
-  if (ancienne > 0) {
-    cards.push({ tone: "warn", kicker: "Ancienne tournée", title: formatEuro(ancienne), body: "Dette encore due.", go: "ex-tournee", cta: "Voir" });
-  }
-  if ((evtTotals.totalRemaining || 0) > 0) {
-    cards.push({ tone: "warn", kicker: "Événements", title: formatEuro(evtTotals.totalRemaining), body: "Reste à payer sur les événements.", go: "evenements", cta: "Voir" });
-  }
-  if (amendesTotal > 0) {
-    cards.push({ tone: "warn", kicker: "Mes amendes", title: formatEuro(amendesTotal), body: `${amendesOpen.length} amende(s) à régler.`, go: "amendes", cta: "Voir" });
-  }
-  if (unread > 0) {
-    cards.push({ tone: "info", kicker: "Notifications", title: String(unread), body: "Non lue(s).", go: "prets", cta: "Ouvrir" });
-  }
-  cards.push({
-    tone: "neutral",
-    kicker: "Groupe",
-    title: formatEuro(typeof getCaisseDisponible === "function" ? getCaisseDisponible() : 0),
-    body: `Caisse disponible · Total ${formatEuro(typeof getCaisseTotal === "function" ? getCaisseTotal() : 0)}`,
-    go: "finance",
-    cta: "Finance",
-  });
-  if (cards.length === 1) {
-    cards.unshift({ tone: "ok", kicker: "Tout est calme", title: "Rien d'urgent", body: "Pas de vote ni dette personnelle signalée.", go: "communication", cta: "Communication" });
-  }
-
-  const grid = cards.map((c) => `
-    <article class="accueil-card accueil-card-${c.tone}">
-      <p class="accueil-card-kicker">${escapeHtml(c.kicker)}</p>
-      <h3 class="accueil-card-title">${escapeHtml(c.title)}</h3>
-      <p class="accueil-card-body">${escapeHtml(c.body)}</p>
-      <button type="button" class="btn-secondary accueil-card-cta" data-accueil-go="${escapeHtml(c.go)}">${escapeHtml(c.cta)}</button>
-    </article>`).join("");
-
-  return `<p class="accueil-hello">Salut <strong>${escapeHtml(current.name)}</strong></p><div class="accueil-grid">${grid}</div>`;
-}
-
-
-
 function buildReunionProgressBar(segments) {
   const total = segments.reduce((s, x) => s + Math.max(0, Number(x.value) || 0), 0) || 1;
   const parts = segments
@@ -4775,27 +4667,16 @@ function renderReunion() {
   root.innerHTML = buildReunionDashboardHtml();
 }
 
-function renderAccueil() {
-  const root = document.getElementById("accueilDashboard");
-  if (!root) return;
-  const title = document.getElementById("accueilTitle");
-  const sub = document.getElementById("accueilSubtitle");
-  const current = getCurrentMember();
-  if (title) title.textContent = current ? "Ma situation" : "Accueil";
-  if (sub) sub.textContent = current ? "Votes, prêts, dettes et amendes en un coup d'œil." : "Connecte-toi pour accéder à l'espace du groupe.";
-  root.innerHTML = buildAccueilDashboardHtml();
-}
-
 function showTab(tabId) {
   const resolved = resolveLegacyTab(tabId);
   if (resolved) tabId = resolved;
 
-  if (!TAB_IDS.includes(tabId)) tabId = "accueil";
+  if (!TAB_IDS.includes(tabId)) tabId = "reunion";
   // Compte "nouveau" : forcer La loi uniquement
   if (isNouveauMember(getCurrentMember()) && tabId !== "loi") {
     tabId = "loi";
   }
-  if (tabId === "admin" && !canAccessAdminTab()) tabId = "accueil";
+  if (tabId === "admin" && !canAccessAdminTab()) tabId = "reunion";
   if (tabId === "finance" && activeFinanceSub === FINANCE_CAISSE_SUB && !canAccessCaisse()) {
     activeFinanceSub = FINANCE_ARCHIVES_SUB;
   }
@@ -4816,11 +4697,6 @@ function showTab(tabId) {
   closeAppMenu();
   if (tabId !== "admin") closeAdminMenu();
   syncAdminMenuToggle();
-
-  if (tabId === "accueil") {
-    reloadFromStorage();
-    renderAccueil();
-  }
 
   if (tabId === "reunion") {
     reloadFromStorage();
