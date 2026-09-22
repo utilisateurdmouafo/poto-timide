@@ -337,6 +337,9 @@ const MERGE_BY_ID_KEYS = new Set([
   "poto-timide-audit-log",
   "poto-timide-amendes",
   "poto-timide-amendes-caisse",
+  "poto-timide-ancienne-tournee-dettes",
+  "poto-timide-autre-argent",
+  "poto-timide-members",
 ]);
 
 function itemTimestamp(item) {

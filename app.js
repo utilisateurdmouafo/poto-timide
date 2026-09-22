@@ -4443,9 +4443,8 @@ function getReunionAmendesOpen() {
   const list = typeof getAllAmendes === "function" ? getAllAmendes() : amendes || [];
   return list.filter((a) => {
     if (typeof isDetteAmende === "function" && isDetteAmende(a)) return false;
-    const amount = Number(a.amount) || 0;
-    const repaid = typeof getAmendeRepaidAmount === "function" ? getAmendeRepaidAmount(a) : 0;
-    return amount - repaid > 0.001;
+    // amount = reste dû (réduit à chaque remboursement)
+    return (Number(a.amount) || 0) > 0.001;
   });
 }
 
@@ -4486,11 +4485,7 @@ function buildReunionDashboardHtml() {
     const openAmendes = getReunionAmendesOpen();
     const openEx = getReunionExTourneeOpen();
 
-    const amendesDue = openAmendes.reduce((s, a) => {
-      const amount = Number(a.amount) || 0;
-      const repaid = typeof getAmendeRepaidAmount === "function" ? getAmendeRepaidAmount(a) : 0;
-      return s + Math.max(0, amount - repaid);
-    }, 0);
+    const amendesDue = openAmendes.reduce((s, a) => s + Math.max(0, Number(a.amount) || 0), 0);
     const exDue = openEx.reduce((s, e) => s + e.remaining, 0);
     const eventsUnpaidPeople = openEvents.reduce((s, evt) => {
       const unpaid = getSortedMembers().filter(
@@ -4603,9 +4598,7 @@ function buildReunionDashboardHtml() {
     const amendeByMember = {};
     openAmendes.forEach((a) => {
       const id = a.memberId;
-      const amount = Number(a.amount) || 0;
-      const repaid = typeof getAmendeRepaidAmount === "function" ? getAmendeRepaidAmount(a) : 0;
-      const rem = Math.max(0, amount - repaid);
+      const rem = Math.max(0, Number(a.amount) || 0);
       if (!amendeByMember[id]) amendeByMember[id] = 0;
       amendeByMember[id] += rem;
     });
@@ -5628,6 +5621,7 @@ function validateDettePayment(amendeId) {
 }
 
 function creditAmendeToCaisse(amende) {
+  const now = new Date().toISOString();
   amendesCaisse.unshift({
     id: generateId(),
     sourceAmendeId: amende.id,
@@ -5635,7 +5629,9 @@ function creditAmendeToCaisse(amende) {
     type: amende.type,
     amount: amende.amount,
     note: amende.note || "",
-    paidAt: new Date().toISOString(),
+    paidAt: now,
+    createdAt: now,
+    updatedAt: now,
     validatedBy: getCurrentMember()?.id || null,
   });
   saveAmendesCaisse();
@@ -5708,6 +5704,7 @@ async function repayAmende(id, amountValue) {
     amende.amount = nextRemaining;
     delete amende.settledAt;
   }
+  amende.updatedAt = new Date().toISOString();
 
   saveAmendes();
   bumpLiveDataRevision();
@@ -9511,7 +9508,7 @@ function getRapportReadStats(post) {
   const readers = getRapportReaders(post);
   const groupMembers = typeof getGroupMembers === "function" ? getGroupMembers() : getSortedMembers();
   // Membres du groupe (hors "nouveau"), sauf l'auteur si on veut — on compte tous les membres groupe
-  const expected = groupMembers.filter((m) => !isNouveauMember?.(m));
+  const expected = groupMembers.filter((m) => !(typeof isNouveauMember === 'function' && isNouveauMember(m)));
   const expectedIds = new Set(expected.map((m) => m.id));
   const readIds = new Set(readers.map((r) => r.id));
   const readCount = [...expectedIds].filter((id) => readIds.has(id)).length;
