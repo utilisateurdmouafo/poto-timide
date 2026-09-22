@@ -4611,7 +4611,7 @@ function buildReunionDashboardHtml() {
             1;
           const voted = stats.yesCount + stats.noCount;
           const pctDone = Math.round((voted / totalVoters) * 100);
-          const bar = (typeof buildReunionProgressBar === 'function' ? buildReunionProgressBar : () => '')([
+          const bar = buildReunionProgressBar([
             { value: stats.yesCount, color: "#059669", label: "Oui" },
             { value: stats.noCount, color: "#dc2626", label: "Non" },
             { value: stats.pendingCount, color: "#cbd5e1", label: "Attente" },
@@ -4637,7 +4637,7 @@ function buildReunionDashboardHtml() {
           const cotisantCount = getEvenementCotisantCount(evt) || 1;
           const collected = getEvenementCollectedAmount(evt);
           const beneficiary = getMemberById(getEvenementBeneficiaryId(evt));
-          const bar = (typeof buildReunionProgressBar === 'function' ? buildReunionProgressBar : () => '')([
+          const bar = buildReunionProgressBar([
             { value: paidCount, color: "#2563eb", label: "Payé" },
             { value: Math.max(0, cotisantCount - paidCount), color: "#e2e8f0", label: "Reste" },
           ]);
