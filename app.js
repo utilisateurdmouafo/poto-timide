@@ -4512,45 +4512,60 @@ function buildAccueilDashboardHtml() {
 function buildReunionCaisseChartSvg() {
   const dispo = Math.max(0, Number(typeof getCaisseDisponible === "function" ? getCaisseDisponible() : 0) || 0);
   const events = Math.max(0, Number(typeof getTotalEvenementsInCaisse === "function" ? getTotalEvenementsInCaisse() : 0) || 0);
-  const pretsOut = Math.max(0, Number(typeof getLoansCapitalOut === "function" ? getLoansCapitalOut() : 0) || 0);
+  const borrowable = Math.max(0, Number(typeof getBorrowableAmount === "function" ? getBorrowableAmount() : 0) || 0);
   const hors = Math.max(0, Number(typeof getCapitalHorsGroupeTotal === "function" ? getCapitalHorsGroupeTotal() : 0) || 0);
   const parts = [
     { label: "Disponible", value: dispo, color: "#0e7490" },
+    { label: "Max empruntable", value: borrowable, color: "#059669" },
     { label: "Événements", value: events, color: "#2563eb" },
-    { label: "Prêts dehors", value: pretsOut, color: "#d97706" },
     { label: "Hors groupe", value: hors, color: "#7c3aed" },
-  ];
+  ].filter((p) => p.value > 0 || p.label === "Disponible" || p.label === "Max empruntable");
   const max = Math.max(...parts.map((p) => p.value), 1);
-  const w = 420;
-  const rowH = 36;
-  const h = parts.length * rowH + 16;
-  const labelW = 110;
-  const barMax = w - labelW - 70;
+  const w = 440;
+  const rowH = 32;
+  const h = parts.length * rowH + 12;
+  const labelW = 120;
+  const barMax = w - labelW - 78;
   const bars = parts
     .map((p, i) => {
-      const y = 12 + i * rowH;
-      const bw = Math.max(2, Math.round((p.value / max) * barMax));
+      const y = 8 + i * rowH;
+      const bw = Math.max(p.value > 0 ? 4 : 0, Math.round((p.value / max) * barMax));
       return `
         <text x="0" y="${y + 14}" class="reunion-chart-label">${escapeHtml(p.label)}</text>
-        <rect x="${labelW}" y="${y}" width="${bw}" height="22" rx="6" fill="${p.color}"></rect>
-        <text x="${labelW + bw + 8}" y="${y + 15}" class="reunion-chart-value">${formatEuro(p.value)}</text>
+        <rect x="${labelW}" y="${y}" width="${bw}" height="18" rx="5" fill="${p.color}"></rect>
+        <text x="${labelW + bw + 6}" y="${y + 14}" class="reunion-chart-value">${formatEuro(p.value)}</text>
       `;
     })
     .join("");
-  return `<svg class="reunion-chart-svg" viewBox="0 0 ${w} ${h}" role="img" aria-label="Répartition de la caisse">${bars}</svg>`;
+  return `<svg class="reunion-chart-svg" viewBox="0 0 ${w} ${h}" role="img" aria-label="Caisse">${bars}</svg>`;
 }
 
-function buildReunionProgressBar(segments) {
-  // segments: [{ value, color, label }]
-  const total = segments.reduce((s, x) => s + Math.max(0, Number(x.value) || 0), 0) || 1;
-  const parts = segments
-    .filter((x) => (Number(x.value) || 0) > 0)
-    .map((x) => {
-      const pct = Math.max(0.8, Math.round(((Number(x.value) || 0) / total) * 1000) / 10);
-      return `<span class="reunion-bar-seg" style="width:${pct}%;background:${x.color}" title="${escapeHtml(x.label || "")}: ${x.value}"></span>`;
+function buildReunionLoansChartSvg(activeLoans) {
+  if (!activeLoans.length) {
+    return `<p class="reunion-pct">Aucun prêt en cours</p>`;
+  }
+  const rows = activeLoans.map((loan) => {
+    const b = getMemberById(loan.borrowerId);
+    return { name: b?.name || "?", amount: Math.max(0, Number(loan.amount) || 0) };
+  });
+  const max = Math.max(...rows.map((r) => r.amount), 1);
+  const w = 440;
+  const rowH = 30;
+  const h = rows.length * rowH + 8;
+  const labelW = 100;
+  const barMax = w - labelW - 78;
+  const bars = rows
+    .map((r, i) => {
+      const y = 6 + i * rowH;
+      const bw = Math.max(4, Math.round((r.amount / max) * barMax));
+      return `
+        <text x="0" y="${y + 13}" class="reunion-chart-label">${escapeHtml(r.name)}</text>
+        <rect x="${labelW}" y="${y}" width="${bw}" height="16" rx="5" fill="#d97706"></rect>
+        <text x="${labelW + bw + 6}" y="${y + 13}" class="reunion-chart-value">${formatEuro(r.amount)}</text>
+      `;
     })
     .join("");
-  return `<div class="reunion-bar" role="img" aria-label="Progression">${parts || `<span class="reunion-bar-seg" style="width:100%;background:#e2e8f0"></span>`}</div>`;
+  return `<svg class="reunion-chart-svg" viewBox="0 0 ${w} ${h}" role="img" aria-label="Prêts accordés">${bars}</svg>`;
 }
 
 function buildReunionDashboardHtml() {
@@ -4558,9 +4573,7 @@ function buildReunionDashboardHtml() {
     const caisseDispo = typeof getCaisseDisponible === "function" ? getCaisseDisponible() : 0;
     const caisseTotal = typeof getCaisseTotal === "function" ? getCaisseTotal() : 0;
     const caisseBrute = typeof getCaisseBrute === "function" ? getCaisseBrute() : caisseDispo;
-    const pretsOut = typeof getLoansCapitalOut === "function" ? getLoansCapitalOut() : 0;
-    const eventsIn = typeof getTotalEvenementsInCaisse === "function" ? getTotalEvenementsInCaisse() : 0;
-    const hors = typeof getCapitalHorsGroupeTotal === "function" ? getCapitalHorsGroupeTotal() : 0;
+    const maxEmpruntable = typeof getBorrowableAmount === "function" ? getBorrowableAmount() : 0;
 
     const votingLoans = (Array.isArray(prets) ? prets : []).filter(
       (l) => l && !isLoanDeleted(l) && l.status === "voting"
@@ -4569,7 +4582,7 @@ function buildReunionDashboardHtml() {
       (l) => l && !isLoanDeleted(l) && ["active", "defaulted"].includes(l.status)
     );
 
-    // --- Votes prêts : barre + données brutes ---
+    // Votes — barre uniquement
     let voteBlock = "";
     if (votingLoans.length) {
       voteBlock = votingLoans
@@ -4579,37 +4592,27 @@ function buildReunionDashboardHtml() {
             typeof getVoteStats === "function"
               ? getVoteStats(loan)
               : { yesCount: 0, noCount: 0, pendingCount: 0, voters: [] };
-          const totalVoters = (stats.voters && stats.voters.length) || stats.yesCount + stats.noCount + stats.pendingCount || 1;
+          const totalVoters =
+            (stats.voters && stats.voters.length) ||
+            stats.yesCount + stats.noCount + stats.pendingCount ||
+            1;
           const voted = stats.yesCount + stats.noCount;
           const pctDone = Math.round((voted / totalVoters) * 100);
           const bar = buildReunionProgressBar([
             { value: stats.yesCount, color: "#059669", label: "Oui" },
             { value: stats.noCount, color: "#dc2626", label: "Non" },
-            { value: stats.pendingCount, color: "#cbd5e1", label: "En attente" },
+            { value: stats.pendingCount, color: "#cbd5e1", label: "Attente" },
           ]);
-          return `<div class="reunion-block reunion-row">
-            <div class="reunion-chart-side">
-              <h3>Vote · ${escapeHtml(borrower?.name || "?")} · ${formatEuro(loan.amount)}</h3>
-              ${bar}
-              <p class="reunion-pct">${pctDone}% des votes reçus</p>
-            </div>
-            <dl class="reunion-raw">
-              <div><dt>Oui</dt><dd>${stats.yesCount}</dd></div>
-              <div><dt>Non</dt><dd>${stats.noCount}</dd></div>
-              <div><dt>Attente</dt><dd>${stats.pendingCount}</dd></div>
-              <div><dt>Total</dt><dd>${totalVoters}</dd></div>
-            </dl>
+          return `<div class="reunion-block reunion-chart-only">
+            <h3>Vote · ${escapeHtml(borrower?.name || "?")} · ${formatEuro(loan.amount)}</h3>
+            ${bar}
+            <p class="reunion-pct">${pctDone}% · Oui ${stats.yesCount} · Non ${stats.noCount} · Attente ${stats.pendingCount}</p>
           </div>`;
         })
         .join("");
-    } else {
-      voteBlock = `<div class="reunion-block reunion-muted reunion-row">
-        <div class="reunion-chart-side"><h3>Votes prêts</h3><p class="reunion-pct">Aucun vote en cours</p></div>
-        <dl class="reunion-raw"><div><dt>Votes</dt><dd>0</dd></div></dl>
-      </div>`;
     }
 
-    // --- Événements ---
+    // Événements — barre uniquement
     const openEvents = (Array.isArray(evenements) ? evenements : []).filter(
       (e) => e && !isEvenementClosed(e) && !isEvenementReimbursed(e)
     );
@@ -4617,97 +4620,40 @@ function buildReunionDashboardHtml() {
     if (openEvents.length) {
       eventsBlock = openEvents
         .map((evt) => {
-          const unpaid = getSortedMembers().filter(
-            (m) => !isEvenementBeneficiary(evt, m.id) && !isEvenementPaid(evt, m.id)
-          );
           const paidCount = getEvenementPaidCount(evt);
           const cotisantCount = getEvenementCotisantCount(evt) || 1;
           const collected = getEvenementCollectedAmount(evt);
-          const expected = Number(evt.totalAmount) || cotisantCount * getEvenementShare(evt);
           const beneficiary = getMemberById(getEvenementBeneficiaryId(evt));
           const bar = buildReunionProgressBar([
             { value: paidCount, color: "#2563eb", label: "Payé" },
             { value: Math.max(0, cotisantCount - paidCount), color: "#e2e8f0", label: "Reste" },
           ]);
-          return `<div class="reunion-block reunion-row">
-            <div class="reunion-chart-side">
-              <h3>${escapeHtml(evt.title)}${beneficiary ? ` · ${escapeHtml(beneficiary.name)}` : ""}</h3>
-              ${bar}
-              <p class="reunion-pct">${paidCount}/${cotisantCount} payés</p>
-            </div>
-            <dl class="reunion-raw">
-              <div><dt>Payés</dt><dd>${paidCount}</dd></div>
-              <div><dt>Impayés</dt><dd>${unpaid.length}</dd></div>
-              <div><dt>Collecté</dt><dd>${formatEuro(collected)}</dd></div>
-              <div><dt>Objectif</dt><dd>${formatEuro(expected)}</dd></div>
-            </dl>
+          return `<div class="reunion-block reunion-chart-only">
+            <h3>${escapeHtml(evt.title)}${beneficiary ? ` · ${escapeHtml(beneficiary.name)}` : ""}</h3>
+            ${bar}
+            <p class="reunion-pct">${paidCount}/${cotisantCount} · collecté ${formatEuro(collected)}</p>
           </div>`;
         })
         .join("");
-    } else {
-      eventsBlock = `<div class="reunion-block reunion-muted reunion-row">
-        <div class="reunion-chart-side"><h3>Événements</h3><p class="reunion-pct">Aucun ouvert</p></div>
-        <dl class="reunion-raw"><div><dt>Ouverts</dt><dd>0</dd></div></dl>
-      </div>`;
-    }
-
-    // --- Prêts actifs ---
-    let loansBlock = "";
-    if (activeLoans.length) {
-      const maxBal = Math.max(...activeLoans.map((l) => (typeof getLoanBalance === "function" ? getLoanBalance(l) : l.amount) || 0), 1);
-      loansBlock = activeLoans
-        .map((loan) => {
-          const b = getMemberById(loan.borrowerId);
-          const bal = typeof getLoanBalance === "function" ? getLoanBalance(loan) : loan.amount;
-          const repaid = Math.max(0, (Number(loan.amount) || 0) - bal);
-          const bar = buildReunionProgressBar([
-            { value: repaid, color: "#059669", label: "Remboursé" },
-            { value: bal, color: "#f59e0b", label: "Reste" },
-          ]);
-          return `<div class="reunion-block reunion-row">
-            <div class="reunion-chart-side">
-              <h3>${escapeHtml(b?.name || "?")} · prêt ${formatEuro(loan.amount)}</h3>
-              ${bar}
-            </div>
-            <dl class="reunion-raw">
-              <div><dt>Reste</dt><dd>${formatEuro(bal)}</dd></div>
-              <div><dt>Remboursé</dt><dd>${formatEuro(repaid)}</dd></div>
-              <div><dt>Initial</dt><dd>${formatEuro(loan.amount)}</dd></div>
-            </dl>
-          </div>`;
-        })
-        .join("");
-    } else {
-      loansBlock = `<div class="reunion-block reunion-muted reunion-row">
-        <div class="reunion-chart-side"><h3>Prêts en cours</h3><p class="reunion-pct">Aucun</p></div>
-        <dl class="reunion-raw"><div><dt>Prêts</dt><dd>0</dd></div></dl>
-      </div>`;
     }
 
     return `
     <div class="reunion-hero">
       <div class="reunion-stat"><span>Disponible</span><strong>${formatEuro(caisseDispo)}</strong></div>
+      <div class="reunion-stat reunion-stat-accent"><span>Max empruntable</span><strong>${formatEuro(maxEmpruntable)}</strong></div>
       <div class="reunion-stat"><span>Totale</span><strong>${formatEuro(caisseTotal)}</strong></div>
       <div class="reunion-stat"><span>Brute</span><strong>${formatEuro(caisseBrute)}</strong></div>
-      <div class="reunion-stat"><span>Prêts dehors</span><strong>${formatEuro(pretsOut)}</strong></div>
     </div>
-    <div class="reunion-block reunion-row">
-      <div class="reunion-chart-side">
-        <h3>Répartition caisse</h3>
-        <div class="reunion-chart-wrap">${buildReunionCaisseChartSvg()}</div>
-      </div>
-      <dl class="reunion-raw">
-        <div><dt>Disponible</dt><dd>${formatEuro(caisseDispo)}</dd></div>
-        <div><dt>Événements</dt><dd>${formatEuro(eventsIn)}</dd></div>
-        <div><dt>Prêts dehors</dt><dd>${formatEuro(pretsOut)}</dd></div>
-        <div><dt>Hors groupe</dt><dd>${formatEuro(hors)}</dd></div>
-        <div><dt>Totale</dt><dd>${formatEuro(caisseTotal)}</dd></div>
-        <div><dt>Brute</dt><dd>${formatEuro(caisseBrute)}</dd></div>
-      </dl>
+    <div class="reunion-block reunion-chart-only">
+      <h3>Caisse</h3>
+      <div class="reunion-chart-wrap">${buildReunionCaisseChartSvg()}</div>
     </div>
     ${voteBlock}
     ${eventsBlock}
-    ${loansBlock}
+    <div class="reunion-block reunion-chart-only">
+      <h3>Prêts accordés (montant prêté)</h3>
+      <div class="reunion-chart-wrap">${buildReunionLoansChartSvg(activeLoans)}</div>
+    </div>
   `;
   } catch (err) {
     console.warn("Mode réunion:", err);

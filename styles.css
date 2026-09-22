@@ -8039,3 +8039,17 @@ html.phone-nav .menu-toggle-icon {
     grid-template-columns: 1fr;
   }
 }
+
+.reunion-stat-accent {
+  background: linear-gradient(180deg, #059669, #047857) !important;
+}
+.reunion-chart-only {
+  padding: 0.85rem 1rem;
+}
+.reunion-chart-only h3 {
+  margin: 0 0 0.5rem;
+  font-size: 0.95rem;
+}
+.reunion-chart-only .reunion-bar {
+  margin: 0.25rem 0;
+}
