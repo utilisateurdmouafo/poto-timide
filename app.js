@@ -5071,7 +5071,7 @@ function renderAncienneTourneeDettesAdmin() {
         actions: remaining > 0
           ? `<div class="amende-admin-actions">
               <button type="button" class="btn-secondary btn-ancienne-tournee-add" data-member-id="${escapeHtml(entry.memberId)}">Ajouter</button>
-              <button type="button" class="btn-secondary btn-ancienne-tournee-delete" data-id="${escapeHtml(entry.id)}">Supprimer dette</button>
+              <button type="button" class="btn-secondary btn-ancienne-tournee-delete" data-id="${escapeHtml(entry.id)}" onclick="event.preventDefault();event.stopPropagation();window.deleteAncienneTourneeDette && window.deleteAncienneTourneeDette('${escapeHtml(entry.id)}');return false;">Supprimer dette</button>
               ${buildAncienneTourneeRepayControls(entry)}
             </div>`
           : "",
@@ -5244,13 +5244,16 @@ function addAncienneTourneeDette(memberId, amount) {
 }
 
 async function deleteAncienneTourneeDette(entryId) {
+  entryId = String(entryId || "").trim();
+  if (!entryId) return;
+
   if (!isLoggedIn()) {
     alert("Connecte-toi pour supprimer.");
     return;
   }
   const canDelete =
-    (typeof canAddDettesAmendesUnified === "function" && canAddDettesAmendesUnified()) ||
     isGroupAdmin() ||
+    (typeof canAddDettesAmendesUnified === "function" && canAddDettesAmendesUnified()) ||
     (typeof isFinancierPoste === "function" && isFinancierPoste()) ||
     hasRoleTabAccess("ancienne-tournee") ||
     hasRoleTabAccess("amendes");
@@ -5258,49 +5261,65 @@ async function deleteAncienneTourneeDette(entryId) {
     alert("Tu n'as pas l'accès pour supprimer une dette d'ex tournée.");
     return;
   }
-  const entry = ancienneTourneeDettes.find((item) => item && item.id === entryId && !item.deletedAt);
-  if (!entry) {
-    // Déjà absente : rafraîchir l'affichage
+
+  const idx = ancienneTourneeDettes.findIndex(
+    (item) => item && String(item.id) === entryId && !item.deletedAt
+  );
+  if (idx < 0) {
+    // déjà partie
+    const body = document.getElementById("ancienneTourneeBody");
+    if (body) body.dataset.ledgerHtml = "";
     if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
     renderAmendes();
     return;
   }
+
+  const entry = ancienneTourneeDettes[idx];
   const member = getMemberById(entry.memberId);
   const memberName = member?.name || "ce poto";
   const amountLabel = formatEuro(entry.amount);
+
   if (!(await appConfirm(`Supprimer la dette de ${amountLabel} de ${memberName} ?`))) {
     return;
   }
 
   const now = new Date().toISOString();
-  entry.deletedAt = now;
-  entry.updatedAt = now;
-  entry.amount = 0;
+  // Tombstone pour la synchro + retrait de la liste active
+  const tombstone = {
+    id: entry.id,
+    memberId: entry.memberId,
+    amount: 0,
+    originalAmount: entry.originalAmount || entry.amount,
+    repaidAmount: entry.repaidAmount || 0,
+    note: entry.note || "",
+    deletedAt: now,
+    updatedAt: now,
+    createdAt: entry.createdAt || now,
+  };
+  ancienneTourneeDettes.splice(idx, 1, tombstone);
 
-  // Retrait DOM immédiat (avant sync)
-  const rowId = `admin-ancienne-${entryId}`;
-  document.getElementById(rowId)?.remove();
+  // UI immédiate
+  document.getElementById(`admin-ancienne-${entryId}`)?.remove();
   document.querySelectorAll(`[data-id="${entryId}"]`).forEach((el) => {
-    el.closest("tr, .amende-history-row, article, .dette-card, .ledger-row")?.remove();
+    el.closest("tr, .amende-history-row, article, .dette-card")?.remove();
   });
   const body = document.getElementById("ancienneTourneeBody");
-  if (body) body.dataset.ledgerHtml = ""; // forcer re-render (cache ledger)
+  if (body) body.dataset.ledgerHtml = "";
 
-  // Sauvegarde + UI tout de suite
-  saveAncienneTourneeDettes(true);
+  localStorage.setItem(ANCIENNE_TOURNEE_DETTES_KEY, JSON.stringify(ancienneTourneeDettes));
+  bumpLiveDataRevision();
+
+  if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
   renderAmendes();
-  if (typeof renderAncienneTourneeDettesAdmin === "function") {
-    renderAncienneTourneeDettesAdmin();
-  }
+  if (typeof renderMesDettes === "function") renderMesDettes();
   if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
   if (typeof renderReunion === "function") renderReunion();
   showToast?.(`Dette ex tournée de ${memberName} (${amountLabel}) supprimée.`, "success");
 
-  // Sync serveur
+  // Sync forcée
   try {
     const raw = localStorage.getItem(ANCIENNE_TOURNEE_DETTES_KEY);
-    const qs = window.queueServerSync;
-    if (raw && qs) qs(ANCIENNE_TOURNEE_DETTES_KEY, raw);
+    if (raw && window.queueServerSync) window.queueServerSync(ANCIENNE_TOURNEE_DETTES_KEY, raw);
   } catch {
     /* ignore */
   }
@@ -5311,13 +5330,9 @@ async function deleteAncienneTourneeDette(entryId) {
       /* ignore */
     }
   }
-  // Re-render après sync (au cas où)
-  if (body) body.dataset.ledgerHtml = "";
-  if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
-  renderAmendes();
 }
 
-async function repayAncienneTourneeDette(entryId, amountValue) {
+async function repayAncienneTourneeDetteasync function repayAncienneTourneeDette(entryId, amountValue) {
   const entry = ancienneTourneeDettes.find((item) => item.id === entryId);
   if (!entry) return;
 
@@ -5676,6 +5691,8 @@ function parseAmendeAmount(amount) {
   return parsedAmount;
 }
 
+
+window.deleteAncienneTourneeDette = deleteAncienneTourneeDette;
 
 function canAddDettesAmendesUnified() {
   if (!isLoggedIn()) return false;
@@ -11516,8 +11533,10 @@ function handleAncienneTourneeKeydown(e) {
 document.getElementById("adminSub-amendes")?.addEventListener("click", handleAncienneTourneeActionClick);
 document.getElementById("adminExTourneePanel")?.addEventListener("click", handleAncienneTourneeActionClick);
 document.getElementById("tab-amendes")?.addEventListener("click", handleAncienneTourneeActionClick);
+document.getElementById("tab-admin")?.addEventListener("click", handleAncienneTourneeActionClick);
 document.getElementById("adminSub-amendes")?.addEventListener("keydown", handleAncienneTourneeKeydown);
 document.getElementById("tab-amendes")?.addEventListener("keydown", handleAncienneTourneeKeydown);
+document.getElementById("tab-admin")?.addEventListener("keydown", handleAncienneTourneeKeydown);
 
 const BACKUP_KEY_LABELS = {
   members: "Membres",
