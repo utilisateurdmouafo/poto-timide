@@ -9464,6 +9464,115 @@ function handleLoiSearchInput() {
   renderLoiList();
 }
 
+
+function getPostReadBy(post) {
+  return post?.readBy && typeof post.readBy === "object" && !Array.isArray(post.readBy)
+    ? post.readBy
+    : {};
+}
+
+function mergePostReadBy(a, b) {
+  return { ...getPostReadBy(a), ...getPostReadBy(b) };
+}
+
+function getRapportReaders(post) {
+  const readBy = getPostReadBy(post);
+  return Object.keys(readBy)
+    .map((id) => {
+      const m = getMemberById(id);
+      return m ? { id, name: m.name, at: readBy[id] } : null;
+    })
+    .filter(Boolean)
+    .sort((x, y) => String(x.name).localeCompare(String(y.name), "fr", { sensitivity: "base" }));
+}
+
+function getRapportReadStats(post) {
+  const readers = getRapportReaders(post);
+  const groupMembers = typeof getGroupMembers === "function" ? getGroupMembers() : getSortedMembers();
+  // Membres du groupe (hors "nouveau"), sauf l'auteur si on veut — on compte tous les membres groupe
+  const expected = groupMembers.filter((m) => !isNouveauMember?.(m));
+  const expectedIds = new Set(expected.map((m) => m.id));
+  const readIds = new Set(readers.map((r) => r.id));
+  const readCount = [...expectedIds].filter((id) => readIds.has(id)).length;
+  const pending = expected.filter((m) => !readIds.has(m.id));
+  return { readers, expected, readCount, total: expected.length, pending };
+}
+
+async function markCommunicationRead(postId) {
+  if (!isLoggedIn()) {
+    alert("Connecte-toi pour confirmer la lecture.");
+    openLoginModal?.();
+    return;
+  }
+  if (shouldSuppressDevNotifications?.()) {
+    // Dario peut aussi marquer lu s'il veut — on laisse faire
+  }
+  const current = getCurrentMember();
+  if (!current || isNouveauMember?.(current)) {
+    alert("Seuls les membres du groupe peuvent confirmer la lecture.");
+    return;
+  }
+  const post = communicationPosts.find((p) => p.id === postId && !p.deletedAt);
+  if (!post || post.kind !== "rapport") return;
+  if (!post.readBy || typeof post.readBy !== "object") post.readBy = {};
+  if (post.readBy[current.id]) {
+    showToast?.("Tu as déjà confirmé la lecture.", "info");
+    return;
+  }
+  post.readBy[current.id] = new Date().toISOString();
+  // Ne pas toucher updatedAt du contenu — sinon LWW écrase les lectures des autres
+  // On pousse quand même le post avec readBy fusionné côté serveur
+  post.readReceiptUpdatedAt = new Date().toISOString();
+  await saveCommunicationPosts();
+  renderCommunication();
+  showToast?.("Lecture confirmée — merci.", "success");
+}
+
+function buildRapportReadReceiptHtml(post, { manage = false } = {}) {
+  if (post.kind !== "rapport") return "";
+  const current = getCurrentMember();
+  const stats = getRapportReadStats(post);
+  const hasRead = current && getPostReadBy(post)[current.id];
+  const canRead =
+    current &&
+    isLoggedIn() &&
+    !(typeof isNouveauMember === "function" && isNouveauMember(current));
+
+  const names = stats.readers.map((r) => escapeHtml(r.name)).join(", ");
+  const pendingNames = stats.pending.map((m) => escapeHtml(m.name)).join(", ");
+
+  return `
+    <div class="comm-read-receipt" data-post-id="${escapeHtml(post.id)}">
+      <div class="comm-read-row">
+        ${
+          canRead
+            ? hasRead
+              ? `<span class="comm-read-done">✓ Tu as lu</span>`
+              : `<button type="button" class="btn-primary btn-comm-read" data-id="${escapeHtml(post.id)}">J'ai lu le rapport</button>`
+            : `<span class="comm-read-hint">Connecte-toi pour confirmer</span>`
+        }
+        <span class="comm-read-count">${stats.readCount}/${stats.total} ont lu</span>
+      </div>
+      ${buildReunionProgressBar([
+        { value: stats.readCount, color: "#059669", label: "Lu" },
+        { value: Math.max(0, stats.total - stats.readCount), color: "#e2e8f0", label: "Pas encore" },
+      ])}
+      ${
+        manage || stats.readCount > 0
+          ? `<details class="comm-read-details">
+              <summary>Voir qui a lu (${stats.readCount})</summary>
+              <p class="comm-read-names">${names || "Personne pour le moment."}</p>
+              ${
+                manage && stats.pending.length
+                  ? `<p class="comm-read-pending"><strong>Pas encore :</strong> ${pendingNames}</p>`
+                  : ""
+              }
+            </details>`
+          : ""
+      }
+    </div>`;
+}
+
 function canManageCommunicationPost(post) {
   return Boolean(post) && !post.deletedAt && canPublishCommunication();
 }
@@ -9554,6 +9663,7 @@ function renderCommunicationList(target, { manage = false } = {}) {
             <p class="communication-card-meta">${escapeHtml(dateLabel)}${author ? ` · ${escapeHtml(author.name)}` : ""}</p>
           </div>
           <div class="communication-card-body">${escapeHtml(post.body)}</div>
+          ${buildRapportReadReceiptHtml(post, { manage })}
           ${
             manage && canManageCommunicationPost(post)
               ? `<div class="communication-card-actions">
@@ -10641,6 +10751,11 @@ communicationCancelBtn?.addEventListener("click", () => {
 });
 
 function handleCommunicationListClick(e) {
+  const readBtn = e.target.closest(".btn-comm-read");
+  if (readBtn) {
+    markCommunicationRead(readBtn.dataset.id);
+    return;
+  }
   const editBtn = e.target.closest(".btn-comm-edit");
   if (editBtn) {
     startEditCommunication(editBtn.dataset.id);

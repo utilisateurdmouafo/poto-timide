@@ -8132,3 +8132,58 @@ html.phone-nav .menu-toggle-icon {
     font-size: 0.88rem;
   }
 }
+
+.comm-read-receipt {
+  margin-top: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.comm-read-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  justify-content: space-between;
+}
+.comm-read-count {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #166534;
+}
+.comm-read-done {
+  font-weight: 700;
+  color: #059669;
+  font-size: 0.9rem;
+}
+.comm-read-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.btn-comm-read {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.88rem;
+  min-height: 2.2rem;
+  border-radius: 999px;
+}
+.comm-read-details {
+  font-size: 0.82rem;
+  color: var(--text);
+}
+.comm-read-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #0f766e;
+}
+.comm-read-names,
+.comm-read-pending {
+  margin: 0.35rem 0 0;
+  line-height: 1.4;
+}
+.comm-read-pending {
+  color: #9a3412;
+}

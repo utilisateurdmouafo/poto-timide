@@ -348,9 +348,29 @@ function mergeById(existing, incoming) {
   const add = (item) => {
     if (!item || typeof item !== "object" || !item.id) return;
     const prev = map.get(item.id);
-    if (!prev || itemTimestamp(item) >= itemTimestamp(prev)) {
+    if (!prev) {
       map.set(item.id, item);
+      return;
     }
+    const itemNewer = itemTimestamp(item) >= itemTimestamp(prev);
+    const winner = itemNewer ? item : prev;
+    const loser = itemNewer ? prev : item;
+    const merged = { ...loser, ...winner };
+    // Fusionner les accusés de lecture (rapports) des deux versions
+    if (
+      (winner.readBy && typeof winner.readBy === "object") ||
+      (loser.readBy && typeof loser.readBy === "object")
+    ) {
+      merged.readBy = {
+        ...(typeof loser.readBy === "object" && loser.readBy && !Array.isArray(loser.readBy)
+          ? loser.readBy
+          : {}),
+        ...(typeof winner.readBy === "object" && winner.readBy && !Array.isArray(winner.readBy)
+          ? winner.readBy
+          : {}),
+      };
+    }
+    map.set(item.id, merged);
   };
   (Array.isArray(existing) ? existing : []).forEach(add);
   (Array.isArray(incoming) ? incoming : []).forEach(add);
