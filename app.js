@@ -68,7 +68,7 @@ const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["reunion", "communication", "membres", "tournee", "ex-tournee", "prets", "evenements", "dettes", "amendes", "finance", "loi", "admin"];
+const TAB_IDS = ["reunion", "communication", "membres", "tournee", "ex-tournee", "prets", "evenements", "amendes", "finance", "loi", "admin"];
 const LOI_KEY = "poto-timide-loi";
 const COMMUNICATION_KINDS = [
   {
@@ -2673,12 +2673,16 @@ function isDetteAmende(amende) {
   return amende?.type === "dette";
 }
 
+function isAmendeDeleted(amende) {
+  return Boolean(amende?.deletedAt);
+}
+
 function getRegularAmendes(amendesList) {
-  return amendesList.filter((amende) => !isDetteAmende(amende));
+  return (amendesList || []).filter((amende) => !isDetteAmende(amende) && !isAmendeDeleted(amende));
 }
 
 function getDetteAmendes() {
-  return amendes.filter((amende) => isDetteAmende(amende));
+  return amendes.filter((amende) => isDetteAmende(amende) && !isAmendeDeleted(amende));
 }
 
 function resetEvenementDettes() {
@@ -4365,7 +4369,8 @@ function renderTourneeTable() {
 function resolveLegacyTab(tabId) {
   if (!tabId) return null;
   if (tabId === "dettes-amendes" || tabId === "ancienne-tournee") return "dettes";
-  if (tabId === "amendes" || tabId === "dettes") return tabId;
+  if (tabId === "dettes") return "amendes";
+  if (tabId === "amendes") return tabId;
   if (tabId === "autre-argent" || tabId === "caisse") {
     activeFinanceSub = FINANCE_CAISSE_SUB;
     localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_CAISSE_SUB);
@@ -4754,14 +4759,9 @@ function showTab(tabId) {
     focusCommunicationCursor();
   }
 
-  if (tabId === "dettes") {
-    reloadFromStorage();
-    renderMesDettes();
-  }
-
   if (tabId === "amendes") {
     reloadFromStorage();
-    renderMesAmendes();
+    renderAmendes();
   }
 
   if (tabId === "finance") {
@@ -4790,12 +4790,14 @@ function showTab(tabId) {
 
 function getAmendesForMember(memberId) {
   return amendes
-    .filter((a) => a.memberId === memberId)
-    .sort((a, b) => new Date(b.date) - new Date(a.date));
+    .filter((a) => a.memberId === memberId && !isAmendeDeleted(a))
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
 }
 
 function getAllAmendes() {
-  return [...amendes].sort((a, b) => new Date(b.date) - new Date(a.date));
+  return [...amendes]
+    .filter((a) => !isAmendeDeleted(a))
+    .sort((a, b) => new Date(b.date || b.createdAt || 0) - new Date(a.date || a.createdAt || 0));
 }
 
 function getAmendeById(id) {
@@ -5755,14 +5757,22 @@ async function deleteAmendeRecord(id) {
     localStorage.setItem(EVENEMENTS_KEY, JSON.stringify(evenements));
   }
 
-  amendes = amendes.filter((item) => item.id !== id);
+  // Soft-delete : indispensable pour la synchro merge-by-id (sinon l'amende revient)
+  const now = new Date().toISOString();
+  amende.deletedAt = now;
+  amende.updatedAt = now;
+  amende.amount = 0;
   saveAmendes();
   bumpLiveDataRevision();
   if (typeof potoFlushSync === "function") {
     Promise.resolve(potoFlushSync()).catch(() => {});
   }
+  renderAmendes();
+  renderAmendesAdminHistory();
   renderEvenements();
   renderFinanceDashboard();
+  if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
+  showToast?.(`Amende de ${memberName} supprimée.`, "success");
 }
 
 async function undoAmendePayment(caisseId) {
@@ -11180,9 +11190,9 @@ function handleAncienneTourneeKeydown(e) {
 }
 
 document.getElementById("adminSub-ancienne-tournee")?.addEventListener("click", handleAncienneTourneeActionClick);
-document.getElementById("tab-dettes")?.addEventListener("click", handleAncienneTourneeActionClick);
+document.getElementById("tab-amendes")?.addEventListener("click", handleAncienneTourneeActionClick);
 document.getElementById("adminSub-ancienne-tournee")?.addEventListener("keydown", handleAncienneTourneeKeydown);
-document.getElementById("tab-dettes")?.addEventListener("keydown", handleAncienneTourneeKeydown);
+document.getElementById("tab-amendes")?.addEventListener("keydown", handleAncienneTourneeKeydown);
 
 const BACKUP_KEY_LABELS = {
   members: "Membres",

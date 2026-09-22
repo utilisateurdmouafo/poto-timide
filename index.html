@@ -105,13 +105,9 @@
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M4 10h16M8 3.6V7m8-3.4V7" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
             Événements
           </button>
-          <button class="tab" data-tab="dettes">
-            <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-            Mes dettes
-          </button>
           <button class="tab" data-tab="amendes">
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.2" stroke="currentColor" stroke-width="1.7"/><path d="M12 8v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="15.6" r="0.9" fill="currentColor"/></svg>
-            Mes amendes
+            Dettes &amp; amendes
           </button>
           <button class="tab" data-tab="finance">
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19h16M7 16v-4m5 4V8m5 8v-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
@@ -331,38 +327,8 @@
         </section>
       </div>
 
-      <!-- ========== MES DETTES ========== -->
-      <div class="tab-content" id="tab-dettes">
-        <div class="reunion-back-bar"><button type="button" class="btn-reunion-back" data-go-reunion title="Retour mode réunion">← Réunion</button></div>
-        <section class="panel amende-panel">
-          <div class="amende-head">
-            <h2 id="detteTitle">Mes dettes</h2>
-            <p class="panel-desc" id="detteSubtitle">Dettes personnelles hors prêts et événements : ancienne tournée et dettes converties.</p>
-          </div>
-          <div class="amende-ledger" id="detteRegularWrap">
-            <div class="amende-hero" id="detteSummary"></div>
-            <div class="amende-table-wrap">
-              <table class="amende-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Détail</th>
-                    <th class="num">Montant</th>
-                    <th class="num"><span class="th-full">Déjà versé</span><span class="th-short">Versé</span></th>
-                    <th class="num">Reste</th>
-                    <th>Statut</th>
-                  </tr>
-                </thead>
-                <tbody id="detteBody"></tbody>
-                <tfoot id="detteTableFoot"></tfoot>
-              </table>
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <!-- ========== MES AMENDES ========== -->
+      
+      <!-- ========== DETTES & AMENDES ========== -->
       <div class="tab-content" id="tab-amendes">
         <div class="reunion-back-bar"><button type="button" class="btn-reunion-back" data-go-reunion title="Retour mode réunion">← Réunion</button></div>
         <section class="panel amende-panel">
@@ -387,6 +353,32 @@
                 </thead>
                 <tbody id="amendeBody"></tbody>
                 <tfoot id="amendeTableFoot"></tfoot>
+              </table>
+            </div>
+          </div>
+        </section>
+        <section class="panel amende-panel">
+          <div class="amende-head">
+            <h2 id="detteTitle">Mes dettes</h2>
+            <p class="panel-desc" id="detteSubtitle">Dettes converties (événements) et ancienne tournée — hors prêts.</p>
+          </div>
+          <div class="amende-ledger" id="detteRegularWrap">
+            <div class="amende-hero" id="detteSummary"></div>
+            <div class="amende-table-wrap">
+              <table class="amende-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Détail</th>
+                    <th class="num">Montant</th>
+                    <th class="num"><span class="th-full">Déjà versé</span><span class="th-short">Versé</span></th>
+                    <th class="num">Reste</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody id="detteBody"></tbody>
+                <tfoot id="detteTableFoot"></tfoot>
               </table>
             </div>
           </div>
@@ -503,7 +495,7 @@
             </button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="caisse">Caisse</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="prets">Prêts</button>
-            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="amendes">Amendes</button>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="amendes">Dettes &amp; amendes</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="evenements">Événements</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="communication">Communication</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="loi">La loi</button>
@@ -1146,6 +1138,6 @@
   <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
 
   <script src="api-client.js?v=online-12"></script>
-  <script src="app.js?v=pwa-69"></script>
+  <script src="app.js?v=pwa-70"></script>
 </body>
 </html>
