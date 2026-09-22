@@ -175,7 +175,7 @@ function getLocalDataPayload() {
 }
 
 function itemTimestamp(item) {
-  const raw = item?.updatedAt || item?.deletedAt || item?.createdAt || 0;
+  const raw = item?.updatedAt || item?.deletedAt || item?.createdAt || item?.date || 0;
   const time = new Date(raw).getTime();
   return Number.isFinite(time) ? time : 0;
 }
@@ -449,7 +449,7 @@ function writeServerDataToLocal(serverData) {
           local = [];
         }
         const incoming = unwrapLocalSynced(value);
-        value = mergeByIdClient(
+        value = mergeById(
           Array.isArray(local) ? local : [],
           Array.isArray(incoming) ? incoming : []
         );
