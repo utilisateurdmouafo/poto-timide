@@ -582,7 +582,9 @@ function saveAncienneTourneeDettes(shouldRender = true) {
 }
 
 function getAncienneTourneeEntriesFor(memberId) {
-  return ancienneTourneeDettes.filter((entry) => entry.memberId === memberId);
+  return ancienneTourneeDettes.filter(
+    (entry) => entry.memberId === memberId && !entry.deletedAt
+  );
 }
 
 function getAncienneTourneeDette(memberId) {
@@ -4968,6 +4970,7 @@ function renderAncienneTourneeDettesAdmin() {
   if (!body) return;
 
   const rows = [...ancienneTourneeDettes]
+    .filter((entry) => entry && !entry.deletedAt)
     .map((entry) => {
       const remaining = Math.round((Number(entry.amount) || 0) * 100) / 100;
       const repaid = Math.round((Number(entry.repaidAmount) || 0) * 100) / 100;
@@ -5153,14 +5156,29 @@ function addAncienneTourneeDette(memberId, amount) {
 
 async function deleteAncienneTourneeDette(entryId) {
   if (!requireTabAccess("ancienne-tournee", "supprimer une dette d'ancienne tournée")) return;
-  const entry = ancienneTourneeDettes.find((item) => item.id === entryId);
+  const entry = ancienneTourneeDettes.find((item) => item.id === entryId && !item.deletedAt);
   if (!entry) return;
   const member = getMemberById(entry.memberId);
-  if (!(await appConfirm(`Supprimer la dette de ${formatEuro(entry.amount)} de ${member?.name || "ce poto"} ?`))) {
+  const memberName = member?.name || "ce poto";
+  const amountLabel = formatEuro(entry.amount);
+  if (!(await appConfirm(`Supprimer la dette de ${amountLabel} de ${memberName} ?`))) {
     return;
   }
-  ancienneTourneeDettes = ancienneTourneeDettes.filter((item) => item.id !== entryId);
+  // Soft-delete pour que la synchro merge-by-id ne la fasse pas revenir
+  const now = new Date().toISOString();
+  entry.deletedAt = now;
+  entry.updatedAt = now;
+  entry.amount = 0;
   saveAncienneTourneeDettes();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+  renderMesDettes();
+  if (typeof renderAncienneTourneeDettesAdmin === "function") {
+    renderAncienneTourneeDettesAdmin();
+  }
+  if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
+  showToast?.(`Dette de ${memberName} (${amountLabel}) supprimée.`, "success");
 }
 
 async function repayAncienneTourneeDette(entryId, amountValue) {
@@ -5744,7 +5762,9 @@ async function deleteAmendeRecord(id) {
   const memberName = member?.name || "ce poto";
   if (
     !(await appConfirm(
-      `Supprimer ${getAmendeTypeLabel(amende.type).toLowerCase()} de ${memberName} (${formatEuro(amende.amount)}) ?\nElle ne sera pas ajoutée à la caisse.`
+      isDetteAmende(amende)
+        ? `Supprimer la dette de ${memberName} (${formatEuro(amende.amount)}) ?\nElle ne sera pas ajoutée à la caisse.`
+        : `Supprimer ${getAmendeTypeLabel(amende.type).toLowerCase()} de ${memberName} (${formatEuro(amende.amount)}) ?\nElle ne sera pas ajoutée à la caisse.`
     ))
   ) {
     return;
@@ -5772,7 +5792,7 @@ async function deleteAmendeRecord(id) {
   renderEvenements();
   renderFinanceDashboard();
   if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
-  showToast?.(`Amende de ${memberName} supprimée.`, "success");
+  showToast?.(isDetteAmende(amende) ? `Dette de ${memberName} supprimée.` : `Amende de ${memberName} supprimée.`, "success");
 }
 
 async function undoAmendePayment(caisseId) {
