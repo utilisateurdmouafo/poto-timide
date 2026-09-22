@@ -2704,6 +2704,28 @@ function getAmendeTypeLabel(typeId) {
   return AMENDE_TYPES.find((t) => t.id === typeId)?.label || typeId;
 }
 
+
+/** Supprime en dur (tombstone) toutes les dettes événement historiques — source = onglet Événements */
+function purgeEvenementDettesAmendes() {
+  let changed = false;
+  const now = new Date().toISOString();
+  (Array.isArray(amendes) ? amendes : []).forEach((a) => {
+    if (!a || a.type !== "dette" || a.deletedAt) return;
+    a.deletedAt = now;
+    a.updatedAt = now;
+    a.amount = 0;
+    changed = true;
+  });
+  if (changed) {
+    try {
+      localStorage.setItem(AMENDES_KEY, JSON.stringify(amendes));
+    } catch {
+      /* ignore */
+    }
+  }
+  return changed;
+}
+
 function isDetteAmende(amende) {
   return amende?.type === "dette";
 }
@@ -2758,6 +2780,7 @@ function reloadFromStorage() {
   roles = loadRoles();
   cotisations = loadCotisations();
   amendes = loadAmendes();
+  if (typeof purgeEvenementDettesAmendes === "function") purgeEvenementDettesAmendes();
   amendesCaisse = loadAmendesCaisse();
   tabPermissions = loadTabPermissions();
   prets = loadPrets();
@@ -4505,11 +4528,16 @@ function getTotalsDettesAmendes() {
   const list = Array.isArray(amendes) ? amendes : [];
   const ancienne = Array.isArray(ancienneTourneeDettes) ? ancienneTourneeDettes : [];
   let amendesDue = 0;
-  let dettesDue = 0;
   list.forEach((a) => {
     amendesDue += getOpenAmendeRemaining(a);
-    dettesDue += getOpenDetteEventRemaining(a);
   });
+  // Dettes événement = impayés sur événements ouverts (pas de ligne amende type dette)
+  let dettesDue = 0;
+  if (typeof getReunionDettesEventOpen === "function") {
+    getReunionDettesEventOpen().forEach((item) => {
+      dettesDue += Math.max(0, Number(item.amount) || 0);
+    });
+  }
   let exDue = 0;
   ancienne.forEach((e) => {
     exDue += getOpenExTourneeRemaining(e);
@@ -4523,8 +4551,22 @@ function getTotalsDettesAmendes() {
 }
 
 function getReunionDettesEventOpen() {
-  const list = Array.isArray(amendes) ? amendes : [];
-  return list.filter((a) => getOpenDetteEventRemaining(a) > 0.001);
+  // Impayés événements (plus de lignes "dette" séparées)
+  const items = [];
+  (Array.isArray(evenements) ? evenements : []).forEach((evt) => {
+    if (!evt || isEvenementClosed(evt) || isEvenementReimbursed(evt)) return;
+    getSortedMembers().forEach((m) => {
+      if (isEvenementBeneficiary(evt, m.id)) return;
+      if (isEvenementPaid(evt, m.id)) return;
+      items.push({
+        id: `${evt.id}-${m.id}`,
+        memberId: m.id,
+        evenementId: evt.id,
+        amount: getEvenementShare(evt),
+      });
+    });
+  });
+  return items;
 }
 
 function getReunionAmendesOpen() {
@@ -4685,51 +4727,15 @@ function buildReunionDashboardHtml() {
         .join("");
     }
 
-    // Amendes par membre (reste dû)
-    const amendeByMember = {};
-    openAmendes.forEach((a) => {
-      const id = a.memberId;
-      const rem = Math.max(0, Number(a.amount) || 0);
-      if (!amendeByMember[id]) amendeByMember[id] = 0;
-      amendeByMember[id] += rem;
-    });
-    const amendeRows = Object.entries(amendeByMember)
-      .map(([id, value]) => ({
-        label: getMemberById(id)?.name || "?",
-        value,
-      }))
-      .sort((a, b) => b.value - a.value);
-    const amendeChart = buildReunionHBarChart(amendeRows, "#dc2626");
-
-    // Ex tournée
-    const exRows = openEx
-      .map((e) => ({
-        label: getMemberById(e.memberId)?.name || e.name || "?",
-        value: e.remaining,
-      }))
-      .sort((a, b) => b.value - a.value);
-    const exChart = buildReunionHBarChart(exRows, "#ea580c");
-
+    // Pas de blocs Caisse / Amendes / Ex tournée en bas : déjà dans les KPI (évite les doublons)
     return `
     ${kpiHtml}
-    <button type="button" class="reunion-block reunion-link reunion-chart-only" data-reunion-go="finance">
-      <h3>Caisse</h3>
-      <div class="reunion-chart-wrap">${caisseChart}</div>
-    </button>
     ${voteHtml}
     <button type="button" class="reunion-block reunion-link reunion-chart-only" data-reunion-go="prets">
       <h3>Prêts en cours — reste dû (${activeLoans.length}) · ${formatEuro(loansCapital)}</h3>
       <div class="reunion-chart-wrap">${loansChart}</div>
     </button>
     ${eventsHtml || `<button type="button" class="reunion-block reunion-link reunion-muted" data-reunion-go="evenements"><h3>Événements</h3><p class="reunion-pct">Aucun ouvert · ${eventsUnpaidPeople} impayé(s) suivi</p></button>`}
-    <button type="button" class="reunion-block reunion-link reunion-chart-only" data-reunion-go="amendes">
-      <h3>Amendes à régler · ${formatEuro(amendesDue)}</h3>
-      <div class="reunion-chart-wrap">${amendeChart}</div>
-    </button>
-    <button type="button" class="reunion-block reunion-link reunion-chart-only" data-reunion-go="amendes">
-      <h3>Ex tournée · ${formatEuro(exDue)}</h3>
-      <div class="reunion-chart-wrap">${exChart}</div>
-    </button>
   `;
   } catch (err) {
     console.warn("Mode réunion:", err);
@@ -6166,6 +6172,7 @@ function renderAmendesAdminHistory() {
 
   const openRows = amendes
     .filter((amende) => !isAmendeDeleted(amende))
+    .filter((amende) => !isDetteAmende(amende))
     .filter((amende) => (Number(amende.amount) || 0) > 0 || getAmendeRepaidAmount(amende) > 0)
     .map((amende) => {
       const remaining = Math.round((Number(amende.amount) || 0) * 100) / 100;
@@ -8440,59 +8447,9 @@ function getEvenementUnpaidMembers(evt) {
 }
 
 function createEvenementDebts(evt) {
-  const share = getEvenementShare(evt);
-  if (share <= 0) return [];
-
-  const beneficiary = getMemberById(getEvenementBeneficiaryId(evt));
-  const unpaidMembers = getEvenementUnpaidMembers(evt);
-  const created = [];
-
-  unpaidMembers.forEach((member) => {
-    const payment = evt.payments?.[member.id];
-    // Dette déjà annulée / supprimée volontairement : ne pas recréer
-    if (payment?.debtDismissed) return;
-
-    const alreadyExists = amendes.some(
-      (amende) =>
-        isDetteAmende(amende) &&
-        !isAmendeDeleted(amende) &&
-        amende.evenementId === evt.id &&
-        amende.memberId === member.id
-    );
-    if (alreadyExists) return;
-
-    const note = `Événement : ${evt.title}${beneficiary ? ` — Poto : ${beneficiary.name}` : ""}`;
-    const now = new Date().toISOString();
-
-    amendes.unshift({
-      id: generateId(),
-      memberId: member.id,
-      type: "dette",
-      amount: share,
-      originalAmount: share,
-      repaidAmount: 0,
-      note,
-      date: now,
-      createdAt: now,
-      updatedAt: now,
-      evenementId: evt.id,
-      createdFromEvenement: true,
-    });
-
-    if (!evt.payments) evt.payments = {};
-    if (!evt.payments[member.id]) {
-      evt.payments[member.id] = { paid: false, paidAt: null, validatedBy: null };
-    }
-
-    evt.payments[member.id].convertedToDebt = true;
-    evt.payments[member.id].debtCreatedAt = now;
-    delete evt.payments[member.id].debtDismissed;
-    delete evt.payments[member.id].debtDismissedAt;
-
-    created.push(member);
-  });
-
-  return created;
+  // Les impayés d'événements restent dans l'onglet Événements (pas de ligne "dette" séparée).
+  // On ne crée plus d'amende type "dette" pour éviter les doublons admin / synchro.
+  return [];
 }
 
 function showEvenementSaveMessage(text, type = "success") {
