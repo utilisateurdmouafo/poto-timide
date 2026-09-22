@@ -4509,6 +4509,19 @@ function buildAccueilDashboardHtml() {
 }
 
 
+
+function buildReunionProgressBar(segments) {
+  const total = segments.reduce((s, x) => s + Math.max(0, Number(x.value) || 0), 0) || 1;
+  const parts = segments
+    .filter((x) => (Number(x.value) || 0) > 0)
+    .map((x) => {
+      const pct = Math.max(0.8, Math.round(((Number(x.value) || 0) / total) * 1000) / 10);
+      return `<span class="reunion-bar-seg" style="width:${pct}%;background:${x.color}" title="${escapeHtml(String(x.label || ""))}: ${x.value}"></span>`;
+    })
+    .join("");
+  return `<div class="reunion-bar" role="img" aria-label="Progression">${parts || `<span class="reunion-bar-seg" style="width:100%;background:#e2e8f0"></span>`}</div>`;
+}
+
 function buildReunionCaisseChartSvg() {
   const dispo = Math.max(0, Number(typeof getCaisseDisponible === "function" ? getCaisseDisponible() : 0) || 0);
   const events = Math.max(0, Number(typeof getTotalEvenementsInCaisse === "function" ? getTotalEvenementsInCaisse() : 0) || 0);
@@ -4598,7 +4611,7 @@ function buildReunionDashboardHtml() {
             1;
           const voted = stats.yesCount + stats.noCount;
           const pctDone = Math.round((voted / totalVoters) * 100);
-          const bar = buildReunionProgressBar([
+          const bar = (typeof buildReunionProgressBar === 'function' ? buildReunionProgressBar : () => '')([
             { value: stats.yesCount, color: "#059669", label: "Oui" },
             { value: stats.noCount, color: "#dc2626", label: "Non" },
             { value: stats.pendingCount, color: "#cbd5e1", label: "Attente" },
@@ -4624,7 +4637,7 @@ function buildReunionDashboardHtml() {
           const cotisantCount = getEvenementCotisantCount(evt) || 1;
           const collected = getEvenementCollectedAmount(evt);
           const beneficiary = getMemberById(getEvenementBeneficiaryId(evt));
-          const bar = buildReunionProgressBar([
+          const bar = (typeof buildReunionProgressBar === 'function' ? buildReunionProgressBar : () => '')([
             { value: paidCount, color: "#2563eb", label: "Payé" },
             { value: Math.max(0, cotisantCount - paidCount), color: "#e2e8f0", label: "Reste" },
           ]);
