@@ -4451,6 +4451,54 @@ function buildReunionHBarChart(rows, color) {
   return `<svg class="reunion-chart-svg" viewBox="0 0 ${w} ${h}" role="img">${bars}</svg>`;
 }
 
+
+/** Reste dû amende classique (hors dette événement, hors supprimées) */
+function getOpenAmendeRemaining(amende) {
+  if (!amende || (typeof isAmendeDeleted === "function" && isAmendeDeleted(amende))) return 0;
+  if (typeof isDetteAmende === "function" && isDetteAmende(amende)) return 0;
+  return Math.max(0, Math.round((Number(amende.amount) || 0) * 100) / 100);
+}
+
+/** Reste dû dette événement */
+function getOpenDetteEventRemaining(amende) {
+  if (!amende || (typeof isAmendeDeleted === "function" && isAmendeDeleted(amende))) return 0;
+  if (typeof isDetteAmende !== "function" || !isDetteAmende(amende)) return 0;
+  return Math.max(0, Math.round((Number(amende.amount) || 0) * 100) / 100);
+}
+
+/** Reste dû ex tournée (amount = reste après remboursement) */
+function getOpenExTourneeRemaining(entry) {
+  if (!entry || entry.deletedAt) return 0;
+  return Math.max(0, Math.round((Number(entry.amount) || 0) * 100) / 100);
+}
+
+/** Totaux synchronisés pour Réunion / tableaux */
+function getTotalsDettesAmendes() {
+  const list = Array.isArray(amendes) ? amendes : [];
+  const ancienne = Array.isArray(ancienneTourneeDettes) ? ancienneTourneeDettes : [];
+  let amendesDue = 0;
+  let dettesDue = 0;
+  list.forEach((a) => {
+    amendesDue += getOpenAmendeRemaining(a);
+    dettesDue += getOpenDetteEventRemaining(a);
+  });
+  let exDue = 0;
+  ancienne.forEach((e) => {
+    exDue += getOpenExTourneeRemaining(e);
+  });
+  return {
+    amendesDue: Math.round(amendesDue * 100) / 100,
+    dettesDue: Math.round(dettesDue * 100) / 100,
+    exDue: Math.round(exDue * 100) / 100,
+    totalDue: Math.round((amendesDue + dettesDue + exDue) * 100) / 100,
+  };
+}
+
+function getReunionDettesEventOpen() {
+  const list = Array.isArray(amendes) ? amendes : [];
+  return list.filter((a) => getOpenDetteEventRemaining(a) > 0.001);
+}
+
 function getReunionAmendesOpen() {
   const list = typeof getAllAmendes === "function" ? getAllAmendes() : amendes || [];
   return list.filter((a) => {
@@ -4497,11 +4545,16 @@ function buildReunionDashboardHtml() {
     const openAmendes = getReunionAmendesOpen();
     const openDettesEvt = typeof getReunionDettesEventOpen === "function" ? getReunionDettesEventOpen() : [];
     const openEx = getReunionExTourneeOpen();
-    const totalsDA = getTotalsDettesAmendes();
-    const amendesDue = totalsDA.amendesDue;
-    const dettesEvtDue = totalsDA.dettesDue;
-    const exDue = totalsDA.exDue;
-    const dettesAmendesTotal = totalsDA.totalDue;
+    const totalsDA =
+      typeof getTotalsDettesAmendes === "function"
+        ? getTotalsDettesAmendes()
+        : { amendesDue: 0, dettesDue: 0, exDue: 0, totalDue: 0 };
+    const amendesDue = Number(totalsDA.amendesDue) || 0;
+    const dettesEvtDue = Number(totalsDA.dettesDue) || 0;
+    const exDue =
+      Number(totalsDA.exDue) ||
+      openEx.reduce((s, e) => s + (Number(e.remaining) || 0), 0);
+    const dettesAmendesTotal = Number(totalsDA.totalDue) || amendesDue + dettesEvtDue + exDue;
     const eventsUnpaidPeople = openEvents.reduce((s, evt) => {
       const unpaid = getSortedMembers().filter(
         (m) => !isEvenementBeneficiary(evt, m.id) && !isEvenementPaid(evt, m.id)
@@ -4691,13 +4744,18 @@ function refreshReunionIfActive() {
 }
 
 function renderReunion() {
-
   const root = document.getElementById("reunionDashboard");
   if (!root) {
     console.warn("reunionDashboard introuvable dans le HTML");
     return;
   }
-  root.innerHTML = buildReunionDashboardHtml();
+  try {
+    root.innerHTML = buildReunionDashboardHtml();
+  } catch (err) {
+    console.warn("renderReunion:", err);
+    root.innerHTML =
+      `<div class="reunion-block"><p class="reunion-list">Erreur affichage réunion. Recharge (Ctrl+F5).</p></div>`;
+  }
 }
 
 function showTab(tabId) {
