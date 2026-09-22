@@ -4603,18 +4603,18 @@ function buildReunionDashboardHtml() {
     );
     const openEvents = getReunionEventsOpen();
     const openAmendes = getReunionAmendesOpen();
-    const openDettesEvt = typeof getReunionDettesEventOpen === "function" ? getReunionDettesEventOpen() : [];
     const openEx = getReunionExTourneeOpen();
     const totalsDA =
       typeof getTotalsDettesAmendes === "function"
         ? getTotalsDettesAmendes()
         : { amendesDue: 0, dettesDue: 0, exDue: 0, totalDue: 0 };
     const amendesDue = Number(totalsDA.amendesDue) || 0;
-    const dettesEvtDue = Number(totalsDA.dettesDue) || 0;
-    const exDue =
-      Number(totalsDA.exDue) ||
-      openEx.reduce((s, e) => s + (Number(e.remaining) || 0), 0);
-    const dettesAmendesTotal = Number(totalsDA.totalDue) || amendesDue + dettesEvtDue + exDue;
+    const exDue = Number(totalsDA.exDue) || 0;
+    // Total dû groupe = amendes + ex tournée (pas les parts d'événements de tout le monde)
+    const dettesAmendesTotal = Number(totalsDA.totalDue) || amendesDue + exDue;
+    const me = typeof getCurrentMember === "function" ? getCurrentMember() : null;
+    const monDue =
+      me && typeof getMemberPersonalDue === "function" ? getMemberPersonalDue(me.id) : 0;
     const eventsUnpaidPeople = openEvents.reduce((s, evt) => {
       const unpaid = getSortedMembers().filter(
         (m) => !isEvenementBeneficiary(evt, m.id) && !isEvenementPaid(evt, m.id)
@@ -4622,13 +4622,16 @@ function buildReunionDashboardHtml() {
       return s + unpaid.length;
     }, 0);
     const loansCapital = activeLoans.reduce(
-      (s, l) => s + (typeof getLoanBalance === "function" ? getLoanBalance(l) : Math.max(0, (Number(l.amount) || 0) - (Number(l.totalRepaid) || 0))),
+      (s, l) =>
+        s +
+        (typeof getLoanBalance === "function"
+          ? getLoanBalance(l)
+          : Math.max(0, (Number(l.amount) || 0) - (Number(l.totalRepaid) || 0))),
       0
     );
 
-    // KPI : compteurs pour amendes/dettes/ex, total = somme € à payer
+    // KPI : compteurs clairs + total dû = dettes perso formalisées (amendes + ex tournée)
     const countAmendes = openAmendes.length;
-    const countDettesEvt = openDettesEvt.length;
     const countEx = openEx.length;
     const kpis = [
       { go: "finance", label: "Disponible", value: formatEuro(caisseDispo), tone: "teal" },
@@ -4636,12 +4639,39 @@ function buildReunionDashboardHtml() {
       { go: "finance", label: "Totale", value: formatEuro(caisseTotal), tone: "navy" },
       { go: "prets", label: "Votes", value: String(votingLoans.length), tone: votingLoans.length ? "warn" : "navy" },
       { go: "prets", label: "Prêts", value: String(activeLoans.length), tone: activeLoans.length ? "warn" : "navy" },
-      { go: "evenements", label: "Événements", value: String(openEvents.length), tone: openEvents.length ? "warn" : "navy" },
-      { go: "amendes", label: "Amendes", value: String(countAmendes), tone: countAmendes > 0 ? "danger" : "navy" },
-      { go: "amendes", label: "Dettes évt.", value: String(countDettesEvt), tone: countDettesEvt > 0 ? "danger" : "navy" },
-      { go: "amendes", label: "Ex tournée", value: String(countEx), tone: countEx > 0 ? "danger" : "navy" },
-      { go: "amendes", label: "Total dû", value: formatEuro(dettesAmendesTotal), tone: dettesAmendesTotal > 0 ? "danger" : "navy" },
+      {
+        go: "evenements",
+        label: "Événements",
+        value: String(openEvents.length),
+        tone: openEvents.length ? "warn" : "navy",
+      },
+      {
+        go: "amendes",
+        label: "Amendes",
+        value: String(countAmendes),
+        tone: countAmendes > 0 ? "danger" : "navy",
+      },
+      {
+        go: "amendes",
+        label: "Ex tournée",
+        value: String(countEx),
+        tone: countEx > 0 ? "danger" : "navy",
+      },
+      {
+        go: "amendes",
+        label: "Total dû",
+        value: formatEuro(dettesAmendesTotal),
+        tone: dettesAmendesTotal > 0 ? "danger" : "navy",
+      },
     ];
+    if (me) {
+      kpis.push({
+        go: "amendes",
+        label: "Mon dû",
+        value: formatEuro(monDue),
+        tone: monDue > 0 ? "danger" : "navy",
+      });
+    }
 
     const kpiHtml = `<div class="reunion-kpi-grid">${kpis
       .map(
@@ -4650,18 +4680,6 @@ function buildReunionDashboardHtml() {
       </button>`
       )
       .join("")}</div>`;
-
-    // Caisse chart
-    const caisseChart = buildReunionHBarChart(
-      [
-        { label: "Disponible", value: caisseDispo },
-        { label: "Empruntable", value: maxEmpruntable, color: "#059669" },
-        { label: "Évén. caisse", value: eventsIn, color: "#2563eb" },
-        { label: "Totale", value: caisseTotal, color: "#0f172a" },
-        { label: "Brute", value: caisseBrute, color: "#64748b" },
-      ].filter((r) => r.value > 0 || r.label === "Disponible" || r.label === "Empruntable"),
-      "#0e7490"
-    );
 
     // Votes
     let voteHtml = "";
