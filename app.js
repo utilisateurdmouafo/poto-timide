@@ -710,13 +710,13 @@ function getFinanceLiveFlow() {
     0
   );
   const remboursementsPrets = prets
-    .filter((loan) => ["active", "defaulted", "completed"].includes(loan.status))
+    .filter((loan) => !isLoanDeleted(loan) && ["active", "defaulted", "completed"].includes(loan.status))
     .reduce((sum, loan) => sum + (loan.totalRepaid || 0), 0);
 
   const entrees = fond + fondAnnuel + amendes + dons + evenementsCollectes + remboursementsPrets;
 
   const pretsAccordes = prets
-    .filter((loan) => ["active", "defaulted", "completed"].includes(loan.status))
+    .filter((loan) => !isLoanDeleted(loan) && ["active", "defaulted", "completed"].includes(loan.status))
     .reduce((sum, loan) => sum + loan.amount, 0);
   const evenementsRemises = evenements
     .filter((evt) => isEvenementReimbursed(evt))
@@ -2659,6 +2659,8 @@ function saveAmendes(shouldRender = true) {
     renderAmendes();
     renderAmendesAdminHistory();
     renderPrets();
+    if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
+    if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
   }
 }
 
@@ -4490,10 +4492,13 @@ function buildReunionDashboardHtml() {
     );
     const openEvents = getReunionEventsOpen();
     const openAmendes = getReunionAmendesOpen();
+    const openDettesEvt = typeof getReunionDettesEventOpen === "function" ? getReunionDettesEventOpen() : [];
     const openEx = getReunionExTourneeOpen();
-
-    const amendesDue = openAmendes.reduce((s, a) => s + Math.max(0, Number(a.amount) || 0), 0);
-    const exDue = openEx.reduce((s, e) => s + e.remaining, 0);
+    const totalsDA = getTotalsDettesAmendes();
+    const amendesDue = totalsDA.amendesDue;
+    const dettesEvtDue = totalsDA.dettesDue;
+    const exDue = totalsDA.exDue;
+    const dettesAmendesTotal = totalsDA.totalDue;
     const eventsUnpaidPeople = openEvents.reduce((s, evt) => {
       const unpaid = getSortedMembers().filter(
         (m) => !isEvenementBeneficiary(evt, m.id) && !isEvenementPaid(evt, m.id)
@@ -4513,8 +4518,10 @@ function buildReunionDashboardHtml() {
       { go: "prets", label: "Votes", value: String(votingLoans.length), tone: votingLoans.length ? "warn" : "navy" },
       { go: "prets", label: "Prêts", value: String(activeLoans.length), tone: activeLoans.length ? "warn" : "navy" },
       { go: "evenements", label: "Événements", value: String(openEvents.length), tone: openEvents.length ? "warn" : "navy" },
-      { go: "amendes", label: "Amendes dû", value: formatEuro(amendesDue), tone: amendesDue > 0 ? "danger" : "navy" },
+      { go: "amendes", label: "Amendes", value: formatEuro(amendesDue), tone: amendesDue > 0 ? "danger" : "navy" },
+      { go: "amendes", label: "Dettes évt.", value: formatEuro(dettesEvtDue), tone: dettesEvtDue > 0 ? "danger" : "navy" },
       { go: "amendes", label: "Ex tournée", value: formatEuro(exDue), tone: exDue > 0 ? "danger" : "navy" },
+      { go: "amendes", label: "Total dû", value: formatEuro(dettesAmendesTotal), tone: dettesAmendesTotal > 0 ? "danger" : "navy" },
     ];
 
     const kpiHtml = `<div class="reunion-kpi-grid">${kpis
@@ -4671,12 +4678,12 @@ document.addEventListener("click", (e) => {
 });
 
 function refreshReunionIfActive() {
-  if (document.getElementById("tab-reunion")?.classList.contains("active")) {
-    try {
+  try {
+    if (document.getElementById("tab-reunion")?.classList.contains("active")) {
       renderReunion();
-    } catch (err) {
-      console.warn("refreshReunion:", err);
     }
+  } catch (err) {
+    console.warn("refreshReunion:", err);
   }
 }
 
@@ -5186,6 +5193,11 @@ async function deleteAncienneTourneeDette(entryId) {
   }
   if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
   showToast?.(`Dette de ${memberName} (${amountLabel}) supprimée.`, "success");
+  try {
+    const raw = localStorage.getItem(ANCIENNE_TOURNEE_DETTES_KEY);
+    const qs = window.queueServerSync;
+    if (raw && qs) qs(ANCIENNE_TOURNEE_DETTES_KEY, raw);
+  } catch { /* ignore */ }
   if (typeof potoFlushSync === "function") {
     try {
       await potoFlushSync();
@@ -5193,6 +5205,8 @@ async function deleteAncienneTourneeDette(entryId) {
       /* ignore */
     }
   }
+  renderFinanceDashboard();
+  if (typeof renderReunion === "function") renderReunion();
 }
 
 async function repayAncienneTourneeDette(entryId, amountValue) {
@@ -5914,6 +5928,14 @@ async function deleteAmendeRecord(id) {
   renderFinanceDashboard();
   if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
   showToast?.(wasDette ? `Dette de ${memberName} supprimée.` : `Amende de ${memberName} supprimée.`, "success");
+  // Forcer envoi amendes + événements (dette) avant tout pull
+  try {
+    const aRaw = localStorage.getItem(AMENDES_KEY);
+    const qs = window.queueServerSync || (typeof queueServerSync === "function" ? queueServerSync : null);
+    if (aRaw && qs) qs(AMENDES_KEY, aRaw);
+    const eRaw = localStorage.getItem(EVENEMENTS_KEY);
+    if (eRaw && wasDette && qs) qs(EVENEMENTS_KEY, eRaw);
+  } catch { /* ignore */ }
   if (typeof potoFlushSync === "function") {
     try {
       await potoFlushSync();
@@ -5921,13 +5943,11 @@ async function deleteAmendeRecord(id) {
       /* ignore */
     }
   }
-  // Recharger depuis le local (post-flush) puis rafraîchir réunion
-  if (typeof reloadFromStorage === "function") reloadFromStorage();
   renderAmendes();
   renderAmendesAdminHistory();
   renderEvenements();
-  if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
-  else if (typeof renderReunion === "function") renderReunion();
+  renderFinanceDashboard();
+  if (typeof renderReunion === "function") renderReunion();
 }
 
 async function undoAmendePayment(caisseId) {
@@ -6095,7 +6115,10 @@ function saveNotifications(shouldRender = true) {
 }
 
 function getTotalAmendesInCaisse() {
-  return amendesCaisse.reduce((sum, entry) => sum + entry.amount, 0);
+  return amendesCaisse.reduce((sum, entry) => {
+    if (!entry || entry.deletedAt) return sum;
+    return sum + (Number(entry.amount) || 0);
+  }, 0);
 }
 
 function getTotalEvenementDebtDeductions() {

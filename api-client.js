@@ -828,6 +828,7 @@ installUnloadSync();
 
 window.flushPotoServerSync = flushServerSync;
 window.potoFlushSync = flushServerSync;
+window.queueServerSync = queueServerSync;
 window.potoPullSharedUpdates = pullSharedUpdatesFromServer;
 window.potoStartPeriodicSync = startPeriodicSync;
 window.potoStopPeriodicSync = stopPeriodicSync;
