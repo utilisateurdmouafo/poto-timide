@@ -352,44 +352,36 @@ function mergeById(existing, incoming) {
   const map = new Map();
   const add = (item) => {
     if (!item || typeof item !== "object" || !item.id) return;
-    const prev = map.get(item.id);
+    const id = String(item.id);
+    const prev = map.get(id);
     if (!prev) {
-      map.set(item.id, item);
+      map.set(id, { ...item, id });
       return;
     }
     const itemNewer = itemTimestamp(item) >= itemTimestamp(prev);
     const winner = itemNewer ? item : prev;
     const loser = itemNewer ? prev : item;
-    const merged = { ...loser, ...winner };
-    // Tombe (suppression) : ne jamais la perdre si elle n'est pas plus ancienne
-    const loserDel = loser.deletedAt ? new Date(loser.deletedAt).getTime() : 0;
-    const winnerDel = winner.deletedAt ? new Date(winner.deletedAt).getTime() : 0;
-    if (loserDel && !winnerDel && loserDel >= itemTimestamp(winner)) {
-      merged.deletedAt = loser.deletedAt;
-      merged.updatedAt = loser.updatedAt || loser.deletedAt;
-      if (merged.amount != null) merged.amount = 0;
-    } else if (winnerDel || loserDel) {
-      const delAt = winnerDel >= loserDel ? winner.deletedAt : loser.deletedAt;
-      if (delAt) {
-        merged.deletedAt = delAt;
+    const merged = { ...loser, ...winner, id };
+
+    // Suppression sticky : dès qu'un côté a deletedAt, on ne le perd JAMAIS
+    const prevDel = prev.deletedAt ? new Date(prev.deletedAt).getTime() || 0 : 0;
+    const nextDel = item.deletedAt ? new Date(item.deletedAt).getTime() || 0 : 0;
+    if (prevDel || nextDel) {
+      const delAt =
+        nextDel >= prevDel && nextDel > 0
+          ? item.deletedAt
+          : prev.deletedAt || item.deletedAt;
+      merged.deletedAt = delAt;
+      merged.amount = 0;
+      const delT = new Date(delAt).getTime() || 0;
+      const winT = itemTimestamp(merged);
+      if (delT >= winT) {
+        merged.updatedAt = delAt;
+      } else {
         merged.updatedAt = merged.updatedAt || delAt;
       }
     }
-    // Fusionner les accusés de lecture (rapports) des deux versions
-    if (
-      (winner.readBy && typeof winner.readBy === "object") ||
-      (loser.readBy && typeof loser.readBy === "object")
-    ) {
-      merged.readBy = {
-        ...(typeof loser.readBy === "object" && loser.readBy && !Array.isArray(loser.readBy)
-          ? loser.readBy
-          : {}),
-        ...(typeof winner.readBy === "object" && winner.readBy && !Array.isArray(winner.readBy)
-          ? winner.readBy
-          : {}),
-      };
-    }
-    map.set(item.id, merged);
+    map.set(id, merged);
   };
   (Array.isArray(existing) ? existing : []).forEach(add);
   (Array.isArray(incoming) ? incoming : []).forEach(add);

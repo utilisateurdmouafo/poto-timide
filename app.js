@@ -531,30 +531,49 @@ function loadAncienneTourneeDettes() {
   try {
     const raw = readSynced(ANCIENNE_TOURNEE_DETTES_KEY, []);
     if (Array.isArray(raw)) {
+      // Garder les tombstones (deletedAt) pour la synchro merge-by-id
       return raw
-        .filter((entry) => entry && entry.memberId && Number(entry.amount) > 0)
-        .map((entry) => ({
-          id: entry.id || generateId(),
-          memberId: entry.memberId,
-          amount: Number(entry.amount),
-          originalAmount: Number(entry.originalAmount) > 0 ? Number(entry.originalAmount) : Number(entry.amount),
-          repaidAmount: Number(entry.repaidAmount) || 0,
-          repayments: Array.isArray(entry.repayments) ? entry.repayments : [],
-          note: String(entry.note || ""),
-          createdAt: entry.createdAt || new Date().toISOString(),
-          createdBy: entry.createdBy || null,
-        }));
+        .filter((entry) => entry && entry.memberId && entry.id)
+        .map((entry) => {
+          const amount = Number(entry.amount) || 0;
+          const repaid = Number(entry.repaidAmount) || 0;
+          const original =
+            Number(entry.originalAmount) > 0
+              ? Number(entry.originalAmount)
+              : amount + repaid || amount;
+          const out = {
+            id: String(entry.id),
+            memberId: entry.memberId,
+            amount: entry.deletedAt ? 0 : amount,
+            originalAmount: original,
+            repaidAmount: repaid,
+            repayments: Array.isArray(entry.repayments) ? entry.repayments : [],
+            note: String(entry.note || ""),
+            createdAt: entry.createdAt || new Date().toISOString(),
+            createdBy: entry.createdBy || null,
+            updatedAt: entry.updatedAt || entry.deletedAt || entry.createdAt || null,
+          };
+          if (entry.deletedAt) {
+            out.deletedAt = entry.deletedAt;
+            out.amount = 0;
+          }
+          return out;
+        });
     }
-    if (raw && typeof raw === "object") {
+    if (raw && typeof raw === "object" && !Array.isArray(raw)) {
       return Object.entries(raw)
         .filter(([, value]) => Number(value) > 0)
         .map(([memberId, amount]) => ({
           id: generateId(),
           memberId,
           amount: Number(amount),
+          originalAmount: Number(amount),
+          repaidAmount: 0,
+          repayments: [],
           note: "",
           createdAt: new Date().toISOString(),
           createdBy: null,
+          updatedAt: new Date().toISOString(),
         }));
     }
     return [];
@@ -4509,25 +4528,15 @@ function getReunionDettesEventOpen() {
 }
 
 function getReunionAmendesOpen() {
-  const list = typeof getAllAmendes === "function" ? getAllAmendes() : amendes || [];
-  return list.filter((a) => {
-    if (typeof isDetteAmende === "function" && isDetteAmende(a)) return false;
-    // amount = reste dû (réduit à chaque remboursement)
-    return (Number(a.amount) || 0) > 0.001;
-  });
+  const list = Array.isArray(amendes) ? amendes : [];
+  return list.filter((a) => getOpenAmendeRemaining(a) > 0.001);
 }
 
 function getReunionExTourneeOpen() {
   const list = Array.isArray(ancienneTourneeDettes) ? ancienneTourneeDettes : [];
   return list
-    .filter((e) => e && !e.deletedAt)
-    .map((e) => {
-      const amount = Number(e.amount) || 0;
-      const repaid = Number(e.repaidAmount) || 0;
-      const remaining = Math.max(0, amount - repaid);
-      return { ...e, remaining };
-    })
-    .filter((e) => e.remaining > 0.001);
+    .filter((e) => getOpenExTourneeRemaining(e) > 0.001)
+    .map((e) => ({ ...e, remaining: getOpenExTourneeRemaining(e) }));
 }
 
 function getReunionEventsOpen() {
@@ -4575,7 +4584,10 @@ function buildReunionDashboardHtml() {
       0
     );
 
-    // KPI cards (cliquables)
+    // KPI : compteurs pour amendes/dettes/ex, total = somme € à payer
+    const countAmendes = openAmendes.length;
+    const countDettesEvt = openDettesEvt.length;
+    const countEx = openEx.length;
     const kpis = [
       { go: "finance", label: "Disponible", value: formatEuro(caisseDispo), tone: "teal" },
       { go: "prets", label: "Max empruntable", value: formatEuro(maxEmpruntable), tone: "green" },
@@ -4583,9 +4595,9 @@ function buildReunionDashboardHtml() {
       { go: "prets", label: "Votes", value: String(votingLoans.length), tone: votingLoans.length ? "warn" : "navy" },
       { go: "prets", label: "Prêts", value: String(activeLoans.length), tone: activeLoans.length ? "warn" : "navy" },
       { go: "evenements", label: "Événements", value: String(openEvents.length), tone: openEvents.length ? "warn" : "navy" },
-      { go: "amendes", label: "Amendes", value: formatEuro(amendesDue), tone: amendesDue > 0 ? "danger" : "navy" },
-      { go: "amendes", label: "Dettes évt.", value: formatEuro(dettesEvtDue), tone: dettesEvtDue > 0 ? "danger" : "navy" },
-      { go: "amendes", label: "Ex tournée", value: formatEuro(exDue), tone: exDue > 0 ? "danger" : "navy" },
+      { go: "amendes", label: "Amendes", value: String(countAmendes), tone: countAmendes > 0 ? "danger" : "navy" },
+      { go: "amendes", label: "Dettes évt.", value: String(countDettesEvt), tone: countDettesEvt > 0 ? "danger" : "navy" },
+      { go: "amendes", label: "Ex tournée", value: String(countEx), tone: countEx > 0 ? "danger" : "navy" },
       { go: "amendes", label: "Total dû", value: formatEuro(dettesAmendesTotal), tone: dettesAmendesTotal > 0 ? "danger" : "navy" },
     ];
 
