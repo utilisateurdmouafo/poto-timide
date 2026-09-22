@@ -5332,7 +5332,7 @@ async function deleteAncienneTourneeDette(entryId) {
   }
 }
 
-async function repayAncienneTourneeDetteasync function repayAncienneTourneeDette(entryId, amountValue) {
+async function repayAncienneTourneeDette(entryId, amountValue) {
   const entry = ancienneTourneeDettes.find((item) => item.id === entryId);
   if (!entry) return;
 
