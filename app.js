@@ -5709,30 +5709,41 @@ function updateAmende(id, memberId, type, amount, note) {
   }
 }
 
-function applyDetteRemoval(amende, { restoreCaisse = false, markEventPaid = false, restoreAmount = null } = {}) {
+function applyDetteRemoval(amende, { restoreCaisse = false, markEventPaid = false, restoreAmount = null, dismissDebt = false } = {}) {
   if (!isDetteAmende(amende) || !amende.evenementId) return false;
 
   const evt = getEvenementById(amende.evenementId);
   if (!evt) return false;
   const amount = restoreAmount != null ? Number(restoreAmount) : Number(amende.amount) || 0;
 
-  if (evt.payments?.[amende.memberId]) {
-    if (markEventPaid) {
-      evt.payments[amende.memberId].paid = true;
-      evt.payments[amende.memberId].paidAt = new Date().toISOString();
-      evt.payments[amende.memberId].validatedBy = getCurrentMember()?.id || null;
-      evt.payments[amende.memberId].paidAmount =
-        (Number(evt.payments[amende.memberId].paidAmount) || 0) + amount;
-      evt.payments[amende.memberId].debtRepaidAt = new Date().toISOString();
-      delete evt.payments[amende.memberId].convertedToDebt;
-      delete evt.payments[amende.memberId].debtCreatedAt;
-    }
+  if (!evt.payments) evt.payments = {};
+  if (!evt.payments[amende.memberId]) {
+    evt.payments[amende.memberId] = { paid: false, paidAt: null, validatedBy: null };
+  }
+  const payment = evt.payments[amende.memberId];
+
+  if (markEventPaid) {
+    payment.paid = true;
+    payment.paidAt = new Date().toISOString();
+    payment.validatedBy = getCurrentMember()?.id || null;
+    payment.paidAmount = (Number(payment.paidAmount) || 0) + amount;
+    payment.debtRepaidAt = new Date().toISOString();
+  }
+
+  // Toujours lever le flag dette événement à la suppression / remboursement
+  // sinon la dette est recréée ou reste affichée comme "Dette"
+  delete payment.convertedToDebt;
+  delete payment.debtCreatedAt;
+  if (dismissDebt || (!markEventPaid && amount === 0)) {
+    payment.debtDismissed = true;
+    payment.debtDismissedAt = new Date().toISOString();
   }
 
   if (restoreCaisse && evt.caisseDebtDeduction) {
     evt.caisseDebtDeduction = Math.max(0, evt.caisseDebtDeduction - amount);
   }
 
+  evt.updatedAt = new Date().toISOString();
   return true;
 }
 
@@ -5872,14 +5883,19 @@ async function deleteAmendeRecord(id) {
 
   if (editingAmendeId === id) cancelEditAmende();
 
-  if (isDetteAmende(amende)) {
-    applyDetteRemoval(amende, { restoreCaisse: false, markEventPaid: false });
+  const wasDette = isDetteAmende(amende);
+  if (wasDette) {
+    applyDetteRemoval(amende, {
+      restoreCaisse: false,
+      markEventPaid: false,
+      dismissDebt: true,
+      restoreAmount: 0,
+    });
     localStorage.setItem(EVENEMENTS_KEY, JSON.stringify(evenements));
   }
 
   // Soft-delete + UI immédiate + flush serveur
   const now = new Date().toISOString();
-  const wasDette = isDetteAmende(amende);
   amende.deletedAt = now;
   amende.updatedAt = now;
   amende.amount = 0;
@@ -8250,33 +8266,46 @@ function createEvenementDebts(evt) {
   const created = [];
 
   unpaidMembers.forEach((member) => {
+    const payment = evt.payments?.[member.id];
+    // Dette déjà annulée / supprimée volontairement : ne pas recréer
+    if (payment?.debtDismissed) return;
+
     const alreadyExists = amendes.some(
       (amende) =>
         isDetteAmende(amende) &&
+        !isAmendeDeleted(amende) &&
         amende.evenementId === evt.id &&
         amende.memberId === member.id
     );
     if (alreadyExists) return;
 
     const note = `Événement : ${evt.title}${beneficiary ? ` — Poto : ${beneficiary.name}` : ""}`;
+    const now = new Date().toISOString();
 
     amendes.unshift({
       id: generateId(),
       memberId: member.id,
       type: "dette",
       amount: share,
+      originalAmount: share,
+      repaidAmount: 0,
       note,
-      date: new Date().toISOString(),
+      date: now,
+      createdAt: now,
+      updatedAt: now,
       evenementId: evt.id,
       createdFromEvenement: true,
     });
 
+    if (!evt.payments) evt.payments = {};
     if (!evt.payments[member.id]) {
       evt.payments[member.id] = { paid: false, paidAt: null, validatedBy: null };
     }
 
     evt.payments[member.id].convertedToDebt = true;
-    evt.payments[member.id].debtCreatedAt = new Date().toISOString();
+    evt.payments[member.id].debtCreatedAt = now;
+    delete evt.payments[member.id].debtDismissed;
+    delete evt.payments[member.id].debtDismissedAt;
 
     created.push(member);
   });
@@ -9063,7 +9092,15 @@ function buildMemberEvenementLedgerRows(current) {
           chipClass: "is-paid",
         };
       }
-      if (convertedToDebt) {
+      const hasOpenDette = amendes.some(
+        (a) =>
+          isDetteAmende(a) &&
+          !isAmendeDeleted(a) &&
+          a.evenementId === evt.id &&
+          a.memberId === current.id &&
+          (Number(a.amount) || 0) > 0
+      );
+      if (convertedToDebt && hasOpenDette) {
         return {
           id: evt.id,
           domId: `evenement-${evt.id}`,
@@ -9076,7 +9113,7 @@ function buildMemberEvenementLedgerRows(current) {
           settled: false,
           statusLabel: "Dette",
           chipClass: "is-open",
-          actions: `<p class="evenement-debt-note">Voir Mes dettes.</p>`,
+          actions: `<p class="evenement-debt-note">Voir Dettes & amendes.</p>`,
         };
       }
       return {
