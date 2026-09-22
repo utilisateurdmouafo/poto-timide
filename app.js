@@ -4498,7 +4498,10 @@ function buildReunionDashboardHtml() {
       );
       return s + unpaid.length;
     }, 0);
-    const loansCapital = activeLoans.reduce((s, l) => s + (Number(l.amount) || 0), 0);
+    const loansCapital = activeLoans.reduce(
+      (s, l) => s + (typeof getLoanBalance === "function" ? getLoanBalance(l) : Math.max(0, (Number(l.amount) || 0) - (Number(l.totalRepaid) || 0))),
+      0
+    );
 
     // KPI cards (cliquables)
     const kpis = [
@@ -4562,10 +4565,16 @@ function buildReunionDashboardHtml() {
 
     // Prêts — montant prêté seulement
     const loansChart = buildReunionHBarChart(
-      activeLoans.map((loan) => ({
-        label: getMemberById(loan.borrowerId)?.name || "?",
-        value: Number(loan.amount) || 0,
-      })),
+      activeLoans.map((loan) => {
+        const remaining =
+          typeof getLoanBalance === "function"
+            ? getLoanBalance(loan)
+            : Math.max(0, (Number(loan.amount) || 0) - (Number(loan.totalRepaid) || 0));
+        return {
+          label: getMemberById(loan.borrowerId)?.name || "?",
+          value: remaining,
+        };
+      }),
       "#d97706"
     );
 
@@ -4625,7 +4634,7 @@ function buildReunionDashboardHtml() {
     </button>
     ${voteHtml}
     <button type="button" class="reunion-block reunion-link reunion-chart-only" data-reunion-go="prets">
-      <h3>Prêts accordés (${activeLoans.length}) · ${formatEuro(loansCapital)}</h3>
+      <h3>Prêts en cours — reste dû (${activeLoans.length}) · ${formatEuro(loansCapital)}</h3>
       <div class="reunion-chart-wrap">${loansChart}</div>
     </button>
     ${eventsHtml || `<button type="button" class="reunion-block reunion-link reunion-muted" data-reunion-go="evenements"><h3>Événements</h3><p class="reunion-pct">Aucun ouvert · ${eventsUnpaidPeople} impayé(s) suivi</p></button>`}
@@ -4661,7 +4670,18 @@ document.addEventListener("click", (e) => {
   }
 });
 
+function refreshReunionIfActive() {
+  if (document.getElementById("tab-reunion")?.classList.contains("active")) {
+    try {
+      renderReunion();
+    } catch (err) {
+      console.warn("refreshReunion:", err);
+    }
+  }
+}
+
 function renderReunion() {
+
   const root = document.getElementById("reunionDashboard");
   if (!root) {
     console.warn("reunionDashboard introuvable dans le HTML");
