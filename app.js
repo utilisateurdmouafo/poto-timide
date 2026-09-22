@@ -6447,6 +6447,7 @@ function buildNotificationDeepLinkUrl({ tab = "prets", admin = "", loanId = "", 
 function queuePushMessage(memberId, payload) {
   const current = getCurrentMember();
   if (!memberId || current?.id === memberId) return;
+  if (shouldSuppressDevNotifications()) return;
   const tab = payload.tab || "prets";
   const loanId = payload.loanId || "";
   const admin = payload.admin || "";
@@ -6498,7 +6499,19 @@ function getActorLabel() {
   return getCurrentMember()?.name || "Le Financier";
 }
 
+/** Dario (développeur / owner) : aucune notif in-app ni push quand c'est lui qui agit */
+function shouldSuppressDevNotifications() {
+  const current = getCurrentMember();
+  if (!current) return false;
+  if (typeof isOwnerMember === "function" && isOwnerMember(current)) return true;
+  const name = String(current.name || "").trim().toLowerCase();
+  if (name === String(ADMIN_NAME || "Dario").toLowerCase()) return true;
+  return false;
+}
+
+
 function notifyAllMembers(type, message, extras = {}) {
+  if (shouldSuppressDevNotifications()) return;
   const { loanId = "", tab = "prets", title = "Poto Timide" } = extras;
   getSortedMembers().forEach((member) => {
     addNotification(member.id, type, loanId, message);
@@ -6533,6 +6546,7 @@ function upsertLoanNotification(memberId, loanId, type, message) {
 }
 
 function updateLoanNotificationsOnDecision(loan, decision) {
+  if (shouldSuppressDevNotifications()) return;
   if (decision === "approved") {
     const dueDates = getLoanDueDates(loan);
     const dueLabel = dueDates
@@ -6607,6 +6621,7 @@ function notifyAllMembersOnLoanInitiated(loan) {
 }
 
 function notifyFinancierForLoan(loan) {
+  if (shouldSuppressDevNotifications()) return;
   const borrower = getMemberById(loan.borrowerId);
   const stats = getVoteStats(loan);
   const financierId = roles.tresorier;
@@ -6635,6 +6650,7 @@ function notifyFinancierForLoan(loan) {
 }
 
 function notifyBorrower(loan, type, message) {
+  if (shouldSuppressDevNotifications()) return;
   upsertLoanNotification(loan.borrowerId, loan.id, type, message);
 }
 
