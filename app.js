@@ -5171,21 +5171,28 @@ async function deleteAncienneTourneeDette(entryId) {
   if (!(await appConfirm(`Supprimer la dette de ${amountLabel} de ${memberName} ?`))) {
     return;
   }
-  // Soft-delete pour que la synchro merge-by-id ne la fasse pas revenir
   const now = new Date().toISOString();
   entry.deletedAt = now;
   entry.updatedAt = now;
   entry.amount = 0;
+  document.querySelectorAll(`[data-id="${CSS.escape(entryId)}"]`).forEach((el) => {
+    const row = el.closest("tr, .amende-history-row, article, .dette-card");
+    if (row) row.remove();
+  });
   saveAncienneTourneeDettes();
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
-  }
   renderMesDettes();
   if (typeof renderAncienneTourneeDettesAdmin === "function") {
     renderAncienneTourneeDettesAdmin();
   }
   if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
   showToast?.(`Dette de ${memberName} (${amountLabel}) supprimée.`, "success");
+  if (typeof potoFlushSync === "function") {
+    try {
+      await potoFlushSync();
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 async function repayAncienneTourneeDette(entryId, amountValue) {
@@ -5870,22 +5877,34 @@ async function deleteAmendeRecord(id) {
     localStorage.setItem(EVENEMENTS_KEY, JSON.stringify(evenements));
   }
 
-  // Soft-delete : indispensable pour la synchro merge-by-id (sinon l'amende revient)
+  // Soft-delete + UI immédiate + flush serveur
   const now = new Date().toISOString();
+  const wasDette = isDetteAmende(amende);
   amende.deletedAt = now;
   amende.updatedAt = now;
   amende.amount = 0;
+  // Retrait immédiat du DOM (avant confirm réseau)
+  document.getElementById(`amende-${id}`)?.remove();
+  document.getElementById(`admin-amende-${id}`)?.remove();
+  document.querySelectorAll(`[data-id="${CSS.escape(id)}"]`).forEach((el) => {
+    const row = el.closest("tr, .amende-history-row, .dette-card, article");
+    if (row) row.remove();
+  });
   saveAmendes();
   bumpLiveDataRevision();
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
-  }
   renderAmendes();
   renderAmendesAdminHistory();
   renderEvenements();
   renderFinanceDashboard();
   if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
-  showToast?.(isDetteAmende(amende) ? `Dette de ${memberName} supprimée.` : `Amende de ${memberName} supprimée.`, "success");
+  showToast?.(wasDette ? `Dette de ${memberName} supprimée.` : `Amende de ${memberName} supprimée.`, "success");
+  if (typeof potoFlushSync === "function") {
+    try {
+      await potoFlushSync();
+    } catch {
+      /* ignore */
+    }
+  }
 }
 
 async function undoAmendePayment(caisseId) {

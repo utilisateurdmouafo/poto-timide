@@ -185,9 +185,28 @@ function mergeById(existing, incoming) {
   const add = (item) => {
     if (!item || typeof item !== "object" || !item.id) return;
     const prev = map.get(item.id);
-    if (!prev || itemTimestamp(item) >= itemTimestamp(prev)) {
+    if (!prev) {
       map.set(item.id, item);
+      return;
     }
+    const itemNewer = itemTimestamp(item) >= itemTimestamp(prev);
+    const winner = itemNewer ? item : prev;
+    const loser = itemNewer ? prev : item;
+    const merged = { ...loser, ...winner };
+    const loserDel = loser.deletedAt ? new Date(loser.deletedAt).getTime() : 0;
+    const winnerDel = winner.deletedAt ? new Date(winner.deletedAt).getTime() : 0;
+    if (loserDel && !winnerDel && loserDel >= itemTimestamp(winner)) {
+      merged.deletedAt = loser.deletedAt;
+      merged.updatedAt = loser.updatedAt || loser.deletedAt;
+      if (merged.amount != null) merged.amount = 0;
+    } else if (winnerDel || loserDel) {
+      const delAt = winnerDel >= loserDel ? winner.deletedAt : loser.deletedAt;
+      if (delAt) {
+        merged.deletedAt = delAt;
+        merged.updatedAt = merged.updatedAt || delAt;
+      }
+    }
+    map.set(item.id, merged);
   };
   (Array.isArray(existing) ? existing : []).forEach(add);
   (Array.isArray(incoming) ? incoming : []).forEach(add);
@@ -568,6 +587,14 @@ async function pullSharedUpdatesFromServer() {
   }
 }
 
+const SYNC_FAST_KEYS = new Set([
+  "poto-timide-amendes",
+  "poto-timide-amendes-caisse",
+  "poto-timide-ancienne-tournee-dettes",
+  "poto-timide-prets",
+  "poto-timide-data-revision",
+]);
+
 function queueServerSync(key, rawValue) {
   if (!API_SYNC_KEYS.has(key) || !authState.loggedIn) return;
   try {
@@ -576,7 +603,8 @@ function queueServerSync(key, rawValue) {
     return;
   }
   clearTimeout(syncTimer);
-  syncTimer = setTimeout(flushServerSync, 200);
+  const delay = SYNC_FAST_KEYS.has(key) ? 40 : 200;
+  syncTimer = setTimeout(flushServerSync, delay);
 }
 
 /** Attentes quand un flush est déjà en cours (évite de perdre un vote) */

@@ -361,6 +361,20 @@ function mergeById(existing, incoming) {
     const winner = itemNewer ? item : prev;
     const loser = itemNewer ? prev : item;
     const merged = { ...loser, ...winner };
+    // Tombe (suppression) : ne jamais la perdre si elle n'est pas plus ancienne
+    const loserDel = loser.deletedAt ? new Date(loser.deletedAt).getTime() : 0;
+    const winnerDel = winner.deletedAt ? new Date(winner.deletedAt).getTime() : 0;
+    if (loserDel && !winnerDel && loserDel >= itemTimestamp(winner)) {
+      merged.deletedAt = loser.deletedAt;
+      merged.updatedAt = loser.updatedAt || loser.deletedAt;
+      if (merged.amount != null) merged.amount = 0;
+    } else if (winnerDel || loserDel) {
+      const delAt = winnerDel >= loserDel ? winner.deletedAt : loser.deletedAt;
+      if (delAt) {
+        merged.deletedAt = delAt;
+        merged.updatedAt = merged.updatedAt || delAt;
+      }
+    }
     // Fusionner les accusés de lecture (rapports) des deux versions
     if (
       (winner.readBy && typeof winner.readBy === "object") ||
