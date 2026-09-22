@@ -109,7 +109,7 @@ const FINANCE_SUBTABS = ["caisse", "archives"];
 const FINANCE_LIVE_DETTE_SUB = "dettes-amendes";
 const FINANCE_CAISSE_SUB = "caisse";
 const FINANCE_ARCHIVES_SUB = "archives";
-const ADMIN_SUBTABS = ["membres", "admins", "acces", "tournee", "ancienne-tournee", "caisse", "prets", "amendes", "evenements", "communication", "loi", "sauvegarde"];
+const ADMIN_SUBTABS = ["membres", "admins", "acces", "tournee", "caisse", "prets", "amendes", "evenements", "communication", "loi", "sauvegarde"];
 const ADMIN_SUBTAB_KEY = "poto-timide-admin-subtab";
 // Compat anciens noms de stockage
 const GESTION_SUBTAB_KEY = ADMIN_SUBTAB_KEY;
@@ -149,7 +149,6 @@ const EVENEMENT_TYPES = [
 const MANAGEABLE_TABS = [
   { id: "membres", label: "Membres & Bureau" },
   { id: "tournee", label: "Tournée" },
-  { id: "ancienne-tournee", label: "Dette ancienne tournée" },
   { id: "caisse", label: "Caisse" },
   { id: "prets", label: "Prêts" },
   { id: "amendes", label: "Dettes & amendes" },
@@ -2489,7 +2488,14 @@ function canAccessAdminSub(subId) {
   if (subId === "admins" || subId === "acces" || subId === "sauvegarde") return false;
   if (subId === "membres") return hasRoleTabAccess("membres") || hasRoleTabAccess("bureau");
   if (subId === "caisse") return isFinancierPoste() || hasRoleTabAccess("caisse");
-  if (subId === "ancienne-tournee") return isFinancierPoste() || hasRoleTabAccess("ancienne-tournee");
+  if (subId === "amendes") {
+    return (
+      isGroupAdmin() ||
+      hasRoleTabAccess("amendes") ||
+      hasRoleTabAccess("ancienne-tournee") ||
+      isFinancierPoste()
+    );
+  }
   if (subId === "prets") return isFinancierPoste() || hasRoleTabAccess("prets");
   return hasRoleTabAccess(subId);
 }
@@ -2528,7 +2534,8 @@ function canManageCaisseArgent() {
 
 function getAdminSubtab() {
   const stored = localStorage.getItem(ADMIN_SUBTAB_KEY);
-  const requested = stored === "equipe" || stored === "bureau" ? "membres" : stored;
+  let requested = stored === "equipe" || stored === "bureau" ? "membres" : stored;
+  if (requested === "ancienne-tournee") requested = "amendes";
   const allowed = getAllowedAdminSubs();
   if (allowed.includes(requested)) return requested;
   return allowed[0] || "membres";
@@ -2548,6 +2555,7 @@ function updateAdminSubtabVisibility() {
 
 function showAdminSub(subId) {
   if (subId === "bureau" || subId === "equipe") subId = "membres";
+  if (subId === "ancienne-tournee") subId = "amendes";
   if (!ADMIN_SUBTABS.includes(subId) || !canAccessAdminSub(subId)) {
     subId = getAdminSubtab();
   }
@@ -2603,9 +2611,6 @@ function showAdminSub(subId) {
     }
     renderTourneeTable();
   }
-  if (subId === "ancienne-tournee") {
-    renderAncienneTourneeDettesAdmin();
-  }
   if (subId === "caisse") {
     renderFondCaissePanel();
     renderAutreArgent();
@@ -2616,6 +2621,9 @@ function showAdminSub(subId) {
   if (subId === "amendes") {
     renderAmendes();
     renderAmendesAdminHistory();
+    if (typeof renderAncienneTourneeDettesAdmin === "function") {
+      renderAncienneTourneeDettesAdmin();
+    }
   }
   if (subId === "evenements") {
     renderEvenements();
@@ -5031,9 +5039,14 @@ function renderDetteBanner(detteList, showAllMembers = false) {
 function renderAncienneTourneeDettesAdmin() {
   const body = document.getElementById("ancienneTourneeBody");
   const totalEl = document.getElementById("ancienneTourneeTotal");
-  if (ancienneTourneeForm) {
-    const formPanel = ancienneTourneeForm.closest("section");
-    if (formPanel) formPanel.hidden = !hasRoleTabAccess("ancienne-tournee");
+  const exPanel = document.getElementById("adminExTourneePanel");
+  if (exPanel) {
+    exPanel.hidden = !(
+      canManageTab("amendes") ||
+      hasRoleTabAccess("ancienne-tournee") ||
+      (typeof isFinancierPoste === "function" && isFinancierPoste()) ||
+      isGroupAdmin()
+    );
   }
   if (!body) return;
 
@@ -5230,7 +5243,12 @@ function addAncienneTourneeDette(memberId, amount) {
 }
 
 async function deleteAncienneTourneeDette(entryId) {
-  if (!requireTabAccess("ancienne-tournee", "supprimer une dette d'ancienne tournée")) return;
+  if (
+    !canAddDettesAmendesUnified() &&
+    !requireTabAccess("ancienne-tournee", "supprimer une dette d'ancienne tournée")
+  ) {
+    return;
+  }
   const entry = ancienneTourneeDettes.find((item) => item.id === entryId && !item.deletedAt);
   if (!entry) return;
   const member = getMemberById(entry.memberId);
@@ -11460,9 +11478,10 @@ function handleAncienneTourneeKeydown(e) {
   repayAncienneTourneeDette(input.dataset.id, input.value);
 }
 
-document.getElementById("adminSub-ancienne-tournee")?.addEventListener("click", handleAncienneTourneeActionClick);
+document.getElementById("adminSub-amendes")?.addEventListener("click", handleAncienneTourneeActionClick);
+document.getElementById("adminExTourneePanel")?.addEventListener("click", handleAncienneTourneeActionClick);
 document.getElementById("tab-amendes")?.addEventListener("click", handleAncienneTourneeActionClick);
-document.getElementById("adminSub-ancienne-tournee")?.addEventListener("keydown", handleAncienneTourneeKeydown);
+document.getElementById("adminSub-amendes")?.addEventListener("keydown", handleAncienneTourneeKeydown);
 document.getElementById("tab-amendes")?.addEventListener("keydown", handleAncienneTourneeKeydown);
 
 const BACKUP_KEY_LABELS = {
@@ -11874,7 +11893,9 @@ async function initApp() {
       renderReunion();
     }
     if (document.getElementById("tab-admin")?.classList.contains("active")) {
-      if (activeAdminSub === "ancienne-tournee") renderAncienneTourneeDettesAdmin();
+      if (activeAdminSub === "amendes" || activeAdminSub === "ancienne-tournee") {
+        if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
+      }
       if (activeAdminSub === "communication") renderCommunication();
       if (activeAdminSub === "prets") renderAdminPrets();
       if (activeAdminSub === "loi") renderLoiAdmin();

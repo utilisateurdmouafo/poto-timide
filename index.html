@@ -447,10 +447,6 @@
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="admins">Admins</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="acces">Accès</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="tournee">Tournée</button>
-            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="ancienne-tournee">
-              <span class="tab-label-full">Dette ancienne tournée</span>
-              <span class="tab-label-short">Ancienne tournée</span>
-            </button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="caisse">Caisse</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="prets">Prêts</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="amendes">Dettes &amp; amendes</button>
@@ -595,38 +591,6 @@
                     </table>
                   </div>
                 </div>
-              </section>
-            </div>
-
-            <div class="gestion-subpanel" id="adminSub-ancienne-tournee" data-admin-panel="ancienne-tournee" hidden>
-              <section class="panel">
-                <h2>Ajouter une dette ancienne tournée</h2>
-                <p class="panel-desc">Choisis un poto et ajoute le montant qu’il doit. Il le verra dans son onglet Dette ancienne tournée.</p>
-                <form id="ancienneTourneeForm" class="autre-argent-form">
-                  <label>
-                    Poto
-                    <select id="ancienneTourneeMember" required>
-                      <option value="">— Choisir le poto —</option>
-                    </select>
-                  </label>
-                  <label>
-                    Montant (€)
-                    <input type="number" id="ancienneTourneeAmount" min="0.5" step="0.5" placeholder="Ex : 50" required />
-                  </label>
-                  <div class="autre-argent-form-actions">
-                    <button type="submit" class="btn-primary">Ajouter la dette</button>
-                  </div>
-                </form>
-                <p class="save-msg" id="ancienneTourneeSaveMsg" hidden></p>
-              </section>
-              <section class="panel">
-                <div class="panel-head">
-                  <div>
-                    <h2>Dettes enregistrées</h2>
-                    <p class="panel-desc">Total : <strong id="ancienneTourneeTotal">0 €</strong></p>
-                  </div>
-                </div>
-                <div id="ancienneTourneeBody"></div>
               </section>
             </div>
 
@@ -840,12 +804,21 @@
               <section class="panel" id="amendeHistoryPanel">
                 <div class="panel-head">
                   <div>
-                    <h2>Historique des amendes</h2>
-                    <p class="panel-desc">Toutes les amendes saisies : en cours et déjà encaissées. Tu peux modifier, rembourser, supprimer ou annuler un encaissement.</p>
+                    <h2>Historique des amendes &amp; dettes</h2>
+                    <p class="panel-desc">Amendes et dettes saisies : en cours et déjà encaissées. Rembourser, modifier ou supprimer ici.</p>
                   </div>
                 </div>
                 <div id="amendeHistoryOpen"></div>
                 <div id="amendeHistoryPaid" hidden></div>
+              </section>
+              <section class="panel" id="adminExTourneePanel">
+                <div class="panel-head">
+                  <div>
+                    <h2>Ex tournée (groupe)</h2>
+                    <p class="panel-desc">Total : <strong id="ancienneTourneeTotal">0 €</strong> — ajout via le formulaire ci-dessus (type « Ex tournée »).</p>
+                  </div>
+                </div>
+                <div id="ancienneTourneeBody"></div>
               </section>
             </div>
 
@@ -1087,6 +1060,6 @@
   <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
 
   <script src="api-client.js?v=online-12"></script>
-  <script src="app.js?v=pwa-79"></script>
+  <script src="app.js?v=pwa-80"></script>
 </body>
 </html>
