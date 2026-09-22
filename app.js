@@ -1030,7 +1030,7 @@ function renderFinanceAmendes() {
     title: "Amendes",
     noun: "amende",
     emptyMeta: "Aucune amende à régler",
-    emptyText: "Aucune amende pour le moment.",
+    emptyText: "Aucune dette ni amende pour le moment.",
     rows: buildFinanceAmendeRows(),
     rowIdPrefix: "finance-amende",
   });
@@ -5484,49 +5484,49 @@ function renderDetteTable(rows) {
   });
 }
 
-function renderMesDettes() {
-  const current = getCurrentMember();
-  if (!current) return;
-  const rows = buildMesDettesRows(current.id);
-  const total = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
-  const openCount = rows.filter((row) => !row.settled).length;
-  if (detteTitle) detteTitle.textContent = "Mes dettes";
-  if (detteSubtitle) {
-    detteSubtitle.hidden = false;
-    detteSubtitle.textContent =
-      "Dettes personnelles hors prêts et événements : ancienne tournée et dettes converties. Les prêts sont dans Prêts, les cotisations d'événements dans Événements.";
-  }
-  renderLedgerHero(detteSummary, {
-    total,
-    openCount,
-    noun: "dette",
-    emptyMeta: "Aucune dette à régler",
+function buildMesDettesAmendesRows(memberId) {
+  const rows = [
+    ...buildMesAmendesRows(memberId),
+    ...buildMesDettesRows(memberId),
+  ];
+  rows.sort((a, b) => {
+    if (a.settled !== b.settled) return a.settled ? 1 : -1;
+    return new Date(b.sortAt || b.date || 0) - new Date(a.sortAt || a.date || 0);
   });
-  renderDetteTable(rows);
+  return rows;
+}
+
+function renderMesDettes() {
+  // Alias : un seul tableau avec les amendes
+  renderMesAmendes();
 }
 
 function renderMesAmendes() {
   const current = getCurrentMember();
   if (!current) return;
-  const rows = buildMesAmendesRows(current.id);
+  const rows = buildMesDettesAmendesRows(current.id);
   const total = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
   const openCount = rows.filter((row) => !row.settled).length;
-  if (amendeTitle) amendeTitle.textContent = "Mes amendes";
+  if (amendeTitle) amendeTitle.textContent = "Dettes & amendes";
   if (amendeSubtitle) {
     amendeSubtitle.hidden = false;
-    amendeSubtitle.textContent = `Pour ${current.name} — absences, retards, bavardages et sanctions.`;
+    amendeSubtitle.textContent = `Pour ${current.name} — amendes, dettes d’événements et ancienne tournée (hors prêts).`;
   }
   renderLedgerHero(amendeSummary, {
     total,
     openCount,
-    noun: "amende",
-    emptyMeta: "Aucune amende à régler",
+    noun: "ligne",
+    emptyMeta: "Rien à régler pour le moment",
   });
   renderAmendeTable(rows);
+  // Ancien bloc dettes retiré du HTML : ne rien rendre ailleurs
+  if (detteBody) detteBody.innerHTML = "";
+  const detteFoot = document.getElementById("detteTableFoot");
+  if (detteFoot) detteFoot.innerHTML = "";
+  if (detteSummary) detteSummary.innerHTML = "";
 }
 
 function renderAmendes() {
-  renderMesDettes();
   renderMesAmendes();
   refreshFinancierPayBoxes();
 }
