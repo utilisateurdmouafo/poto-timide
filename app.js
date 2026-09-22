@@ -5531,24 +5531,41 @@ function addAmende(memberId, type, amount, note) {
   if (!requireTabAccess("amendes", "ajouter des amendes")) return;
 
   const member = getMemberById(memberId);
-  if (!member) return;
+  if (!member) {
+    alert("Membre introuvable.");
+    return;
+  }
 
   const parsedAmount = parseAmendeAmount(amount);
   if (parsedAmount === null) return;
+  if (parsedAmount <= 0) {
+    alert("Le montant doit être supérieur à 0.");
+    return;
+  }
 
+  const now = new Date().toISOString();
   amendes.unshift({
     id: generateId(),
     memberId,
-    type,
+    type: type || "absence",
     amount: parsedAmount,
     originalAmount: parsedAmount,
     repaidAmount: 0,
-    note: motif,
-    date: new Date().toISOString(),
+    note: String(note || "").trim(),
+    date: now,
+    createdAt: now,
+    updatedAt: now,
   });
 
   saveAmendes();
-  amendeForm.reset();
+  amendeForm?.reset();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+  showToast?.(
+    `Amende ${formatEuro(parsedAmount)} enregistrée pour ${member.name}.`,
+    "success"
+  );
 }
 
 function updateAmende(id, memberId, type, amount, note) {
@@ -5568,11 +5585,15 @@ function updateAmende(id, memberId, type, amount, note) {
     memberId,
     type,
     amount: parsedAmount,
-    note: note.trim(),
+    note: String(note || "").trim(),
+    updatedAt: new Date().toISOString(),
   };
 
   saveAmendes();
   cancelEditAmende();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
 }
 
 function applyDetteRemoval(amende, { restoreCaisse = false, markEventPaid = false, restoreAmount = null } = {}) {

@@ -335,10 +335,12 @@ const MERGE_BY_ID_KEYS = new Set([
   "poto-timide-notifications",
   "poto-timide-loi",
   "poto-timide-audit-log",
+  "poto-timide-amendes",
+  "poto-timide-amendes-caisse",
 ]);
 
 function itemTimestamp(item) {
-  const raw = item?.updatedAt || item?.deletedAt || item?.createdAt || 0;
+  const raw = item?.updatedAt || item?.deletedAt || item?.createdAt || item?.date || 0;
   const time = new Date(raw).getTime();
   return Number.isFinite(time) ? time : 0;
 }

@@ -437,12 +437,22 @@ function writeServerDataToLocal(serverData) {
         key === "poto-timide-communication" ||
         key === "poto-timide-notifications" ||
         key === "poto-timide-loi" ||
-        key === "poto-timide-capital-hors-groupe"
+        key === "poto-timide-capital-hors-groupe" ||
+        key === "poto-timide-amendes" ||
+        key === "poto-timide-amendes-caisse"
       ) {
         const raw = localStorage.getItem(key);
-        const local = raw ? unwrapLocalSynced(JSON.parse(raw)) : [];
+        let local = [];
+        try {
+          local = raw ? unwrapLocalSynced(JSON.parse(raw)) : [];
+        } catch {
+          local = [];
+        }
         const incoming = unwrapLocalSynced(value);
-        value = mergeById(Array.isArray(local) ? local : [], Array.isArray(incoming) ? incoming : []);
+        value = mergeByIdClient(
+          Array.isArray(local) ? local : [],
+          Array.isArray(incoming) ? incoming : []
+        );
       }
       if (key === "poto-timide-prets") {
         const raw = localStorage.getItem(key);
