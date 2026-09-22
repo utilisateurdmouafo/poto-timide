@@ -5921,6 +5921,13 @@ async function deleteAmendeRecord(id) {
       /* ignore */
     }
   }
+  // Recharger depuis le local (post-flush) puis rafraîchir réunion
+  if (typeof reloadFromStorage === "function") reloadFromStorage();
+  renderAmendes();
+  renderAmendesAdminHistory();
+  renderEvenements();
+  if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
+  else if (typeof renderReunion === "function") renderReunion();
 }
 
 async function undoAmendePayment(caisseId) {
@@ -11777,6 +11784,10 @@ async function initApp() {
     renderMesDettes();
     if (document.getElementById("tab-amendes")?.classList.contains("active")) {
       renderMesAmendes();
+    }
+    if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
+    else if (document.getElementById("tab-reunion")?.classList.contains("active") && typeof renderReunion === "function") {
+      renderReunion();
     }
     if (document.getElementById("tab-admin")?.classList.contains("active")) {
       if (activeAdminSub === "ancienne-tournee") renderAncienneTourneeDettesAdmin();

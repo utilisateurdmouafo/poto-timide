@@ -34,6 +34,7 @@ let authState = {
 
 let syncTimer = null;
 let pendingSyncPayload = {};
+let inFlightSyncPayload = {};
 let periodicSyncTimer = null;
 let nativeSetItem = null;
 let syncing = false;
@@ -408,13 +409,22 @@ function mergeEvenementPaymentsClient(a, b) {
         out[memberId] = { ...pay };
         return;
       }
-      if (pay.paid && !prev.paid) out[memberId] = { ...pay };
-      else if (prev.paid && !pay.paid) out[memberId] = { ...prev };
+      let merged;
+      if (pay.paid && !prev.paid) merged = { ...pay };
+      else if (prev.paid && !pay.paid) merged = { ...prev };
       else {
-        const prevT = new Date(prev.paidAt || 0).getTime() || 0;
-        const nextT = new Date(pay.paidAt || 0).getTime() || 0;
-        out[memberId] = nextT >= prevT ? { ...prev, ...pay } : { ...pay, ...prev };
+        const prevT = new Date(prev.paidAt || prev.debtDismissedAt || prev.debtCreatedAt || 0).getTime() || 0;
+        const nextT = new Date(pay.paidAt || pay.debtDismissedAt || pay.debtCreatedAt || 0).getTime() || 0;
+        merged = nextT >= prevT ? { ...prev, ...pay } : { ...pay, ...prev };
       }
+      if (prev.debtDismissed || pay.debtDismissed) {
+        merged.debtDismissed = true;
+        merged.debtDismissedAt =
+          pay.debtDismissedAt || prev.debtDismissedAt || new Date().toISOString();
+        delete merged.convertedToDebt;
+        delete merged.debtCreatedAt;
+      }
+      out[memberId] = merged;
     });
   };
   add(a);
@@ -451,6 +461,7 @@ function writeServerDataToLocal(serverData) {
   Object.entries(serverData || {}).forEach(([key, value]) => {
     if (!API_SYNC_KEYS.has(key)) return;
     if (Object.prototype.hasOwnProperty.call(pendingSyncPayload, key)) return;
+    if (Object.prototype.hasOwnProperty.call(inFlightSyncPayload, key)) return;
     try {
       if (
         key === "poto-timide-communication" ||
@@ -591,6 +602,7 @@ const SYNC_FAST_KEYS = new Set([
   "poto-timide-amendes",
   "poto-timide-amendes-caisse",
   "poto-timide-ancienne-tournee-dettes",
+  "poto-timide-evenements",
   "poto-timide-prets",
   "poto-timide-data-revision",
 ]);
@@ -624,22 +636,33 @@ async function flushServerSync() {
   }
 
   syncing = true;
-  // Fusionner tout le pending au moment du départ
   const payload = { ...pendingSyncPayload };
   pendingSyncPayload = {};
+  inFlightSyncPayload = { ...inFlightSyncPayload, ...payload };
   try {
     await apiFetch("/api/data", {
       method: "PUT",
       body: JSON.stringify(payload),
     });
-    // Si de nouvelles mods sont arrivées pendant le PUT, les envoyer aussi
+    // Succès : retirer de in-flight les clés envoyées (sauf si re-pending)
+    Object.keys(payload).forEach((k) => {
+      if (!Object.prototype.hasOwnProperty.call(pendingSyncPayload, k)) {
+        delete inFlightSyncPayload[k];
+      }
+    });
     if (hasPendingEdits()) {
       const extra = { ...pendingSyncPayload };
       pendingSyncPayload = {};
+      inFlightSyncPayload = { ...inFlightSyncPayload, ...extra };
       try {
         await apiFetch("/api/data", {
           method: "PUT",
           body: JSON.stringify(extra),
+        });
+        Object.keys(extra).forEach((k) => {
+          if (!Object.prototype.hasOwnProperty.call(pendingSyncPayload, k)) {
+            delete inFlightSyncPayload[k];
+          }
         });
       } catch (err2) {
         Object.assign(pendingSyncPayload, extra);

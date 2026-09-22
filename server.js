@@ -618,15 +618,25 @@ function mergeEvenementPayments(a, b) {
         out[memberId] = { ...pay };
         return;
       }
-      // Si l'un des deux est payé, garder payé ; prendre le paidAt le plus récent
       const prevPaid = Boolean(prev.paid);
       const nextPaid = Boolean(pay.paid);
-      const prevT = new Date(prev.paidAt || prev.debtCreatedAt || 0).getTime() || 0;
-      const nextT = new Date(pay.paidAt || pay.debtCreatedAt || 0).getTime() || 0;
-      if (nextPaid && !prevPaid) out[memberId] = { ...pay };
-      else if (prevPaid && !nextPaid) out[memberId] = { ...prev };
-      else if (nextT >= prevT) out[memberId] = { ...prev, ...pay };
-      else out[memberId] = { ...pay, ...prev };
+      const prevT = new Date(prev.paidAt || prev.updatedAt || prev.debtCreatedAt || 0).getTime() || 0;
+      const nextT = new Date(pay.paidAt || pay.updatedAt || pay.debtCreatedAt || 0).getTime() || 0;
+      let merged;
+      if (nextPaid && !prevPaid) merged = { ...pay };
+      else if (prevPaid && !nextPaid) merged = { ...prev };
+      else if (nextT >= prevT) merged = { ...prev, ...pay };
+      else merged = { ...pay, ...prev };
+
+      // Dette annulée / supprimée : ne jamais ressusciter convertedToDebt
+      if (prev.debtDismissed || pay.debtDismissed) {
+        merged.debtDismissed = true;
+        merged.debtDismissedAt =
+          pay.debtDismissedAt || prev.debtDismissedAt || new Date().toISOString();
+        delete merged.convertedToDebt;
+        delete merged.debtCreatedAt;
+      }
+      out[memberId] = merged;
     });
   };
   add(a);
