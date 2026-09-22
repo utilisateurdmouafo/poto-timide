@@ -68,7 +68,7 @@ const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_SUBTAB_KEY = "poto-timide-finance-subtab";
 const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
-const TAB_IDS = ["reunion", "communication", "membres", "tournee", "ex-tournee", "prets", "evenements", "amendes", "finance", "loi", "admin"];
+const TAB_IDS = ["reunion", "communication", "membres", "tournee", "prets", "evenements", "amendes", "finance", "loi", "admin"];
 const LOI_KEY = "poto-timide-loi";
 const COMMUNICATION_KINDS = [
   {
@@ -2665,7 +2665,7 @@ function saveAmendes(shouldRender = true) {
 function getAmendeTypeLabel(typeId) {
   if (typeId === "dette") return "Dette événement";
   if (typeId === "evenement") return "Événement";
-  if (typeId === "ancienne-tournee") return "Ancienne tournée";
+  if (typeId === "ancienne-tournee") return "Ex tournée";
   if (typeId === "cotisation") return "Cotisation";
   if (typeId === "pret") return "Prêt";
   return AMENDE_TYPES.find((t) => t.id === typeId)?.label || typeId;
@@ -4370,7 +4370,7 @@ function renderTourneeTable() {
 
 function resolveLegacyTab(tabId) {
   if (!tabId) return null;
-  if (tabId === "dettes-amendes" || tabId === "ancienne-tournee") return "dettes";
+  if (tabId === "dettes-amendes" || tabId === "ancienne-tournee" || tabId === "ex-tournee" || tabId === "dettes") return "amendes";
   if (tabId === "dettes") return "amendes";
   if (tabId === "amendes") return tabId;
   if (tabId === "autre-argent" || tabId === "caisse") {
@@ -4514,7 +4514,7 @@ function buildReunionDashboardHtml() {
       { go: "prets", label: "Prêts", value: String(activeLoans.length), tone: activeLoans.length ? "warn" : "navy" },
       { go: "evenements", label: "Événements", value: String(openEvents.length), tone: openEvents.length ? "warn" : "navy" },
       { go: "amendes", label: "Amendes dû", value: formatEuro(amendesDue), tone: amendesDue > 0 ? "danger" : "navy" },
-      { go: "ex-tournee", label: "Ex tournée", value: formatEuro(exDue), tone: exDue > 0 ? "danger" : "navy" },
+      { go: "amendes", label: "Ex tournée", value: formatEuro(exDue), tone: exDue > 0 ? "danger" : "navy" },
     ];
 
     const kpiHtml = `<div class="reunion-kpi-grid">${kpis
@@ -4642,7 +4642,7 @@ function buildReunionDashboardHtml() {
       <h3>Amendes à régler · ${formatEuro(amendesDue)}</h3>
       <div class="reunion-chart-wrap">${amendeChart}</div>
     </button>
-    <button type="button" class="reunion-block reunion-link reunion-chart-only" data-reunion-go="ex-tournee">
+    <button type="button" class="reunion-block reunion-link reunion-chart-only" data-reunion-go="amendes">
       <h3>Ex tournée · ${formatEuro(exDue)}</h3>
       <div class="reunion-chart-wrap">${exChart}</div>
     </button>
@@ -4693,6 +4693,7 @@ function renderReunion() {
 function showTab(tabId) {
   const resolved = resolveLegacyTab(tabId);
   if (resolved) tabId = resolved;
+  if (tabId === "ex-tournee" || tabId === "dettes") tabId = "amendes";
 
   if (!TAB_IDS.includes(tabId)) tabId = "reunion";
   // Compte "nouveau" : forcer La loi uniquement
@@ -4739,8 +4740,7 @@ function showTab(tabId) {
   }
 
   if (tabId === "ex-tournee") {
-    reloadFromStorage();
-    renderExTournee();
+    tabId = "amendes";
   }
 
   if (tabId === "prets") {
@@ -5070,6 +5070,10 @@ function renderAncienneTourneeMemberView() {
 
 /** Onglet Ex tournée : toutes les dettes d'ancienne tournée, lecture seule */
 function renderExTournee() {
+  // Onglet fusionné dans Dettes & amendes
+  if (typeof renderAmendes === "function") {
+    try { renderAmendes(); } catch { /* ignore */ }
+  }
   const container = document.getElementById("exTourneeList");
   if (!container) return;
 
@@ -5448,7 +5452,7 @@ function buildMesDettesRows(memberId) {
       id: entry.id,
       date: entry.createdAt,
       type: "ancienne-tournee",
-      detail: String(entry.note || "").trim() || "Ancienne tournée",
+      detail: String(entry.note || "").trim() || "Ex tournée",
       original,
       repaid,
       remaining,
@@ -5510,7 +5514,7 @@ function renderMesAmendes() {
   if (amendeTitle) amendeTitle.textContent = "Dettes & amendes";
   if (amendeSubtitle) {
     amendeSubtitle.hidden = false;
-    amendeSubtitle.textContent = `Pour ${current.name} — amendes, dettes d’événements et ancienne tournée (hors prêts).`;
+    amendeSubtitle.textContent = `Pour ${current.name} — amendes, dettes d’événements et dettes d’ex tournée (hors prêts).`;
   }
   renderLedgerHero(amendeSummary, {
     total,
