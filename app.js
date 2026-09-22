@@ -934,6 +934,7 @@ function renderLedgerInto(container, options) {
 
 function buildFinanceAncienneTourneeRows() {
   return [...ancienneTourneeDettes]
+    .filter((entry) => entry && !entry.deletedAt)
     .map((entry) => {
       const remaining = Math.round((Number(entry.amount) || 0) * 100) / 100;
       const repaid = Math.round((Number(entry.repaidAmount) || 0) * 100) / 100;
@@ -5243,40 +5244,66 @@ function addAncienneTourneeDette(memberId, amount) {
 }
 
 async function deleteAncienneTourneeDette(entryId) {
-  if (
-    !canAddDettesAmendesUnified() &&
-    !requireTabAccess("ancienne-tournee", "supprimer une dette d'ancienne tournée")
-  ) {
+  if (!isLoggedIn()) {
+    alert("Connecte-toi pour supprimer.");
     return;
   }
-  const entry = ancienneTourneeDettes.find((item) => item.id === entryId && !item.deletedAt);
-  if (!entry) return;
+  const canDelete =
+    (typeof canAddDettesAmendesUnified === "function" && canAddDettesAmendesUnified()) ||
+    isGroupAdmin() ||
+    (typeof isFinancierPoste === "function" && isFinancierPoste()) ||
+    hasRoleTabAccess("ancienne-tournee") ||
+    hasRoleTabAccess("amendes");
+  if (!canDelete) {
+    alert("Tu n'as pas l'accès pour supprimer une dette d'ex tournée.");
+    return;
+  }
+  const entry = ancienneTourneeDettes.find((item) => item && item.id === entryId && !item.deletedAt);
+  if (!entry) {
+    // Déjà absente : rafraîchir l'affichage
+    if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
+    renderAmendes();
+    return;
+  }
   const member = getMemberById(entry.memberId);
   const memberName = member?.name || "ce poto";
   const amountLabel = formatEuro(entry.amount);
   if (!(await appConfirm(`Supprimer la dette de ${amountLabel} de ${memberName} ?`))) {
     return;
   }
+
   const now = new Date().toISOString();
   entry.deletedAt = now;
   entry.updatedAt = now;
   entry.amount = 0;
-  document.querySelectorAll(`[data-id="${CSS.escape(entryId)}"]`).forEach((el) => {
-    const row = el.closest("tr, .amende-history-row, article, .dette-card");
-    if (row) row.remove();
+
+  // Retrait DOM immédiat (avant sync)
+  const rowId = `admin-ancienne-${entryId}`;
+  document.getElementById(rowId)?.remove();
+  document.querySelectorAll(`[data-id="${entryId}"]`).forEach((el) => {
+    el.closest("tr, .amende-history-row, article, .dette-card, .ledger-row")?.remove();
   });
-  saveAncienneTourneeDettes();
-  renderMesDettes();
+  const body = document.getElementById("ancienneTourneeBody");
+  if (body) body.dataset.ledgerHtml = ""; // forcer re-render (cache ledger)
+
+  // Sauvegarde + UI tout de suite
+  saveAncienneTourneeDettes(true);
+  renderAmendes();
   if (typeof renderAncienneTourneeDettesAdmin === "function") {
     renderAncienneTourneeDettesAdmin();
   }
-  if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
-  showToast?.(`Dette de ${memberName} (${amountLabel}) supprimée.`, "success");
+  if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
+  if (typeof renderReunion === "function") renderReunion();
+  showToast?.(`Dette ex tournée de ${memberName} (${amountLabel}) supprimée.`, "success");
+
+  // Sync serveur
   try {
     const raw = localStorage.getItem(ANCIENNE_TOURNEE_DETTES_KEY);
     const qs = window.queueServerSync;
     if (raw && qs) qs(ANCIENNE_TOURNEE_DETTES_KEY, raw);
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   if (typeof potoFlushSync === "function") {
     try {
       await potoFlushSync();
@@ -5284,8 +5311,10 @@ async function deleteAncienneTourneeDette(entryId) {
       /* ignore */
     }
   }
-  renderFinanceDashboard();
-  if (typeof renderReunion === "function") renderReunion();
+  // Re-render après sync (au cas où)
+  if (body) body.dataset.ledgerHtml = "";
+  if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
+  renderAmendes();
 }
 
 async function repayAncienneTourneeDette(entryId, amountValue) {
@@ -11467,7 +11496,13 @@ function handleAncienneTourneeActionClick(e) {
     return;
   }
   const deleteBtn = e.target.closest(".btn-ancienne-tournee-delete");
-  if (deleteBtn) deleteAncienneTourneeDette(deleteBtn.dataset.id);
+  if (deleteBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = deleteBtn.dataset.id || deleteBtn.getAttribute("data-id");
+    if (id) deleteAncienneTourneeDette(id);
+    return;
+  }
 }
 
 function handleAncienneTourneeKeydown(e) {
