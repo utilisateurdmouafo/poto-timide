@@ -5838,6 +5838,7 @@ function renderAmendesAdminHistory() {
   }
 
   const openRows = amendes
+    .filter((amende) => !isAmendeDeleted(amende))
     .filter((amende) => (Number(amende.amount) || 0) > 0 || getAmendeRepaidAmount(amende) > 0)
     .map((amende) => {
       const remaining = Math.round((Number(amende.amount) || 0) * 100) / 100;
