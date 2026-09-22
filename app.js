@@ -5716,7 +5716,7 @@ function canAddDettesAmendesUnified() {
   );
 }
 
-/** Ajout unifié : amende | ex tournée | dette — motif obligatoire, sync par id */
+/** Ajout unifié : amende | ex tournée — motif obligatoire, sync par id (pas de dette manuelle) */
 async function submitUnifiedDettesAmendesLine({ memberId, type, amount, note }) {
   if (!canAddDettesAmendesUnified()) {
     alert("Tu n'as pas l'accès pour ajouter une ligne.");
@@ -5741,6 +5741,13 @@ async function submitUnifiedDettesAmendesLine({ memberId, type, amount, note }) 
   const now = new Date().toISOString();
   const kind = String(type || "").trim();
 
+  if (kind === "dette" || kind === "evenement") {
+    alert(
+      "Les dettes d’événements se créent automatiquement quand un événement n’est pas payé.\nTu ne peux pas en ajouter manuellement ici."
+    );
+    return false;
+  }
+
   if (kind === "ex-tournee" || kind === "ancienne-tournee") {
     ancienneTourneeDettes.unshift({
       id: generateId(),
@@ -5757,8 +5764,9 @@ async function submitUnifiedDettesAmendesLine({ memberId, type, amount, note }) 
     saveAncienneTourneeDettes();
     if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
   } else {
-    // absence, retard, bavardage, sanctions, dette
-    const amendeType = kind === "dette" ? "dette" : kind || "sanctions";
+    // absence, retard, bavardage, sanctions uniquement
+    const allowed = new Set(["absence", "retard", "bavardage", "sanctions"]);
+    const amendeType = allowed.has(kind) ? kind : "sanctions";
     amendes.unshift({
       id: generateId(),
       memberId: member.id,
@@ -5797,6 +5805,13 @@ function addAmende(memberId, type, amount, note) {
   const member = getMemberById(memberId);
   if (!member) {
     alert("Membre introuvable.");
+    return;
+  }
+
+  if (type === "dette" || type === "evenement") {
+    alert(
+      "Les dettes d’événements se créent automatiquement. Impossible de les ajouter à la main."
+    );
     return;
   }
 
