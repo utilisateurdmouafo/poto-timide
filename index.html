@@ -87,7 +87,7 @@
           </button>
           <button class="tab" data-tab="membres">
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M3.6 19c.4-3 2.7-5 5.4-5s5 2 5.4 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="16.5" cy="8.6" r="2.3" stroke="currentColor" stroke-width="1.7"/><path d="M20.8 19c-.3-2.3-1.8-3.9-4-4.4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
-            Membres
+            Membres &amp; Bureau
           </button>
           <button class="tab" data-tab="tournee">
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="6.5" width="18" height="9.5" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M3 12h18" stroke="currentColor" stroke-width="1.7"/><circle cx="7.2" cy="17.6" r="1.35" stroke="currentColor" stroke-width="1.6"/><circle cx="16.8" cy="17.6" r="1.35" stroke="currentColor" stroke-width="1.6"/><path d="M7 6.5V5.2h5V6.5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
@@ -493,8 +493,7 @@
           <div id="adminSubtabsMount">
           <nav class="finance-subtabs gestion-subtabs" id="adminSubtabs" aria-label="Sous-onglets admin">
             <p class="admin-menu-title">Admin</p>
-            <button type="button" class="finance-subtab gestion-subtab active" data-admin-sub="membres">Membres</button>
-            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="bureau">Bureau</button>
+            <button type="button" class="finance-subtab gestion-subtab active" data-admin-sub="membres">Membres &amp; Bureau</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="admins">Admins</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="acces">Accès</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="tournee">Tournée</button>
@@ -512,7 +511,7 @@
           </nav>
           </div>
           <div class="gestion-subcontent" id="adminSubcontent">
-            <div class="gestion-subpanel is-active" id="adminSub-membres" data-admin-panel="membres">
+                        <div class="gestion-subpanel is-active" id="adminSub-membres" data-admin-panel="membres">
               <section class="panel add-panel admin-section" id="addMemberPanel">
                 <div class="panel-head">
                   <h2>Ajouter un membre</h2>
@@ -533,12 +532,8 @@
               </section>
               <section class="panel list-panel">
                 <h2>Actions sur les membres</h2>
-
                 <ul class="member-list" id="memberListAdmin"></ul>
               </section>
-            </div>
-
-            <div class="gestion-subpanel" id="adminSub-bureau" data-admin-panel="bureau" hidden>
               <section class="panel bureau-panel">
                 <div class="bureau-head">
                   <h2>Postes du bureau</h2>
@@ -565,7 +560,7 @@
               </section>
             </div>
 
-            <div class="gestion-subpanel" id="adminSub-admins" data-admin-panel="admins" hidden>
+<div class="gestion-subpanel" id="adminSub-admins" data-admin-panel="admins" hidden>
               <section class="panel admin-section" id="adminRolesPanel">
                 <h2>Administrateurs du groupe</h2>
                 <ul class="admin-list" id="adminList"></ul>
@@ -1151,6 +1146,6 @@
   <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
 
   <script src="api-client.js?v=online-12"></script>
-  <script src="app.js?v=pwa-63"></script>
+  <script src="app.js?v=pwa-64"></script>
 </body>
 </html>

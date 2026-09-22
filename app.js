@@ -109,7 +109,7 @@ const FINANCE_SUBTABS = ["caisse", "archives"];
 const FINANCE_LIVE_DETTE_SUB = "dettes-amendes";
 const FINANCE_CAISSE_SUB = "caisse";
 const FINANCE_ARCHIVES_SUB = "archives";
-const ADMIN_SUBTABS = ["membres", "bureau", "admins", "acces", "tournee", "ancienne-tournee", "caisse", "prets", "amendes", "evenements", "communication", "loi", "sauvegarde"];
+const ADMIN_SUBTABS = ["membres", "admins", "acces", "tournee", "ancienne-tournee", "caisse", "prets", "amendes", "evenements", "communication", "loi", "sauvegarde"];
 const ADMIN_SUBTAB_KEY = "poto-timide-admin-subtab";
 // Compat anciens noms de stockage
 const GESTION_SUBTAB_KEY = ADMIN_SUBTAB_KEY;
@@ -147,8 +147,7 @@ const EVENEMENT_TYPES = [
 ];
 
 const MANAGEABLE_TABS = [
-  { id: "membres", label: "Membres" },
-  { id: "bureau", label: "Bureau" },
+  { id: "membres", label: "Membres & Bureau" },
   { id: "tournee", label: "Tournée" },
   { id: "ancienne-tournee", label: "Dette ancienne tournée" },
   { id: "caisse", label: "Caisse" },
@@ -2483,6 +2482,7 @@ function hasRoleTabAccess(tabId) {
 function canAccessAdminSub(subId) {
   if (isGroupAdmin()) return true;
   if (subId === "admins" || subId === "acces" || subId === "sauvegarde") return false;
+  if (subId === "membres") return hasRoleTabAccess("membres") || hasRoleTabAccess("bureau");
   if (subId === "caisse") return isFinancierPoste() || hasRoleTabAccess("caisse");
   if (subId === "ancienne-tournee") return isFinancierPoste() || hasRoleTabAccess("ancienne-tournee");
   if (subId === "prets") return isFinancierPoste() || hasRoleTabAccess("prets");
@@ -2523,7 +2523,7 @@ function canManageCaisseArgent() {
 
 function getAdminSubtab() {
   const stored = localStorage.getItem(ADMIN_SUBTAB_KEY);
-  const requested = stored === "equipe" ? "bureau" : stored;
+  const requested = stored === "equipe" || stored === "bureau" ? "membres" : stored;
   const allowed = getAllowedAdminSubs();
   if (allowed.includes(requested)) return requested;
   return allowed[0] || "membres";
@@ -2542,6 +2542,7 @@ function updateAdminSubtabVisibility() {
 }
 
 function showAdminSub(subId) {
+  if (subId === "bureau" || subId === "equipe") subId = "membres";
   if (!ADMIN_SUBTABS.includes(subId) || !canAccessAdminSub(subId)) {
     subId = getAdminSubtab();
   }
@@ -2584,8 +2585,10 @@ function showAdminSub(subId) {
     panel.setAttribute("aria-hidden", String(!isActive));
   });
 
-  if (subId === "membres") renderMemberList();
-  if (subId === "bureau") renderBureau();
+  if (subId === "membres") {
+    renderMemberList();
+    renderBureau();
+  }
   if (subId === "admins") renderAdminList();
   if (subId === "acces") renderTabPermissionsPanel();
   if (subId === "tournee") {
@@ -2628,7 +2631,7 @@ function showAdminSub(subId) {
 }
 
 function showGestionSub(subId) {
-  if (subId === "equipe") subId = "bureau";
+  if (subId === "equipe" || subId === "bureau") subId = "membres";
   showAdminSub(subId);
 }
 
