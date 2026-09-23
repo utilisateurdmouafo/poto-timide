@@ -203,6 +203,7 @@ const DEFAULT_MEMBER_NAMES = [
 
 const memberForm = document.getElementById("memberForm");
 const memberNameInput = document.getElementById("memberName");
+const memberKindSelect = document.getElementById("memberKind");
 const memberList = document.getElementById("memberList");
 const onlineList = document.getElementById("onlineList");
 const onlineCount = document.getElementById("onlineCount");
@@ -2740,8 +2741,17 @@ function showAdminSub(subId) {
 
   // Rendu ciblé de la section
   if (subId === "membres") {
+    if (addMemberPanel) {
+      addMemberPanel.hidden = !(isGroupAdmin() || hasRoleTabAccess("membres"));
+      addMemberPanel.classList.toggle("locked", !(isGroupAdmin() || hasRoleTabAccess("membres")));
+    }
+    if (rolesPanel) {
+      rolesPanel.hidden = !(isGroupAdmin() || hasRoleTabAccess("bureau"));
+      rolesPanel.classList.toggle("locked", !(isGroupAdmin() || hasRoleTabAccess("bureau")));
+    }
+    if (typeof updateFormState === "function") updateFormState();
     if (typeof renderBureau === "function") renderBureau();
-    if (typeof renderMemberList === "function") renderMemberList(true);
+    if (typeof renderMemberList === "function") renderMemberList();
     if (typeof renderAdminList === "function") renderAdminList();
   }
   if (subId === "admins") {
@@ -11039,10 +11049,28 @@ async function clearRole(roleId) {
 }
 
 async function addMember(name, kind = "member") {
-  if (!requireTabAccess("membres", "ajouter des membres")) return;
+  // Autoriser depuis Admin → Membres (workspace admin)
+  if (!isLoggedIn()) {
+    alert("Veuillez vous connecter avec votre nom.");
+    openLoginModal();
+    return;
+  }
+  if (!(isGroupAdmin() || hasRoleTabAccess("membres"))) {
+    alert("Vous n'avez pas l'autorisation d'ajouter des membres.");
+    return;
+  }
+  // Si on est dans Admin, on n'exige pas le test isSimpleAccountView
+  if (!isAdminWorkspace() && isSimpleAccountView()) {
+    alert("Cette action se fait dans l'onglet Admin → Membres & Bureau.");
+    return;
+  }
 
-  const trimmed = name.trim();
-  if (!trimmed) return;
+  const trimmed = String(name || "").trim();
+  if (!trimmed) {
+    alert("Indique un nom.");
+    memberNameInput?.focus();
+    return;
+  }
 
   if (isLimitReached()) {
     alert(`Maximum de ${MAX_MEMBERS} membres atteint.`);
@@ -11093,9 +11121,16 @@ async function addMember(name, kind = "member") {
     );
   }
 
-  memberForm.reset();
-  if (memberKindSelect) memberKindSelect.value = "member";
-  memberNameInput.focus();
+  memberForm?.reset();
+  const kindEl = memberKindSelect || document.getElementById("memberKind");
+  if (kindEl) kindEl.value = "member";
+  memberNameInput?.focus();
+  if (typeof renderMemberList === "function") renderMemberList();
+  if (typeof renderBureau === "function") renderBureau();
+  // Rester sur la page Membres admin
+  if (isAdminWorkspace() && activeAdminSub === "membres" && typeof showAdminSub === "function") {
+    showAdminSub("membres");
+  }
 }
 
 function purgeMemberFromTourneeYear(yearData, memberId) {
@@ -11259,7 +11294,10 @@ async function deleteMember(id) {
 
 memberForm?.addEventListener("submit", (e) => {
   e.preventDefault();
-  addMember(memberNameInput.value, memberKindSelect?.value || "member");
+  const name = memberNameInput?.value || "";
+  const kindEl = memberKindSelect || document.getElementById("memberKind");
+  const kind = kindEl?.value || "member";
+  addMember(name, kind);
 });
 
 roleForm?.addEventListener("submit", (e) => {
