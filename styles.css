@@ -8763,3 +8763,296 @@ html, body {
   padding: 0.4rem 0.55rem;
   font-size: 0.88rem;
 }
+
+
+/* ============================================================
+   ADMIN FORMULAIRES COMPACTS (membres, bureau, événements, …)
+   ============================================================ */
+
+#tab-admin .panel {
+  padding: 0.55rem 0.7rem !important;
+}
+#tab-admin .panel h2,
+#tab-admin h2 {
+  font-size: 0.95rem !important;
+  margin: 0 0 0.2rem !important;
+  line-height: 1.2;
+}
+#tab-admin .panel-desc {
+  font-size: 0.72rem !important;
+  margin: 0 0 0.35rem !important;
+  line-height: 1.3;
+}
+
+/* —— Membres : ajouter —— */
+#tab-admin #addMemberPanel .add-form {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem !important;
+  width: 100%;
+}
+#tab-admin #addMemberPanel .member-kind-label {
+  gap: 0.15rem !important;
+  font-size: 0.75rem !important;
+}
+#tab-admin #addMemberPanel .member-kind-label:first-of-type {
+  grid-column: 1 / -1;
+}
+#tab-admin #addMemberPanel .add-form input,
+#tab-admin #addMemberPanel .add-form select {
+  min-height: 2.05rem !important;
+  height: 2.05rem !important;
+  padding: 0.25rem 0.45rem !important;
+  font-size: 0.82rem !important;
+  border-radius: 8px !important;
+}
+#tab-admin #addMemberPanel .add-form .btn-primary {
+  grid-column: 1 / -1;
+  min-height: 2.15rem !important;
+  padding: 0.35rem 0.6rem !important;
+  font-size: 0.84rem !important;
+}
+#tab-admin #addMemberPanel .panel-head {
+  margin-bottom: 0.25rem !important;
+}
+#tab-admin #addMemberPanel .counter {
+  font-size: 0.72rem !important;
+}
+
+/* Liste membres admin */
+#tab-admin .member-item {
+  padding: 0.3rem 0.4rem !important;
+  gap: 0.2rem !important;
+  border-radius: 8px !important;
+}
+#tab-admin .member-avatar {
+  width: 22px !important;
+  height: 22px !important;
+  font-size: 0.6rem !important;
+}
+#tab-admin .member-name {
+  font-size: 0.78rem !important;
+}
+#tab-admin .member-date,
+#tab-admin .member-cotisation,
+#tab-admin .role-badge,
+#tab-admin .tag-admin,
+#tab-admin .tag-you,
+#tab-admin .tag-online,
+#tab-admin .tag-nouveau {
+  font-size: 0.65rem !important;
+}
+#tab-admin .member-item .btn-reset-pwd,
+#tab-admin .member-item .btn-delete {
+  min-height: 1.45rem !important;
+  padding: 0.15rem 0.35rem !important;
+  font-size: 0.65rem !important;
+}
+
+/* —— Bureau —— */
+#tab-admin .bureau-panel {
+  padding: 0.5rem 0.6rem !important;
+}
+#tab-admin .bureau-assign-form {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 0.3rem !important;
+  align-items: center;
+  width: 100%;
+}
+#tab-admin .bureau-assign-form select {
+  min-height: 2rem !important;
+  height: 2rem !important;
+  padding: 0.2rem 0.4rem !important;
+  font-size: 0.78rem !important;
+  border-radius: 7px !important;
+}
+#tab-admin .bureau-assign-form .btn-compact,
+#tab-admin .bureau-assign-form button {
+  min-height: 2rem !important;
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.72rem !important;
+  white-space: nowrap;
+}
+#tab-admin .bureau-card {
+  padding: 0.12rem 0.3rem !important;
+}
+#tab-admin .bureau-card-name {
+  font-size: 0.62rem !important;
+  max-width: 4.5rem !important;
+}
+#tab-admin .bureau-card-role {
+  font-size: 0.52rem !important;
+}
+
+/* —— Événements : créer —— */
+#tab-admin .evenement-form {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35rem !important;
+  width: 100%;
+}
+#tab-admin .evenement-form label {
+  gap: 0.15rem !important;
+  font-size: 0.75rem !important;
+  font-weight: 600;
+  color: #64748b;
+}
+#tab-admin .evenement-form input,
+#tab-admin .evenement-form select {
+  min-height: 2.05rem !important;
+  height: 2.05rem !important;
+  padding: 0.25rem 0.45rem !important;
+  font-size: 0.82rem !important;
+  border-radius: 8px !important;
+  width: 100%;
+  box-sizing: border-box;
+}
+#tab-admin .evenement-form .evenement-form-wide {
+  grid-column: 1 / -1;
+}
+#tab-admin .evenement-form .btn-primary,
+#tab-admin .evenement-form button[type="submit"] {
+  grid-column: 1 / -1;
+  min-height: 2.15rem !important;
+  padding: 0.35rem 0.6rem !important;
+  font-size: 0.84rem !important;
+  width: 100%;
+}
+
+/* —— Événements : gérer / poto / versé —— */
+#tab-admin .evenement-card {
+  padding: 0.4rem 0.5rem !important;
+  margin-bottom: 0.35rem !important;
+  border-radius: 9px !important;
+}
+#tab-admin .evenement-card h3,
+#tab-admin .evenement-head h3 {
+  font-size: 0.88rem !important;
+  margin: 0 0 0.15rem !important;
+}
+#tab-admin .evenement-totals {
+  gap: 0.25rem !important;
+  font-size: 0.68rem !important;
+}
+#tab-admin .evenement-totals strong {
+  font-size: 0.75rem !important;
+}
+#tab-admin .evenement-pay-panel,
+#tab-admin .evenement-pay-block {
+  padding: 0.35rem 0.4rem !important;
+  gap: 0.3rem !important;
+  margin-top: 0.35rem !important;
+  border-radius: 9px !important;
+}
+#tab-admin .evenement-pay-title {
+  font-size: 0.72rem !important;
+  margin: 0 0 0.15rem !important;
+}
+#tab-admin .evenement-pay-row {
+  gap: 0.25rem !important;
+}
+#tab-admin .evenement-pay-select-label,
+#tab-admin .evenement-pay-label {
+  gap: 0.12rem !important;
+  font-size: 0.7rem !important;
+}
+#tab-admin .evenement-pay-select,
+#tab-admin .evenement-pay-input-single,
+#tab-admin .evenement-pay-input {
+  min-height: 1.95rem !important;
+  height: 1.95rem !important;
+  padding: 0.2rem 0.4rem !important;
+  font-size: 0.78rem !important;
+  border-radius: 7px !important;
+  min-width: 0 !important;
+}
+#tab-admin .evenement-pay-input-single {
+  width: 5rem !important;
+  min-width: 5rem !important;
+}
+#tab-admin .evenement-pay-actions .btn-primary,
+#tab-admin .evenement-pay-actions .btn-secondary,
+#tab-admin .evenement-pay-actions button {
+  min-height: 1.95rem !important;
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.75rem !important;
+}
+#tab-admin .evenement-member-summary,
+#tab-admin .evenement-member-summary-exempt {
+  padding: 0.25rem 0.35rem !important;
+  font-size: 0.72rem !important;
+  gap: 0.25rem !important;
+}
+#tab-admin .evenement-poto-receivable {
+  padding: 0.25rem 0.35rem !important;
+  font-size: 0.68rem !important;
+  margin-top: 0.2rem !important;
+  border-radius: 7px !important;
+}
+#tab-admin .financier-pay-inline {
+  gap: 0.2rem !important;
+  font-size: 0.72rem !important;
+}
+#tab-admin .financier-pay-inline select,
+#tab-admin .financier-pay-inline button,
+#tab-admin .financier-pay-inline input {
+  min-height: 1.85rem !important;
+  padding: 0.2rem 0.35rem !important;
+  font-size: 0.72rem !important;
+}
+
+/* —— Autres formulaires admin (prêts, caisse, communication, loi) —— */
+#tab-admin .pret-form,
+#tab-admin .autre-argent-form,
+#tab-admin .communication-form,
+#tab-admin #loiForm {
+  gap: 0.35rem !important;
+}
+#tab-admin .pret-form label,
+#tab-admin .autre-argent-form label,
+#tab-admin .communication-form label,
+#tab-admin #loiForm label {
+  gap: 0.15rem !important;
+  font-size: 0.75rem !important;
+}
+#tab-admin .pret-form input,
+#tab-admin .pret-form select,
+#tab-admin .pret-form textarea,
+#tab-admin .autre-argent-form input,
+#tab-admin .autre-argent-form select,
+#tab-admin .communication-form input,
+#tab-admin .communication-form textarea,
+#tab-admin #loiForm input,
+#tab-admin #loiForm textarea {
+  min-height: 2.05rem !important;
+  padding: 0.25rem 0.45rem !important;
+  font-size: 0.82rem !important;
+  border-radius: 8px !important;
+}
+#tab-admin .communication-form textarea,
+#tab-admin #loiForm textarea {
+  min-height: 4.5rem !important;
+  height: auto !important;
+}
+#tab-admin .pret-form .btn-primary,
+#tab-admin .autre-argent-form .btn-primary,
+#tab-admin .communication-form .btn-primary,
+#tab-admin #loiForm .btn-primary {
+  min-height: 2.15rem !important;
+  padding: 0.35rem 0.6rem !important;
+  font-size: 0.84rem !important;
+}
+
+@media (max-width: 640px) {
+  #tab-admin .bureau-assign-form {
+    grid-template-columns: 1fr !important;
+  }
+  #tab-admin #addMemberPanel .add-form {
+    grid-template-columns: 1fr !important;
+  }
+  #tab-admin .evenement-form {
+    grid-template-columns: 1fr 1fr !important;
+  }
+}
+
