@@ -4608,13 +4608,6 @@ function buildReunionDashboardHtml() {
       typeof getTotalsDettesAmendes === "function"
         ? getTotalsDettesAmendes()
         : { amendesDue: 0, dettesDue: 0, exDue: 0, totalDue: 0 };
-    const amendesDue = Number(totalsDA.amendesDue) || 0;
-    const exDue = Number(totalsDA.exDue) || 0;
-    // Total dû groupe = amendes + ex tournée (pas les parts d'événements de tout le monde)
-    const dettesAmendesTotal = Number(totalsDA.totalDue) || amendesDue + exDue;
-    const me = typeof getCurrentMember === "function" ? getCurrentMember() : null;
-    const monDue =
-      me && typeof getMemberPersonalDue === "function" ? getMemberPersonalDue(me.id) : 0;
     const eventsUnpaidPeople = openEvents.reduce((s, evt) => {
       const unpaid = getSortedMembers().filter(
         (m) => !isEvenementBeneficiary(evt, m.id) && !isEvenementPaid(evt, m.id)
@@ -4630,7 +4623,11 @@ function buildReunionDashboardHtml() {
       0
     );
 
-    // KPI : compteurs clairs + total dû = dettes perso formalisées (amendes + ex tournée)
+    // Total à verser = ce que TOI tu dois encore (événement + amende + ex tournée)
+    const me = typeof getCurrentMember === "function" ? getCurrentMember() : null;
+    const totalAVerser =
+      me && typeof getMemberPersonalDue === "function" ? getMemberPersonalDue(me.id) : 0;
+
     const countAmendes = openAmendes.length;
     const countEx = openEx.length;
     const kpis = [
@@ -4659,19 +4656,11 @@ function buildReunionDashboardHtml() {
       },
       {
         go: "amendes",
-        label: "Total dû",
-        value: formatEuro(dettesAmendesTotal),
-        tone: dettesAmendesTotal > 0 ? "danger" : "navy",
+        label: "Total à verser",
+        value: formatEuro(totalAVerser),
+        tone: totalAVerser > 0 ? "danger" : "navy",
       },
     ];
-    if (me) {
-      kpis.push({
-        go: "amendes",
-        label: "Mon dû",
-        value: formatEuro(monDue),
-        tone: monDue > 0 ? "danger" : "navy",
-      });
-    }
 
     const kpiHtml = `<div class="reunion-kpi-grid">${kpis
       .map(
