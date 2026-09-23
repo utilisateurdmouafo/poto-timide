@@ -8401,3 +8401,342 @@ html.phone-nav .menu-toggle-icon {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
+
+
+/* =========================================================
+   LAYOUT GLOBAL v2 — cohérence mobile + toutes les pages
+   ========================================================= */
+
+/* Contenu principal */
+.main {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding-left: max(0.65rem, env(safe-area-inset-left));
+  padding-right: max(0.65rem, env(safe-area-inset-right));
+  padding-bottom: max(1.25rem, env(safe-area-inset-bottom));
+}
+
+.tab-content.active {
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 100%;
+}
+
+.panel {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-x: hidden;
+}
+
+.panel h2 {
+  font-size: clamp(1.05rem, 3.5vw, 1.3rem);
+  line-height: 1.25;
+  margin: 0 0 0.35rem;
+}
+
+.panel-desc,
+.panel .muted,
+.panel-head .counter {
+  font-size: 0.85rem;
+  color: var(--text-muted, #64748b);
+}
+
+/* Formulaires unifiés : colonne, pleine largeur */
+.add-form,
+.pret-form,
+.evenement-form,
+.autre-argent-form,
+.amende-form,
+.role-form,
+.bureau-assign-form,
+.communication-form,
+#loiForm,
+.amende-form-inline {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.add-form input,
+.add-form select,
+.pret-form input,
+.pret-form select,
+.pret-form textarea,
+.evenement-form input,
+.evenement-form select,
+.evenement-form textarea,
+.autre-argent-form input,
+.autre-argent-form select,
+.amende-form input,
+.amende-form select,
+.amende-form textarea,
+.role-form select,
+.bureau-assign-form select,
+.communication-form input,
+.communication-form textarea,
+#loiForm input,
+#loiForm textarea,
+.amende-form-inline input,
+.amende-form-inline select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* Tableaux : scroll horizontal propre, sans casser la page */
+.table-scroll,
+.finance-table-wrap,
+.prets-table-wrap,
+.tournee-table-wrap,
+.amende-table-wrap,
+.admin-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+table {
+  max-width: none;
+}
+
+/* Cartes KPI / réunion / admin hub */
+.reunion-kpi-grid,
+.admin-hub-grid,
+.finance-dashboard {
+  width: 100%;
+}
+
+/* Loi & Guide */
+.loi-list,
+.guide-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  width: 100%;
+}
+
+.loi-card,
+.guide-card {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.loi-search-input,
+#loiSearch,
+#guideSearch {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 2.6rem;
+}
+
+/* Communication */
+.comm-item,
+.communication-list .comm-card {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Membres public + admin */
+.member-list {
+  width: 100%;
+}
+
+/* Prêts */
+.pret-loan-card,
+.pret-card,
+.pret-vote-banner {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Événements */
+.evenement-card {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* Boutons primaires formulaires */
+.add-form .btn-primary,
+.pret-form .btn-primary,
+.evenement-form .btn-primary,
+.amende-form .btn-primary,
+.bureau-assign-form .btn-primary,
+.bureau-assign-form .btn-compact,
+.communication-form .btn-primary,
+#loiForm .btn-primary {
+  min-height: 2.75rem;
+}
+
+/* ——— Mobile ≤ 780px ——— */
+@media (max-width: 780px) {
+  .main {
+    padding-left: max(0.5rem, env(safe-area-inset-left));
+    padding-right: max(0.5rem, env(safe-area-inset-right));
+  }
+
+  .panel {
+    padding: 0.9rem 0.85rem;
+    border-radius: 14px;
+  }
+
+  .panel h2 {
+    font-size: 1.08rem;
+  }
+
+  /* Tous formulaires en colonne */
+  .add-form,
+  .pret-form,
+  .pret-form-inline,
+  .evenement-form,
+  .autre-argent-form,
+  .amende-form,
+  .amende-form-inline,
+  .role-form,
+  .bureau-assign-form,
+  .communication-form.pret-form,
+  #loiForm.pret-form {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.65rem !important;
+  }
+
+  .add-form .btn-primary,
+  .pret-form button,
+  .pret-form .btn-primary,
+  .evenement-form button,
+  .autre-argent-form button,
+  .amende-form .btn-primary,
+  .amende-form-actions .btn-primary,
+  .amende-form-actions .btn-secondary,
+  .amende-form-inline .btn-primary,
+  .bureau-assign-form button,
+  .bureau-assign-form .btn-compact,
+  .role-form .btn-primary,
+  .communication-form .btn-primary,
+  #loiForm .btn-primary {
+    width: 100% !important;
+  }
+
+  .amende-form-inline #amendeMember,
+  .amende-form-inline #amendeType,
+  .amende-form-inline #amendeAmount,
+  .amende-form-inline #amendeNote {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Listes 2 colonnes max */
+  .member-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.45rem !important;
+  }
+
+  .bureau-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.4rem;
+    flex-wrap: wrap;
+  }
+
+  .bureau-card {
+    max-width: none;
+    width: 100%;
+  }
+
+  .bureau-card-name {
+    max-width: none;
+    font-size: 0.78rem;
+  }
+
+  .reunion-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .admin-hub-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .finance-dashboard {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* En-têtes moins encombrants */
+  .panel-head {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .admin-back-bar {
+    margin-bottom: 0.65rem;
+  }
+
+  .admin-back-label {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  /* Cartes prêts / événements */
+  .pret-loan-head,
+  .evenement-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+  }
+
+  /* Inputs touch-friendly (évite zoom iOS) */
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+@media (max-width: 400px) {
+  .member-list {
+    grid-template-columns: 1fr !important;
+  }
+  .bureau-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ——— Desktop : formulaires plus aérés ——— */
+@media (min-width: 781px) {
+  .main {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+  .panel {
+    padding: 1.2rem 1.35rem;
+  }
+}
+
+/* Admin workspace : empiler clairement */
+#tab-admin .gestion-subpanel.is-active {
+  display: flex !important;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+#tab-admin .panel {
+  margin: 0;
+}
+
+/* Évite le double scroll / débordement horizontal global */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+img, svg, video {
+  max-width: 100%;
+  height: auto;
+}
