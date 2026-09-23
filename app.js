@@ -423,6 +423,7 @@ let financierAccount = { ...DEFAULT_FINANCIER_ACCOUNT };
 let financeData = null;
 let activeFinanceSub = FINANCE_ARCHIVES_SUB;
 let activeAdminSub = null; // null = hub admin
+let _adminNavBusy = false;
 let activeGestionSub = "membres"; // alias
 let editingAmendeId = null;
 let appReady = false;
@@ -2649,6 +2650,9 @@ function renderAdminHub() {
 
 /** Tableau de bord admin (comme Réunion) — aucune sous-page visible */
 function showAdminHub() {
+  if (_adminNavBusy) return;
+  _adminNavBusy = true;
+  try {
   activeAdminSub = null;
   activeGestionSub = null;
   try {
@@ -2688,13 +2692,19 @@ function showAdminHub() {
 
   renderAdminHub();
   closeAdminMenu();
+  } finally {
+    _adminNavBusy = false;
+  }
 }
 
 function showAdminSub(subId) {
+  if (_adminNavBusy) return;
   if (subId === "hub" || subId === "home" || !subId) {
     showAdminHub();
     return;
   }
+  _adminNavBusy = true;
+  try {
   if (subId === "bureau" || subId === "equipe") subId = "membres";
   if (subId === "ancienne-tournee") subId = "amendes";
   if (!ADMIN_SUBTABS.includes(subId) || !canAccessAdminSub(subId)) {
@@ -2774,7 +2784,14 @@ function showAdminSub(subId) {
   if (subId === "sauvegarde" && typeof renderAuditLog === "function") renderAuditLog();
 
   closeAdminMenu();
-  window.scrollTo({ top: 0, behavior: "smooth" });
+  try {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  } catch {
+    /* ignore */
+  }
+  } finally {
+    _adminNavBusy = false;
+  }
 }
 
 function showGestionSub(subId) {
@@ -3570,14 +3587,7 @@ function updateSessionUI() {
   adminRolesPanel?.classList.toggle("locked", !isAdmin);
   tabPermissionsPanel?.classList.toggle("locked", !isAdmin);
 
-  // Ne pas forcer une sous-page : hub si aucune sélection
-  if (canAccessAdminTab() && document.getElementById("tab-admin")?.classList.contains("active")) {
-    if (activeAdminSub && ADMIN_SUBTABS.includes(activeAdminSub)) {
-      showAdminSub(activeAdminSub);
-    } else {
-      showAdminHub();
-    }
-  }
+  // Ne jamais rappeler showAdminSub/Hub ici (boucle infinie avec render())
 }
 
 function requireGroupAdmin(actionLabel) {
@@ -11127,10 +11137,6 @@ async function addMember(name, kind = "member") {
   memberNameInput?.focus();
   if (typeof renderMemberList === "function") renderMemberList();
   if (typeof renderBureau === "function") renderBureau();
-  // Rester sur la page Membres admin
-  if (isAdminWorkspace() && activeAdminSub === "membres" && typeof showAdminSub === "function") {
-    showAdminSub("membres");
-  }
 }
 
 function purgeMemberFromTourneeYear(yearData, memberId) {
