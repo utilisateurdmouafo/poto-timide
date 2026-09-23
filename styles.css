@@ -901,7 +901,9 @@ body::after {
 
 .add-form {
   display: flex;
+  flex-direction: column;
   gap: 0.75rem;
+  width: 100%;
 }
 
 .add-form input {
@@ -7363,23 +7365,111 @@ html.phone-nav .menu-toggle-icon {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   color: #334155;
+  width: 100%;
+  margin: 0;
 }
 .member-kind-label select {
   font: inherit;
   font-weight: 500;
-  padding: 0.55rem 0.7rem;
-  border-radius: 10px;
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
   border: 1px solid #cbd5e1;
   background: #fff;
+  width: 100%;
+  min-height: 2.75rem;
+  box-sizing: border-box;
 }
+
+/* Formulaire Ajouter un membre : colonne pleine largeur, lisible mobile */
 .add-form {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 100%;
+}
+.add-form input,
+.add-form select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+}
+.add-form .btn-primary {
+  width: 100%;
+  margin-top: 0.15rem;
+}
+
+#addMemberPanel .panel-head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+}
+#addMemberPanel .counter {
+  margin: 0;
+}
+
+/* Admin : barre retour propre, sans doublon de titre */
+.admin-workspace-head {
+  margin-bottom: 0.35rem;
+}
+.admin-workspace-head .admin-current-sub {
+  display: none !important; /* le libellé est dans ← Admin */
+}
+.admin-back-bar {
+  display: flex;
+  align-items: center;
   gap: 0.65rem;
-  align-items: flex-end;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  justify-content: flex-start;
+}
+.admin-back-label {
+  font-weight: 700;
+  color: #0f172a;
+  font-size: 1rem;
+}
+
+/* Listes membres admin : 2 colonnes max sur téléphone */
+@media (max-width: 780px) {
+  #memberListAdmin.member-list,
+  .member-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.5rem;
+  }
+  .member-item {
+    padding: 0.55rem 0.55rem;
+  }
+}
+@media (max-width: 380px) {
+  #memberListAdmin.member-list,
+  .member-list {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* Formulaires admin génériques : pleine largeur */
+#tab-admin .pret-form,
+#tab-admin .role-form,
+#tab-admin .bureau-assign-form,
+#tab-admin .amende-form,
+#tab-admin .evenement-form {
+  width: 100%;
+  max-width: 100%;
+}
+#tab-admin .bureau-assign-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+#tab-admin .bureau-assign-form select,
+#tab-admin .bureau-assign-form button {
+  width: 100%;
+  min-height: 2.6rem;
 }
 
 /* Boutons vote dans la bannière Total à régler */

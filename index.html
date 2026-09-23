@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,500;1,9..144,600&family=Outfit:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" media="(min-width: 768px)" />
-  <link rel="stylesheet" href="styles.css?v=pwa-96" />
+  <link rel="stylesheet" href="styles.css?v=pwa-99" />
 </head>
 <body>
   <div class="app" id="app">
@@ -481,7 +481,10 @@
                   <p class="counter" id="memberCounter">0 / 50 membres</p>
                 </div>
                 <form id="memberForm" class="add-form">
-                  <input type="text" id="memberName" placeholder="Nom" maxlength="50" required />
+                  <label class="member-kind-label">
+                    Nom
+                    <input type="text" id="memberName" placeholder="Ex : Hugo" maxlength="50" required autocomplete="off" />
+                  </label>
                   <label class="member-kind-label">
                     Type de compte
                     <select id="memberKind" aria-label="Type de compte">
@@ -1103,6 +1106,6 @@
   <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
 
   <script src="api-client.js?v=pwa-94"></script>
-  <script src="app.js?v=pwa-98"></script>
+  <script src="app.js?v=pwa-99"></script>
 </body>
 </html>

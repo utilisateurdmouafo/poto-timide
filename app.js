@@ -2729,8 +2729,8 @@ function showAdminSub(subId) {
   }
   if (desc) desc.hidden = true;
   if (label) {
-    label.hidden = false;
-    label.textContent = getAdminHubLabel(subId);
+    label.hidden = true; // évite le doublon avec la barre ← Admin
+    label.textContent = "";
   }
 
   document.querySelectorAll("#tab-admin .gestion-subpanel[data-admin-panel]").forEach((panel) => {
