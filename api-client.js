@@ -369,12 +369,16 @@ function objectUpdatedAtMs(value) {
 
 
 function mergeTourneeOkMapsClient(a, b) {
-  const out = { ...(a && typeof a === "object" ? a : {}) };
-  if (b && typeof b === "object") {
-    Object.entries(b).forEach(([id, flag]) => {
+  // Union des OK : dès qu'un appareil a validé, l'OK reste
+  const out = {};
+  const add = (src) => {
+    if (!src || typeof src !== "object") return;
+    Object.entries(src).forEach(([id, flag]) => {
       if (flag) out[id] = true;
     });
-  }
+  };
+  add(a);
+  add(b);
   return out;
 }
 
@@ -399,9 +403,16 @@ function mergeTourneeDataClient(local, incoming) {
       if (inc[key] && typeof inc[key] === "object" && Object.keys(inc[key]).length > 0) out[key] = inc[key];
       else if (base[key]) out[key] = base[key];
     }
+    if (inc.partners && typeof inc.partners === "object") out.partners = inc.partners;
+    else if (base.partners) out.partners = base.partners;
     years[y] = out;
   });
-  return { years, updatedAt: new Date().toISOString() };
+  const tA = new Date(a.updatedAt || 0).getTime() || 0;
+  const tB = new Date(b.updatedAt || 0).getTime() || 0;
+  return {
+    years,
+    updatedAt: new Date(Math.max(tA, tB, Date.now())).toISOString(),
+  };
 }
 
 
@@ -611,6 +622,7 @@ const SYNC_FAST_KEYS = new Set([
   "poto-timide-ancienne-tournee-dettes",
   "poto-timide-evenements",
   "poto-timide-prets",
+  "poto-timide-tournee",
   "poto-timide-data-revision",
 ]);
 

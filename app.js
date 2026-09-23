@@ -1223,7 +1223,7 @@ function cloneMonthMemberMap(value) {
 
 function cloneTourneeData(data) {
   const years = {};
-  Object.entries(data.years || {}).forEach(([year, yearData]) => {
+  Object.entries((data && data.years) || {}).forEach(([year, yearData]) => {
     years[year] = {};
     Object.entries(yearData || {}).forEach(([key, value]) => {
       if (key === TOURNEE_PARTNERS_KEY) {
@@ -1249,7 +1249,9 @@ function cloneTourneeData(data) {
       years[year][key] = Array.isArray(value) ? [...value] : value;
     });
   });
-  return { years };
+  const out = { years };
+  if (data && data.updatedAt) out.updatedAt = data.updatedAt;
+  return out;
 }
 
 function normalizeTourneeMonthIds(memberIds) {
@@ -1382,7 +1384,9 @@ function normalizeTourneeData(raw) {
     years[String(year)] = normalizedYear;
   });
 
-  return { years };
+  const out = { years };
+  if (raw && raw.updatedAt) out.updatedAt = raw.updatedAt;
+  return out;
 }
 
 /** Financier / admin / accès Tournée : peut cocher OK réception ou ristourne */
@@ -1448,18 +1452,22 @@ function setTourneeMarkOk(kind, memberId, isOk) {
     if (Object.keys(draftMap).length === 0) delete tourneeDraft.years[year][key];
   }
 
-  // Forcer un horodatage pour gagner la fusion serveur
   tourneeData.updatedAt = new Date().toISOString();
   saveTourneeData();
+  renderTourneeTable();
   const flush = window.potoFlushSync || window.flushPotoServerSync;
   if (typeof flush === "function") {
     Promise.resolve(flush())
       .then((ok) => {
         if (!ok) return flush();
       })
+      .then(() => {
+        // Après envoi serveur, recharger pour confirmer l'OK
+        if (typeof reloadFromStorage === "function") reloadFromStorage();
+        renderTourneeTable();
+      })
       .catch(() => {});
   }
-  renderTourneeTable();
   return true;
 }
 
@@ -1481,7 +1489,16 @@ function loadTourneeData() {
 }
 
 function saveTourneeData() {
+  tourneeData = tourneeData && typeof tourneeData === "object" ? tourneeData : { years: {} };
+  tourneeData.updatedAt = new Date().toISOString();
   localStorage.setItem(TOURNEE_KEY, JSON.stringify(tourneeData));
+  // Forcer file d'attente synchro (OK visibles sur les autres appareils)
+  try {
+    const raw = localStorage.getItem(TOURNEE_KEY);
+    if (raw && window.queueServerSync) window.queueServerSync(TOURNEE_KEY, raw);
+  } catch {
+    /* ignore */
+  }
 }
 
 function getTourneeYearOptions() {
@@ -11937,6 +11954,13 @@ async function initApp() {
     else if (document.getElementById("tab-reunion")?.classList.contains("active") && typeof renderReunion === "function") {
       renderReunion();
     }
+    // Tournée : toujours rafraîchir si l'onglet (ou admin) est visible — les OK doivent apparaître
+    if (
+      document.getElementById("tab-tournee")?.classList.contains("active") ||
+      (document.getElementById("tab-admin")?.classList.contains("active") && activeAdminSub === "tournee")
+    ) {
+      if (typeof renderTourneeTable === "function") renderTourneeTable();
+    }
     if (document.getElementById("tab-admin")?.classList.contains("active")) {
       if (activeAdminSub === "amendes" || activeAdminSub === "ancienne-tournee") {
         if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
@@ -11948,6 +11972,9 @@ async function initApp() {
       if (activeAdminSub === "caisse") {
         renderFondCaissePanel();
         renderAutreArgent();
+      }
+      if (activeAdminSub === "tournee" && typeof renderTourneeTable === "function") {
+        renderTourneeTable();
       }
     }
     scheduleFitTables();

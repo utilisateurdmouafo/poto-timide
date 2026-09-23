@@ -541,13 +541,16 @@ function broadcastLive(eventName, payload = {}) {
 
 /** Fusion profonde tournée : ne pas perdre receptionOk / ristourneOk */
 function mergeTourneeOkMaps(a, b) {
-  const out = { ...(a && typeof a === "object" ? a : {}) };
-  if (b && typeof b === "object") {
-    Object.entries(b).forEach(([id, flag]) => {
+  // Union des OK entre appareils (ne jamais perdre un OK validé)
+  const out = {};
+  const add = (src) => {
+    if (!src || typeof src !== "object") return;
+    Object.entries(src).forEach(([id, flag]) => {
       if (flag) out[id] = true;
-      else if (flag === false) delete out[id];
     });
-  }
+  };
+  add(a);
+  add(b);
   return out;
 }
 
