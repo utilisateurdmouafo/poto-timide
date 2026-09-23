@@ -4469,7 +4469,7 @@ function getSavedTab() {
   const fromStored = resolveLegacyTab(storedTab);
   if (fromStored) return fromStored;
 
-  return "membres";
+  return "reunion";
 }
 
 function persistActiveTab(tabId) {
@@ -11915,7 +11915,8 @@ async function initApp() {
   window.potoOnServerDataPulled = () => {
     if (typeof window.potoIsUserEditingForm === "function" && window.potoIsUserEditingForm()) return;
     if (typeof window.potoIsLoanDateEditing === "function" && window.potoIsLoanDateEditing()) return;
-    // Mémoriser le scroll vertical de la page + horizontal des tableaux
+
+    // Mémoriser scroll page + tableaux
     const pageScrollY = window.scrollY || document.documentElement.scrollTop || 0;
     const scrollSnapshot = [];
     document.querySelectorAll(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap").forEach((wrap, index) => {
@@ -11923,62 +11924,100 @@ async function initApp() {
         scrollSnapshot.push({
           index,
           left: wrap.scrollLeft,
-          // clé stable si le parent a un id
           parentId: wrap.closest("[id]")?.id || "",
         });
       }
     });
+
     reloadFromStorage();
     updatePretTabBadge();
-    renderCommunication();
-    renderAncienneTourneeMemberView();
-    renderAncienneTourneeDettesAdmin();
-    if (document.getElementById("tab-ex-tournee")?.classList.contains("active")) {
-      renderExTournee();
+
+    const isActive = (id) => document.getElementById(id)?.classList.contains("active");
+    const tabReunion = isActive("tab-reunion");
+    const tabMembres = isActive("tab-membres");
+    const tabTournee = isActive("tab-tournee");
+    const tabPrets = isActive("tab-prets");
+    const tabEvenements = isActive("tab-evenements");
+    const tabAmendes = isActive("tab-amendes");
+    const tabFinance = isActive("tab-finance");
+    const tabLoi = isActive("tab-loi");
+    const tabComm = isActive("tab-communication");
+    const tabAdmin = isActive("tab-admin");
+
+    // --- Toujours resynchroniser les vues dépendantes (légères) ---
+    try {
+      if (typeof renderCommunication === "function") renderCommunication();
+      if (typeof renderEvenements === "function") renderEvenements();
+      if (typeof renderAmendes === "function") renderAmendes();
+      if (typeof renderMesDettes === "function") renderMesDettes();
+      if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
+      if (typeof renderFondCaisseAnnuel === "function") renderFondCaisseAnnuel();
+      if (typeof renderAncienneTourneeMemberView === "function") renderAncienneTourneeMemberView();
+      if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
+    } catch (err) {
+      console.warn("refresh données:", err);
     }
-    renderEvenements();
-    renderAmendes();
-    renderFinanceDashboard();
-    renderFondCaisseAnnuel();
-    if (document.getElementById("tab-loi")?.classList.contains("active")) {
-      renderLoi();
-    }
-    if (document.getElementById("tab-prets")?.classList.contains("active")) {
-      renderPrets();
-    }
-    renderMesDettes();
-    if (document.getElementById("tab-amendes")?.classList.contains("active")) {
-      renderMesAmendes();
-    }
-    if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
-    else if (document.getElementById("tab-reunion")?.classList.contains("active") && typeof renderReunion === "function") {
-      renderReunion();
-    }
-    // Tournée : toujours rafraîchir si l'onglet (ou admin) est visible — les OK doivent apparaître
-    if (
-      document.getElementById("tab-tournee")?.classList.contains("active") ||
-      (document.getElementById("tab-admin")?.classList.contains("active") && activeAdminSub === "tournee")
-    ) {
-      if (typeof renderTourneeTable === "function") renderTourneeTable();
-    }
-    if (document.getElementById("tab-admin")?.classList.contains("active")) {
-      if (activeAdminSub === "amendes" || activeAdminSub === "ancienne-tournee") {
-        if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
+
+    // --- Onglet visible : refresh complet ---
+    try {
+      if (tabReunion && typeof renderReunion === "function") renderReunion();
+      else if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
+
+      if (tabMembres) {
+        if (typeof renderBureau === "function") renderBureau();
+        if (typeof renderMemberList === "function") renderMemberList();
+        if (typeof renderOnlineList === "function") renderOnlineList();
+        if (typeof renderAdminList === "function") renderAdminList();
       }
-      if (activeAdminSub === "communication") renderCommunication();
-      if (activeAdminSub === "prets") renderAdminPrets();
-      if (activeAdminSub === "loi") renderLoiAdmin();
-      if (activeAdminSub === "acces") renderTabPermissionsPanel();
-      if (activeAdminSub === "caisse") {
-        renderFondCaissePanel();
-        renderAutreArgent();
+
+      if (tabTournee && typeof renderTourneeTable === "function") renderTourneeTable();
+
+      if (tabPrets && typeof renderPrets === "function") renderPrets();
+
+      if (tabEvenements && typeof renderEvenements === "function") renderEvenements();
+
+      if (tabAmendes) {
+        if (typeof renderAmendes === "function") renderAmendes();
+        if (typeof renderMesAmendes === "function") renderMesAmendes();
+        if (typeof renderMesDettes === "function") renderMesDettes();
       }
-      if (activeAdminSub === "tournee" && typeof renderTourneeTable === "function") {
-        renderTourneeTable();
+
+      if (tabFinance && typeof renderFinance === "function") renderFinance();
+      else if (tabFinance && typeof renderFinanceDashboard === "function") renderFinanceDashboard();
+
+      if (tabLoi && typeof renderLoi === "function") renderLoi();
+
+      if (tabComm && typeof renderCommunication === "function") renderCommunication();
+
+      if (tabAdmin) {
+        if (typeof renderTourneeTable === "function" && activeAdminSub === "tournee") renderTourneeTable();
+        if (activeAdminSub === "amendes" || activeAdminSub === "ancienne-tournee") {
+          if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
+          if (typeof renderAmendesAdminHistory === "function") renderAmendesAdminHistory();
+        }
+        if (activeAdminSub === "communication" && typeof renderCommunication === "function") renderCommunication();
+        if (activeAdminSub === "prets" && typeof renderAdminPrets === "function") renderAdminPrets();
+        if (activeAdminSub === "loi" && typeof renderLoiAdmin === "function") renderLoiAdmin();
+        if (activeAdminSub === "acces" && typeof renderTabPermissionsPanel === "function") renderTabPermissionsPanel();
+        if (activeAdminSub === "caisse") {
+          if (typeof renderFondCaissePanel === "function") renderFondCaissePanel();
+          if (typeof renderAutreArgent === "function") renderAutreArgent();
+        }
+        if (activeAdminSub === "evenements" && typeof renderEvenements === "function") renderEvenements();
+        if (activeAdminSub === "membres") {
+          if (typeof renderBureau === "function") renderBureau();
+          if (typeof renderMemberList === "function") renderMemberList();
+          if (typeof renderAdminList === "function") renderAdminList();
+        }
+        if (activeAdminSub === "admins" && typeof renderAdminList === "function") renderAdminList();
+        if (activeAdminSub === "sauvegarde" && typeof renderAuditLog === "function") renderAuditLog();
       }
+    } catch (err) {
+      console.warn("refresh UI après pull:", err);
     }
-    scheduleFitTables();
-    // Restaurer le scroll vertical de la page + horizontal des tableaux
+
+    if (typeof scheduleFitTables === "function") scheduleFitTables();
+
     const restoreAll = () => {
       window.scrollTo(0, pageScrollY);
       const wraps = document.querySelectorAll(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap");
@@ -11998,6 +12037,7 @@ async function initApp() {
       requestAnimationFrame(restoreAll);
     });
   };
+
 
   appReady = true;
   updateSessionUI();
