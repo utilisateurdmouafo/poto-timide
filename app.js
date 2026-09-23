@@ -4652,7 +4652,7 @@ function buildReunionDashboardHtml() {
       { go: "prets", label: "Max empruntable", value: formatEuro(maxEmpruntable), tone: "green" },
       { go: "finance", label: "Totale", value: formatEuro(caisseTotal), tone: "navy" },
       { go: "prets", label: "Votes", value: String(votingLoans.length), tone: votingLoans.length ? "warn" : "navy" },
-      { go: "prets", label: "Prêts", value: String(activeLoans.length), tone: activeLoans.length ? "warn" : "navy" },
+      { go: "finance", label: "Prêts", value: String(activeLoans.length), tone: activeLoans.length ? "warn" : "navy" },
       {
         go: "evenements",
         label: "Événements",
@@ -4755,7 +4755,7 @@ function buildReunionDashboardHtml() {
     return `
     ${kpiHtml}
     ${voteHtml}
-    <button type="button" class="reunion-block reunion-link reunion-chart-only" data-reunion-go="prets">
+    <button type="button" class="reunion-block reunion-link reunion-chart-only" data-reunion-go="finance">
       <h3>Prêts en cours — reste dû (${activeLoans.length}) · ${formatEuro(loansCapital)}</h3>
       <div class="reunion-chart-wrap">${loansChart}</div>
     </button>
@@ -4770,10 +4770,34 @@ function buildReunionDashboardHtml() {
 
 document.getElementById("reunionDashboard")?.addEventListener("click", (e) => {
   const go = e.target.closest("[data-reunion-go]");
-  if (go) {
-    const tab = go.getAttribute("data-reunion-go");
-    if (tab) showTab(tab);
+  if (!go) return;
+  const tab = go.getAttribute("data-reunion-go");
+  if (!tab) return;
+  // Prêts (KPI / graphique) → Finance → Historique (liste de tous les prêts)
+  if (tab === "finance") {
+    if (typeof FINANCE_ARCHIVES_SUB !== "undefined") {
+      activeFinanceSub = FINANCE_ARCHIVES_SUB;
+      try {
+        localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_ARCHIVES_SUB);
+      } catch {
+        /* ignore */
+      }
+    }
+    showTab("finance");
+    const scrollToPretsList = () => {
+      const el =
+        document.querySelector(".finance-caisse-historique") ||
+        document.querySelector(".finance-ledger-title") ||
+        document.getElementById("financeSubcontent");
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    requestAnimationFrame(() => {
+      scrollToPretsList();
+      setTimeout(scrollToPretsList, 120);
+    });
+    return;
   }
+  showTab(tab);
 });
 
 document.addEventListener("click", (e) => {
