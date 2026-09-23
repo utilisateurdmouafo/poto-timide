@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,500;1,9..144,600&family=Outfit:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" media="(min-width: 768px)" />
-  <link rel="stylesheet" href="styles.css?v=pwa-92" />
+  <link rel="stylesheet" href="styles.css?v=pwa-93" />
 </head>
 <body>
   <div class="app" id="app">
@@ -439,20 +439,20 @@
         </section>
       </div>
 
-      <!-- ========== ADMIN (manipulations uniquement) ========== -->
+      <!-- ========== ADMIN (hub type réunion) ========== -->
       <div class="tab-content" id="tab-admin">
         <section class="panel finance-panel gestion-panel admin-workspace-panel">
           <div class="admin-workspace-head">
             <div>
               <h2>Administration</h2>
-              <p class="panel-desc">Configuration du groupe.</p>
+              <p class="panel-desc" id="adminHubDesc">Choisis une section à gérer.</p>
               <p class="admin-current-sub" id="adminCurrentSubLabel" hidden></p>
             </div>
           </div>
-          <div id="adminSubtabsMount">
-          <nav class="finance-subtabs gestion-subtabs" id="adminSubtabs" aria-label="Sous-onglets admin">
-            <p class="admin-menu-title">Admin</p>
-            <button type="button" class="finance-subtab gestion-subtab active" data-admin-sub="membres">Membres &amp; Bureau</button>
+          <!-- Anciennes sous-barres masquées (navigation = hub uniquement) -->
+          <div id="adminSubtabsMount" hidden>
+          <nav class="finance-subtabs gestion-subtabs" id="adminSubtabs" aria-label="Sous-onglets admin" hidden>
+            <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="membres">Membres &amp; Bureau</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="admins">Admins</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="acces">Accès</button>
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="tournee">Tournée</button>
@@ -465,8 +465,16 @@
             <button type="button" class="finance-subtab gestion-subtab" data-admin-sub="sauvegarde">Sauvegarde</button>
           </nav>
           </div>
-          <div class="gestion-subcontent" id="adminSubcontent">
-                        <div class="gestion-subpanel is-active" id="adminSub-membres" data-admin-panel="membres">
+          <!-- Hub admin (comme Réunion) -->
+          <div id="adminHub" class="admin-hub">
+            <div class="reunion-kpi-grid admin-hub-grid" id="adminHubGrid"></div>
+          </div>
+          <div class="reunion-back-bar admin-back-bar" id="adminBackBar" hidden>
+            <button type="button" class="btn-reunion-back" data-go-admin-hub title="Retour administration">← Admin</button>
+            <span class="admin-back-label" id="adminBackLabel"></span>
+          </div>
+          <div class="gestion-subcontent" id="adminSubcontent" hidden>
+                        <div class="gestion-subpanel" id="adminSub-membres" data-admin-panel="membres" hidden>
               <section class="panel add-panel admin-section" id="addMemberPanel">
                 <div class="panel-head">
                   <h2>Ajouter un membre</h2>
@@ -1094,7 +1102,7 @@
 
   <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
 
-  <script src="api-client.js?v=pwa-92"></script>
-  <script src="app.js?v=pwa-92"></script>
+  <script src="api-client.js?v=pwa-93"></script>
+  <script src="app.js?v=pwa-93"></script>
 </body>
 </html>

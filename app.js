@@ -2593,94 +2593,137 @@ function updateAdminSubtabVisibility() {
   });
 }
 
+function getAdminHubLabel(subId) {
+  const item = ADMIN_HUB_ITEMS.find((x) => x.id === subId);
+  return item?.label || subId || "Admin";
+}
+
+function renderAdminHub() {
+  const grid = document.getElementById("adminHubGrid");
+  if (!grid) return;
+  const allowed = getAllowedAdminSubs();
+  const items = ADMIN_HUB_ITEMS.filter((item) => allowed.includes(item.id));
+  if (!items.length) {
+    grid.innerHTML = `<p class="panel-desc">Aucun accès admin disponible.</p>`;
+    return;
+  }
+  grid.innerHTML = items
+    .map(
+      (item) => `<button type="button" class="reunion-kpi reunion-kpi-${item.tone} admin-hub-btn" data-admin-go="${item.id}">
+        <span>${escapeHtml(item.label)}</span>
+        <strong>Gérer</strong>
+      </button>`
+    )
+    .join("");
+}
+
+/** Tableau de bord admin (comme Réunion) — aucune sous-page visible */
+function showAdminHub() {
+  activeAdminSub = null;
+  activeGestionSub = null;
+  try {
+    localStorage.removeItem(ADMIN_SUBTAB_KEY);
+  } catch {
+    /* ignore */
+  }
+
+  const hub = document.getElementById("adminHub");
+  const backBar = document.getElementById("adminBackBar");
+  const subcontent = document.getElementById("adminSubcontent");
+  const desc = document.getElementById("adminHubDesc");
+  const label = document.getElementById("adminCurrentSubLabel");
+
+  if (hub) hub.hidden = false;
+  if (backBar) backBar.hidden = true;
+  if (subcontent) subcontent.hidden = true;
+  if (desc) {
+    desc.hidden = false;
+    desc.textContent = "Choisis une section à gérer.";
+  }
+  if (label) {
+    label.hidden = true;
+    label.textContent = "";
+  }
+
+  document.querySelectorAll("#tab-admin .gestion-subpanel[data-admin-panel]").forEach((panel) => {
+    panel.classList.remove("is-active");
+    panel.hidden = true;
+  });
+
+  renderAdminHub();
+  closeAdminMenu();
+}
+
 function showAdminSub(subId) {
+  if (subId === "hub" || subId === "home" || !subId) {
+    showAdminHub();
+    return;
+  }
   if (subId === "bureau" || subId === "equipe") subId = "membres";
   if (subId === "ancienne-tournee") subId = "amendes";
   if (!ADMIN_SUBTABS.includes(subId) || !canAccessAdminSub(subId)) {
-    subId = getAdminSubtab();
+    const allowed = getAllowedAdminSubs();
+    if (!allowed.length) {
+      showAdminHub();
+      return;
+    }
+    subId = allowed.includes(getAdminSubtab()) ? getAdminSubtab() : allowed[0];
   }
+
   activeAdminSub = subId;
   activeGestionSub = subId;
   localStorage.setItem(ADMIN_SUBTAB_KEY, subId);
-  updateAdminSubtabVisibility();
 
-  const root = document.getElementById("tab-admin");
-  const tabButtons = adminSubtabs?.querySelectorAll("[data-admin-sub]")
-    || root?.querySelectorAll("[data-admin-sub]");
+  const hub = document.getElementById("adminHub");
+  const backBar = document.getElementById("adminBackBar");
+  const backLabel = document.getElementById("adminBackLabel");
+  const subcontent = document.getElementById("adminSubcontent");
+  const desc = document.getElementById("adminHubDesc");
+  const label = document.getElementById("adminCurrentSubLabel");
 
-  tabButtons?.forEach((btn) => {
-    const key = btn.dataset.adminSub;
-    if (!key) return;
-    btn.classList.toggle("active", key === subId);
-    btn.setAttribute("aria-selected", String(key === subId));
-    if (key === subId && !isPhoneNav()) {
-      btn.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
-    }
-  });
-
-  if (adminCurrentSubLabel) {
-    const activeBtn = [...(tabButtons || [])].find((btn) => btn.dataset.adminSub === subId);
-    const label = (activeBtn?.textContent || "").replace(/\s+/g, " ").trim();
-    adminCurrentSubLabel.textContent = label;
-    adminCurrentSubLabel.hidden = !isPhoneNav() || !label;
+  if (hub) hub.hidden = true;
+  if (backBar) backBar.hidden = false;
+  if (backLabel) backLabel.textContent = getAdminHubLabel(subId);
+  if (subcontent) subcontent.hidden = false;
+  if (desc) desc.hidden = true;
+  if (label) {
+    label.hidden = false;
+    label.textContent = getAdminHubLabel(subId);
   }
-  closeAdminMenu();
 
-  const panels = root
-    ? root.querySelectorAll(".gestion-subpanel[data-admin-panel]")
-    : document.querySelectorAll(".gestion-subpanel[data-admin-panel]");
-
-  panels.forEach((panel) => {
-    const id = panel.dataset.adminPanel;
-    const isActive = id === subId;
-    panel.hidden = !isActive;
-    panel.classList.toggle("is-active", isActive);
-    panel.setAttribute("aria-hidden", String(!isActive));
+  document.querySelectorAll("#tab-admin .gestion-subpanel[data-admin-panel]").forEach((panel) => {
+    const match = panel.dataset.adminPanel === subId;
+    panel.classList.toggle("is-active", match);
+    panel.hidden = !match;
   });
 
+  // Rendu ciblé de la section
   if (subId === "membres") {
-    renderMemberList();
-    renderBureau();
+    if (typeof renderBureau === "function") renderBureau();
+    if (typeof renderMemberList === "function") renderMemberList(true);
+    if (typeof renderAdminList === "function") renderAdminList();
   }
-  if (subId === "admins") renderAdminList();
-  if (subId === "acces") renderTabPermissionsPanel();
-  if (subId === "tournee") {
-    if (canEditTourneePlanning()) {
-      cotisationsDraft = { ...cotisations };
-      tourneeDraft = cloneTourneeData(tourneeData);
-    }
-    renderTourneeTable();
+  if (subId === "admins") {
+    if (typeof renderAdminList === "function") renderAdminList();
   }
+  if (subId === "acces" && typeof renderTabPermissionsPanel === "function") renderTabPermissionsPanel();
+  if (subId === "tournee" && typeof renderTourneeTable === "function") renderTourneeTable();
   if (subId === "caisse") {
-    renderFondCaissePanel();
-    renderAutreArgent();
+    if (typeof renderFondCaissePanel === "function") renderFondCaissePanel();
+    if (typeof renderAutreArgent === "function") renderAutreArgent();
   }
-  if (subId === "prets") {
-    renderAdminPrets();
-  }
+  if (subId === "prets" && typeof renderAdminPrets === "function") renderAdminPrets();
   if (subId === "amendes") {
-    renderAmendes();
-    renderAmendesAdminHistory();
-    if (typeof renderAncienneTourneeDettesAdmin === "function") {
-      renderAncienneTourneeDettesAdmin();
-    }
+    if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
+    if (typeof renderAmendesAdminHistory === "function") renderAmendesAdminHistory();
   }
-  if (subId === "evenements") {
-    renderEvenements();
-  }
-  if (subId === "communication") {
-    activeCommunicationSub = "communique";
-    renderCommunication();
-    focusCommunicationCursor();
-  }
-  if (subId === "loi") {
-    renderLoiAdmin();
-  }
-  if (subId === "sauvegarde") {
-    loadBackupPanel();
-    renderAuditLog();
-  }
-  highlightNotificationItem();
+  if (subId === "evenements" && typeof renderEvenements === "function") renderEvenements();
+  if (subId === "communication" && typeof renderCommunication === "function") renderCommunication();
+  if (subId === "loi" && typeof renderLoiAdmin === "function") renderLoiAdmin();
+  if (subId === "sauvegarde" && typeof renderAuditLog === "function") renderAuditLog();
+
+  closeAdminMenu();
+  window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function showGestionSub(subId) {
@@ -2689,8 +2732,24 @@ function showGestionSub(subId) {
 }
 
 function renderAdmin() {
-  activeAdminSub = getAdminSubtab();
-  showAdminSub(activeAdminSub);
+  // Hub par défaut à chaque entrée dans Admin
+  // Deep-link notif uniquement via sessionStorage poto-open-admin
+  let deep = null;
+  try {
+    deep = sessionStorage.getItem("poto-open-admin");
+  } catch {
+    deep = null;
+  }
+  if (deep && ADMIN_SUBTABS.includes(deep) && canAccessAdminSub(deep)) {
+    try {
+      sessionStorage.removeItem("poto-open-admin");
+    } catch {
+      /* ignore */
+    }
+    showAdminSub(deep);
+  } else {
+    showAdminHub();
+  }
 }
 
 function renderGestion() {
@@ -4809,6 +4868,19 @@ document.addEventListener("click", (e) => {
   if (back) {
     e.preventDefault();
     showTab("reunion");
+    return;
+  }
+  const adminBack = e.target.closest("[data-go-admin-hub]");
+  if (adminBack) {
+    e.preventDefault();
+    showAdminHub();
+    return;
+  }
+  const adminGo = e.target.closest("[data-admin-go]");
+  if (adminGo) {
+    e.preventDefault();
+    const id = adminGo.getAttribute("data-admin-go");
+    if (id) showAdminSub(id);
   }
 });
 
@@ -11187,11 +11259,11 @@ function placeAdminSubtabs() {
 }
 
 function syncAdminMenuToggle() {
+  // Navigation admin = hub (plus de 3 barres / sous-menu latéral)
   placeAdminSubtabs();
-  const show = isPhoneNav() && isAdminTabActive() && canAccessAdminTab();
-  if (adminMenuToggle) adminMenuToggle.hidden = !show;
-  document.documentElement.classList.toggle("admin-tab-on", Boolean(show));
-  if (!show) closeAdminMenu();
+  if (adminMenuToggle) adminMenuToggle.hidden = true;
+  document.documentElement.classList.remove("admin-tab-on");
+  closeAdminMenu();
 }
 
 function setPanelInert(el, inert) {

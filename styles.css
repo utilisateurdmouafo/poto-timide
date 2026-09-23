@@ -8237,3 +8237,38 @@ html.phone-nav .menu-toggle-icon {
     width: 100%;
   }
 }
+
+
+/* —— Admin hub (type Réunion) —— */
+.admin-hub {
+  margin: 0.5rem 0 1rem;
+}
+.admin-hub-grid {
+  margin-top: 0.25rem;
+}
+.admin-hub-btn {
+  min-height: 4.5rem;
+  text-align: left;
+}
+.admin-hub-btn strong {
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+.admin-back-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.admin-back-label {
+  font-weight: 600;
+  color: var(--text-muted, #64748b);
+  font-size: 0.95rem;
+}
+#adminSubtabsMount,
+#adminSubtabs {
+  display: none !important;
+}
+#tab-admin .gestion-subpanel:not(.is-active) {
+  display: none !important;
+}
