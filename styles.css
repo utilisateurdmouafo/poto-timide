@@ -4070,8 +4070,7 @@ body::after {
   animation: gestionFade 0.18s ease;
 }
 
-.gestion-subpanel.is-active,
-.gestion-subpanel:not([hidden]) {
+.gestion-subpanel.is-active {
   display: flex;
 }
 
@@ -8271,4 +8270,21 @@ html.phone-nav .menu-toggle-icon {
 }
 #tab-admin .gestion-subpanel:not(.is-active) {
   display: none !important;
+}
+
+#adminHub:not([hidden]) {
+  display: block !important;
+}
+#adminSubcontent[hidden] {
+  display: none !important;
+}
+#adminSubcontent:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+.admin-hub-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.65rem;
 }
