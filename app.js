@@ -8497,28 +8497,17 @@ function saveAuditLog() {
   localStorage.setItem(AUDIT_LOG_KEY, JSON.stringify(auditLog.slice(0, AUDIT_LOG_MAX)));
 }
 
-/** Enregistre une action sensible (visible Admin → Sauvegarde) */
+/** Journal des actions désactivé pour le moment (aucune trace enregistrée) */
 function logAudit(action, detail = "") {
-  try {
-    const actor = getCurrentMember();
-    auditLog.unshift({
-      id: generateId(),
-      at: new Date().toISOString(),
-      actorId: actor?.id || null,
-      actorName: actor?.name || "Système",
-      action: String(action || "").slice(0, 120),
-      detail: String(detail || "").slice(0, 280),
-    });
-    if (auditLog.length > AUDIT_LOG_MAX) auditLog = auditLog.slice(0, AUDIT_LOG_MAX);
-    saveAuditLog();
-  } catch (err) {
-    console.warn("Journal audit:", err);
-  }
+  return;
 }
 
 function renderAuditLog() {
   const list = document.getElementById("auditLogList");
   if (!list) return;
+  // Journal désactivé : n'affiche rien d'actif
+  list.innerHTML = `<p class="panel-desc">Journal des actions désactivé — aucune action n'est enregistrée pour le moment.</p>`;
+  return;
   if (!auditLog.length) {
     list.innerHTML = `<p class="panel-desc">Aucune action enregistrée pour le moment.</p>`;
     return;
