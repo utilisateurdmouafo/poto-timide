@@ -70,6 +70,7 @@ const SESSION_KEY = "poto-timide-session";
 const ACTIVE_TAB_KEY = "poto-timide-active-tab";
 const TAB_IDS = ["reunion", "communication", "membres", "tournee", "prets", "evenements", "amendes", "finance", "loi", "admin"];
 const LOI_KEY = "poto-timide-loi";
+const GUIDE_KEY = "poto-timide-guide";
 const COMMUNICATION_KINDS = [
   {
     id: "communique",
@@ -98,11 +99,10 @@ const COMMUNICATION_KINDS = [
   {
     id: "guide",
     label: "Guide site",
-    singular: "guide",
-    composerTitle: "Guide du site",
-    titlePlaceholder: "",
-    bodyPlaceholder: "",
-    isStaticGuide: true,
+    singular: "article du guide",
+    composerTitle: "Ajouter un article du guide",
+    titlePlaceholder: "Ex : Comment demander un prêt",
+    bodyPlaceholder: "Explications pour les membres…",
   },
 ];
 const FINANCE_SUBTABS = ["caisse", "archives"];
@@ -389,6 +389,9 @@ let notifications = [];
 let evenements = [];
 let communicationPosts = [];
 let loiArticles = [];
+let guideArticles = [];
+let editingGuideId = null;
+let guideSearchQuery = "";
 let editingLoiId = null;
 let activeCommunicationSub = "communique";
 let editingCommunicationId = null;
@@ -2815,6 +2818,7 @@ function reloadFromStorage() {
   communicationPosts = loadCommunicationPosts();
   activeCommunicationSub = loadCommunicationSubtab();
   loiArticles = loadLoiArticles();
+  guideArticles = loadGuideArticles();
   autreArgent = loadAutreArgent();
   capitalHorsGroupe = loadCapitalHorsGroupe();
   ancienneTourneeDettes = loadAncienneTourneeDettes();
@@ -9514,6 +9518,82 @@ function canPublishCommunication() {
   return canManageTab("communication");
 }
 
+
+const DEFAULT_GUIDE_ARTICLES = [
+  {
+    id: "guide-default-1",
+    title: "1. Bienvenue — à quoi sert le site",
+    body: "Poto Timide est l'espace privé du groupe : prêts, tournée, caisse, événements, amendes et communication. Chaque membre se connecte avec son compte. Les chiffres se synchronisent entre tous les appareils.",
+    order: 1,
+  },
+  {
+    id: "guide-default-2",
+    title: "2. Réunion (tableau de bord)",
+    body: "L'onglet Réunion résume l'essentiel : caisse disponible, max empruntable, votes en cours, prêts, événements, amendes et ex tournée. Le « Total à verser » est ce que TOI tu dois encore (événement + amende + ex tournée). Clique sur un KPI pour ouvrir la page concernée. Les Prêts renvoient vers Finance → Historique.",
+    order: 2,
+  },
+  {
+    id: "guide-default-3",
+    title: "3. Membres & Bureau",
+    body: "La liste des potos et le bureau. Un compteur affiche le nombre total de membres. Les « nouveaux » n'ont accès qu'à La loi tant qu'ils ne sont pas membres du groupe.",
+    order: 3,
+  },
+  {
+    id: "guide-default-4",
+    title: "4. Tournée — réception et ristourne",
+    body: "Planning septembre → juin : ordre de réception et ordre de ristourne. Un admin ou le financier peut mettre « OK » quand la personne a reçu sa tournée ou sa ristourne. Les OK se synchronisent sur tous les appareils.",
+    order: 4,
+  },
+  {
+    id: "guide-default-5",
+    title: "5. Prêts et votes",
+    body: "Pour demander un prêt : montant + motif obligatoire. Les membres votent Oui / Non. Quand le vote est clos et accepté, le prêt devient actif. Les remboursements se font chez le Financier. L'historique complet des prêts se trouve aussi dans Finance → Archives.",
+    order: 5,
+  },
+  {
+    id: "guide-default-6",
+    title: "6. Événements",
+    body: "Un événement a un titre, un montant par personne et un poto bénéficiaire. Chaque membre doit payer sa part. L'admin valide les paiements. Les impayés restent visibles jusqu'au règlement.",
+    order: 6,
+  },
+  {
+    id: "guide-default-7",
+    title: "7. Dettes & amendes",
+    body: "Amendes et dettes d'ex tournée sont gérées au même endroit. En admin : une ligne (personne + type + montant + motif obligatoire) pour ajouter. Les suppressions sont synchronisées. Les dettes d'événement se suivent dans l'onglet Événements.",
+    order: 7,
+  },
+  {
+    id: "guide-default-8",
+    title: "8. Finance",
+    body: "Tableau de bord de la caisse (disponible, totale, prêts dehors…). L'historique finance liste les mouvements et les prêts en lecture seule. La sous-partie Caisse est réservée aux personnes autorisées (financier / accès).",
+    order: 8,
+  },
+  {
+    id: "guide-default-9",
+    title: "9. La loi",
+    body: "Règlement du groupe en lecture seule pour tous. Recherche par mot : seules les phrases qui contiennent le mot s'affichent ; un clic ouvre l'article entier. Seuls les autorisés (Admin → Accès → La loi) peuvent ajouter, modifier ou supprimer des articles.",
+    order: 9,
+  },
+  {
+    id: "guide-default-10",
+    title: "10. Communication",
+    body: "Communiqués, ordre du jour et rapports de réunion. Un like sur un rapport prouve que le membre l'a lu. Le Guide site (cet onglet) explique le fonctionnement de l'application, sur le même modèle que La loi.",
+    order: 10,
+  },
+  {
+    id: "guide-default-11",
+    title: "11. Admin et accès",
+    body: "L'onglet Admin regroupe la gestion : membres, accès par onglet, tournée, caisse, prêts, amendes, événements, communication, loi et sauvegarde. Chaque droit se donne dans Admin → Accès. Le développeur (Dario) peut être exclu des notifications de modification.",
+    order: 11,
+  },
+  {
+    id: "guide-default-12",
+    title: "12. Application mobile et notifications",
+    body: "Le site peut s'installer comme application (PWA) sur Android. Les notifications poussent vers l'onglet concerné. Sur iPhone, l'installation passe par « Sur l'écran d'accueil » depuis Safari.",
+    order: 12,
+  },
+];
+
 function loadLoiArticles() {
   const parsed = readSynced(LOI_KEY, []);
   return Array.isArray(parsed) ? parsed : [];
@@ -9530,6 +9610,259 @@ async function saveLoiArticles() {
   }
   if (ok) loiArticles = loadLoiArticles();
   return ok;
+}
+
+
+function loadGuideArticles() {
+  const parsed = readSynced(GUIDE_KEY, []);
+  let list = Array.isArray(parsed) ? parsed : [];
+  // Premier chargement : injecter le guide par défaut si vide
+  if (!list.length) {
+    const now = new Date().toISOString();
+    list = DEFAULT_GUIDE_ARTICLES.map((a) => ({
+      ...a,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: null,
+      deletedAt: null,
+    }));
+    try {
+      localStorage.setItem(GUIDE_KEY, JSON.stringify(list));
+    } catch {
+      /* ignore */
+    }
+  }
+  return list;
+}
+
+async function saveGuideArticles() {
+  localStorage.setItem(GUIDE_KEY, JSON.stringify(guideArticles));
+  if (typeof bumpLiveDataRevision === "function") bumpLiveDataRevision();
+  if (typeof potoFlushSync !== "function") return false;
+  let ok = await potoFlushSync();
+  if (!ok) {
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    ok = await potoFlushSync();
+  }
+  if (ok) guideArticles = loadGuideArticles();
+  return ok;
+}
+
+function canManageGuide() {
+  if (!isLoggedIn()) return false;
+  if (isGroupAdmin()) return true;
+  if (typeof canPublishCommunication === "function" && canPublishCommunication()) return true;
+  return hasRoleTabAccess("communication");
+}
+
+function getVisibleGuideArticles() {
+  return [...guideArticles]
+    .filter((item) => item && !item.deletedAt)
+    .sort((a, b) => {
+      const oa = Number(a.order) || 0;
+      const ob = Number(b.order) || 0;
+      if (oa !== ob) return oa - ob;
+      return new Date(a.createdAt || 0) - new Date(b.createdAt || 0);
+    });
+}
+
+function searchGuidePhrases(items, query) {
+  if (typeof searchLoiPhrases === "function") return searchLoiPhrases(items, query);
+  return null;
+}
+
+function buildGuideCardHtml(item, { manage = false } = {}) {
+  const title = escapeHtml(item.title || "Sans titre");
+  const body = escapeHtml(item.body || "").replace(/\n/g, "<br>");
+  const actions = manage
+    ? `<div class="loi-card-actions">
+        <button type="button" class="btn-secondary btn-guide-edit" data-guide-id="${escapeHtml(item.id)}">Modifier</button>
+        <button type="button" class="btn-pret-delete btn-guide-delete" data-guide-id="${escapeHtml(item.id)}">Supprimer</button>
+      </div>`
+    : "";
+  return `
+    <article class="loi-card guide-card" id="guide-${escapeHtml(item.id)}">
+      <h3 class="loi-card-title">${title}</h3>
+      <div class="loi-card-body">${body}</div>
+      ${actions}
+    </article>`;
+}
+
+function renderGuideList(target, { manage = false } = {}) {
+  if (!target) return;
+  const items = getVisibleGuideArticles();
+  const q = manage
+    ? String(document.getElementById("guideSearchInputAdmin")?.value || guideSearchQuery || "").trim()
+    : String(document.getElementById("guideSearchInput")?.value || guideSearchQuery || "").trim();
+  const meta = manage
+    ? document.getElementById("guideSearchMetaAdmin")
+    : document.getElementById("guideSearchMeta");
+
+  const search = searchLoiPhrases(items, q);
+  if (search === null) {
+    if (meta) {
+      meta.hidden = true;
+      meta.textContent = "";
+    }
+    if (!items.length) {
+      target.innerHTML = `<p class="panel-desc">Aucun article dans le guide pour le moment.</p>`;
+      return;
+    }
+    target.innerHTML = items.map((item) => buildGuideCardHtml(item, { manage })).join("");
+    return;
+  }
+
+  const phraseCount = search.reduce(
+    (n, r) => n + r.phrases.length + (r.titleMatch ? 1 : 0),
+    0
+  );
+  if (meta) {
+    meta.hidden = false;
+    meta.textContent =
+      search.length === 0
+        ? `Aucun résultat pour « ${q} »`
+        : `${phraseCount} phrase${phraseCount > 1 ? "s" : ""} dans ${search.length} article${search.length > 1 ? "s" : ""}`;
+  }
+  if (!search.length) {
+    target.innerHTML = `<p class="panel-desc">Aucune phrase ne contient « ${escapeHtml(q)} ».</p>`;
+    return;
+  }
+  target.innerHTML = search
+    .map((r) => {
+      // Réutilise le rendu recherche de La loi, en adaptant les data-*
+      return buildLoiSearchResultHtml(r, q)
+        .replace(/data-loi-open-id=/g, "data-guide-open-id=")
+        .replace(/id="loi-search-/g, 'id="guide-search-')
+        .replace(/loi-card/g, "loi-card guide-card");
+    })
+    .join("");
+}
+
+function renderGuidePanels() {
+  const memberList = document.getElementById("guideList");
+  const adminList = document.getElementById("guideAdminList");
+  const composer = document.getElementById("guideComposer");
+  if (composer) composer.hidden = !canManageGuide();
+  renderGuideList(memberList, { manage: false });
+  renderGuideList(adminList, { manage: true });
+}
+
+function cancelEditGuide() {
+  editingGuideId = null;
+  document.getElementById("guideForm")?.reset();
+  const cancelBtn = document.getElementById("guideCancelBtn");
+  if (cancelBtn) cancelBtn.hidden = true;
+  const titleEl = document.getElementById("guideComposerTitle");
+  if (titleEl) titleEl.textContent = "Ajouter un article du guide";
+  const submitBtn = document.getElementById("guideSubmitBtn");
+  if (submitBtn) submitBtn.textContent = "Enregistrer";
+}
+
+async function submitGuideForm(e) {
+  e?.preventDefault?.();
+  if (!canManageGuide()) {
+    alert("Vous n'avez pas l'autorisation de modifier le guide.");
+    return;
+  }
+  const title = String(document.getElementById("guideTitle")?.value || "").trim();
+  const body = String(document.getElementById("guideBody")?.value || "").trim();
+  if (!title || !body) {
+    alert("Titre et contenu obligatoires.");
+    return;
+  }
+  const now = new Date().toISOString();
+  const current = getCurrentMember();
+  if (editingGuideId) {
+    const item = guideArticles.find((a) => a.id === editingGuideId);
+    if (!item || item.deletedAt) {
+      alert("Article introuvable.");
+      cancelEditGuide();
+      return;
+    }
+    item.title = title;
+    item.body = body;
+    item.updatedAt = now;
+    item.updatedBy = current?.id || null;
+  } else {
+    guideArticles.unshift({
+      id: generateId(),
+      title,
+      body,
+      order: getVisibleGuideArticles().length + 1,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: current?.id || null,
+      deletedAt: null,
+    });
+  }
+  const ok = await saveGuideArticles();
+  const msg = document.getElementById("guideSaveMsg");
+  if (msg) {
+    msg.hidden = false;
+    msg.className = ok ? "save-msg save-msg-success" : "save-msg save-msg-error";
+    msg.textContent = ok
+      ? editingGuideId
+        ? "Article mis à jour."
+        : "Article ajouté."
+      : "Enregistré en local — synchro en cours…";
+  }
+  cancelEditGuide();
+  renderGuidePanels();
+  if (typeof renderCommunication === "function") renderCommunication();
+}
+
+function startEditGuide(id) {
+  const item = guideArticles.find((a) => a.id === id && !a.deletedAt);
+  if (!item) return;
+  editingGuideId = id;
+  const titleInput = document.getElementById("guideTitle");
+  const bodyInput = document.getElementById("guideBody");
+  if (titleInput) titleInput.value = item.title || "";
+  if (bodyInput) bodyInput.value = item.body || "";
+  const cancelBtn = document.getElementById("guideCancelBtn");
+  if (cancelBtn) cancelBtn.hidden = false;
+  const titleEl = document.getElementById("guideComposerTitle");
+  if (titleEl) titleEl.textContent = "Modifier l'article";
+  const submitBtn = document.getElementById("guideSubmitBtn");
+  if (submitBtn) submitBtn.textContent = "Mettre à jour";
+  document.getElementById("guideComposer")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function deleteGuideArticle(id) {
+  const item = guideArticles.find((a) => a.id === id);
+  if (!item) return;
+  if (!confirm("Supprimer cet article du guide ?")) return;
+  item.deletedAt = new Date().toISOString();
+  item.updatedAt = item.deletedAt;
+  await saveGuideArticles();
+  if (editingGuideId === id) cancelEditGuide();
+  renderGuidePanels();
+}
+
+function handleGuideSearchInput() {
+  guideSearchQuery = String(
+    document.getElementById("guideSearchInput")?.value ||
+      document.getElementById("guideSearchInputAdmin")?.value ||
+      ""
+  );
+  renderGuidePanels();
+}
+
+function openGuideArticleFromSearch(id) {
+  if (!id) return;
+  guideSearchQuery = "";
+  const inp = document.getElementById("guideSearchInput");
+  const inpA = document.getElementById("guideSearchInputAdmin");
+  if (inp) inp.value = "";
+  if (inpA) inpA.value = "";
+  renderGuidePanels();
+  requestAnimationFrame(() => {
+    const target = document.getElementById(`guide-${id}`);
+    if (!target) return;
+    target.classList.add("loi-card-focus");
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => target.classList.remove("loi-card-focus"), 2800);
+  });
 }
 
 function canManageLoi() {
@@ -9972,8 +10305,16 @@ function renderCommunicationSubtabCounts() {
   COMMUNICATION_KINDS.forEach((kind) => {
     document.querySelectorAll(`[data-comm-sub="${kind.id}"]`).forEach((btn) => {
       let countEl = btn.querySelector(".comm-count");
-      if (kind.isStaticGuide) {
-        if (countEl) countEl.hidden = true;
+      if (kind.id === "guide") {
+        const count =
+          typeof getVisibleGuideArticles === "function" ? getVisibleGuideArticles().length : 0;
+        if (!countEl) {
+          countEl = document.createElement("span");
+          countEl.className = "comm-count";
+          btn.appendChild(countEl);
+        }
+        countEl.textContent = count > 0 ? String(count) : "";
+        countEl.hidden = count <= 0;
         return;
       }
       const count = getCommunicationPostsForKind(kind.id).length;
@@ -10083,7 +10424,7 @@ function focusCommunicationCursor() {
 }
 
 function isCommunicationGuideSub() {
-  return getCommunicationKind(activeCommunicationSub)?.isStaticGuide === true;
+  return activeCommunicationSub === "guide" || getCommunicationKind(activeCommunicationSub)?.id === "guide";
 }
 
 function renderCommunicationGuidePanels() {
@@ -10096,9 +10437,12 @@ function renderCommunicationGuidePanels() {
   if (typeof communicationAdminList !== "undefined" && communicationAdminList) {
     communicationAdminList.hidden = show;
   }
-  // Cacher le compositeur admin sur le guide (PDF figé)
+  // Compositeur posts communication caché sur le guide (formulaire guide à part)
   if (communicationComposer) {
     if (show) communicationComposer.hidden = true;
+  }
+  if (show && typeof renderGuidePanels === "function") {
+    renderGuidePanels();
   }
 }
 
@@ -10124,7 +10468,7 @@ function renderCommunication() {
 async function publishCommunication() {
   if (!requireTabAccess("communication", "publier dans Communication")) return;
   if (isCommunicationGuideSub()) {
-    alert("Le guide du site est un document fixe. Il ne se publie pas ici.");
+    // Le guide a son propre formulaire
     return;
   }
   const title = String(communicationTitleInput?.value || "").trim();
@@ -11154,6 +11498,35 @@ communicationList?.addEventListener("click", handleCommunicationListClick);
 communicationAdminList?.addEventListener("click", handleCommunicationListClick);
 
 loiForm?.addEventListener("submit", submitLoiForm);
+document.getElementById("guideForm")?.addEventListener("submit", submitGuideForm);
+document.getElementById("guideCancelBtn")?.addEventListener("click", cancelEditGuide);
+document.getElementById("guideSearchInput")?.addEventListener("input", handleGuideSearchInput);
+document.getElementById("guideSearchInput")?.addEventListener("search", handleGuideSearchInput);
+document.getElementById("guideSearchInputAdmin")?.addEventListener("input", handleGuideSearchInput);
+document.getElementById("guideSearchInputAdmin")?.addEventListener("search", handleGuideSearchInput);
+document.getElementById("guideList")?.addEventListener("click", (e) => {
+  const openCard = e.target.closest("[data-guide-open-id]");
+  if (openCard) {
+    openGuideArticleFromSearch(openCard.getAttribute("data-guide-open-id"));
+    return;
+  }
+});
+document.getElementById("guideAdminList")?.addEventListener("click", (e) => {
+  const openCard = e.target.closest("[data-guide-open-id]");
+  if (openCard) {
+    openGuideArticleFromSearch(openCard.getAttribute("data-guide-open-id"));
+    return;
+  }
+  const editBtn = e.target.closest(".btn-guide-edit");
+  if (editBtn) {
+    startEditGuide(editBtn.getAttribute("data-guide-id"));
+    return;
+  }
+  const delBtn = e.target.closest(".btn-guide-delete");
+  if (delBtn) {
+    deleteGuideArticle(delBtn.getAttribute("data-guide-id"));
+  }
+});
 loiCancelBtn?.addEventListener("click", () => {
   cancelEditLoi();
   renderLoiAdmin();
@@ -12012,6 +12385,9 @@ async function initApp() {
       if (tabLoi && typeof renderLoi === "function") renderLoi();
 
       if (tabComm && typeof renderCommunication === "function") renderCommunication();
+      if (tabComm && activeCommunicationSub === "guide" && typeof renderGuidePanels === "function") {
+        renderGuidePanels();
+      }
 
       if (tabAdmin) {
         if (typeof renderTourneeTable === "function" && activeAdminSub === "tournee") renderTourneeTable();

@@ -11,6 +11,8 @@ const API_SYNC_KEYS = new Set([
   "poto-timide-evenements",
   "poto-timide-communication",
   "poto-timide-loi",
+  "poto-timide-guide",
+  "poto-timide-guide",
   "poto-timide-admin-ids",
   "poto-timide-autre-argent",
   "poto-timide-capital-hors-groupe",
