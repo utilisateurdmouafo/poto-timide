@@ -2640,8 +2640,7 @@ function renderAdminHub() {
     .map(
       (item) =>
         `<button type="button" class="reunion-kpi reunion-kpi-${escapeHtml(item.tone || "navy")} admin-hub-btn" data-admin-go="${escapeHtml(item.id)}">
-        <span>${escapeHtml(item.label)}</span>
-        <strong>Ouvrir →</strong>
+        <span class="admin-hub-label">${escapeHtml(item.label)}</span>
       </button>`
     )
     .join("");
