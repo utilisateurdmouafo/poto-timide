@@ -421,7 +421,7 @@ const DEFAULT_FINANCIER_ACCOUNT = {
 let financierAccount = { ...DEFAULT_FINANCIER_ACCOUNT };
 let financeData = null;
 let activeFinanceSub = FINANCE_ARCHIVES_SUB;
-let activeAdminSub = "membres";
+let activeAdminSub = null; // null = hub admin
 let activeGestionSub = "membres"; // alias
 let editingAmendeId = null;
 let appReady = false;
@@ -2773,22 +2773,24 @@ function showGestionSub(subId) {
 }
 
 function renderAdmin() {
-  // Hub par défaut à chaque entrée dans Admin
-  // Deep-link notif uniquement via sessionStorage poto-open-admin
+  // Toujours le hub sauf deep-link notif (sessionStorage poto-open-admin)
   let deep = null;
   try {
     deep = sessionStorage.getItem("poto-open-admin");
+    if (deep) sessionStorage.removeItem("poto-open-admin");
   } catch {
     deep = null;
   }
+  // Ne pas relire localStorage ADMIN_SUBTAB_KEY (sinon retour auto sur Membres)
+  try {
+    localStorage.removeItem(ADMIN_SUBTAB_KEY);
+  } catch {
+    /* ignore */
+  }
   if (deep && ADMIN_SUBTABS.includes(deep) && canAccessAdminSub(deep)) {
-    try {
-      sessionStorage.removeItem("poto-open-admin");
-    } catch {
-      /* ignore */
-    }
     showAdminSub(deep);
   } else {
+    activeAdminSub = null;
     showAdminHub();
   }
 }
@@ -3558,8 +3560,13 @@ function updateSessionUI() {
   adminRolesPanel?.classList.toggle("locked", !isAdmin);
   tabPermissionsPanel?.classList.toggle("locked", !isAdmin);
 
+  // Ne pas forcer une sous-page : hub si aucune sélection
   if (canAccessAdminTab() && document.getElementById("tab-admin")?.classList.contains("active")) {
-    showAdminSub(activeAdminSub || getAdminSubtab());
+    if (activeAdminSub && ADMIN_SUBTABS.includes(activeAdminSub)) {
+      showAdminSub(activeAdminSub);
+    } else {
+      showAdminHub();
+    }
   }
 }
 
