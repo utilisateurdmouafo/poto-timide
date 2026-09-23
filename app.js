@@ -56,6 +56,9 @@ const EVENEMENTS_KEY = "poto-timide-evenements";
 const COMMUNICATION_KEY = "poto-timide-communication";
 const AUDIT_LOG_KEY = "poto-timide-audit-log";
 const AUDIT_LOG_MAX = 250;
+const LOGIN_LOG_KEY = "poto-timide-login-log";
+const LOGIN_LOG_MAX = 2000;
+let loginLog = [];
 const COMMUNICATION_SUBTAB_KEY = "poto-timide-communication-subtab";
 const ADMIN_IDS_KEY = "poto-timide-admin-ids";
 const AUTRE_ARGENT_KEY = "poto-timide-autre-argent";
@@ -109,7 +112,7 @@ const FINANCE_SUBTABS = ["caisse", "archives"];
 const FINANCE_LIVE_DETTE_SUB = "dettes-amendes";
 const FINANCE_CAISSE_SUB = "caisse";
 const FINANCE_ARCHIVES_SUB = "archives";
-const ADMIN_SUBTABS = ["membres", "admins", "acces", "tournee", "caisse", "prets", "amendes", "evenements", "communication", "loi", "sauvegarde"];
+const ADMIN_SUBTABS = ["membres", "admins", "acces", "tournee", "caisse", "prets", "amendes", "evenements", "communication", "loi", "sauvegarde", "connexions"];
 const ADMIN_HUB_ITEMS = [
   { id: "membres", label: "Membres & Bureau", tone: "navy" },
   { id: "admins", label: "Admins", tone: "navy" },
@@ -122,6 +125,7 @@ const ADMIN_HUB_ITEMS = [
   { id: "communication", label: "Communication", tone: "navy" },
   { id: "loi", label: "La loi", tone: "navy" },
   { id: "sauvegarde", label: "Sauvegarde", tone: "navy" },
+  { id: "connexions", label: "Connexions", tone: "teal" },
 ];
 const ADMIN_SUBTAB_KEY = "poto-timide-admin-subtab";
 // Compat anciens noms de stockage
@@ -2539,6 +2543,9 @@ function hasRoleTabAccess(tabId) {
 }
 
 function canAccessAdminSub(subId) {
+  if (subId === "connexions") {
+    return isLoggedIn() && isOwnerMember(getCurrentMember());
+  }
   if (isGroupAdmin()) return true;
   if (subId === "admins" || subId === "acces" || subId === "sauvegarde") return false;
   if (subId === "membres") return hasRoleTabAccess("membres") || hasRoleTabAccess("bureau");
@@ -2782,6 +2789,7 @@ function showAdminSub(subId) {
   if (subId === "communication" && typeof renderCommunication === "function") renderCommunication();
   if (subId === "loi" && typeof renderLoiAdmin === "function") renderLoiAdmin();
   if (subId === "sauvegarde" && typeof renderAuditLog === "function") renderAuditLog();
+  if (subId === "connexions" && typeof renderLoginLog === "function") renderLoginLog();
 
   closeAdminMenu();
   try {
@@ -2925,6 +2933,7 @@ function resetEvenementDettes() {
 }
 
 function reloadFromStorage() {
+  try { if (typeof loadLoginLog === "function") loadLoginLog(); } catch { /* ignore */ }
   members = loadMembers();
   roles = loadRoles();
   cotisations = loadCotisations();
@@ -3360,6 +3369,12 @@ async function loginMember(name, password) {
       openChangePasswordModal();
     } else {
       appEl.classList.remove("app-blurred");
+    }
+    try {
+      const m = authState.member || getCurrentMember();
+      if (m) recordLoginSession(m);
+    } catch (e) {
+      console.warn("login log:", e);
     }
     updateSessionUI();
 
@@ -4929,6 +4944,10 @@ document.getElementById("reunionDashboard")?.addEventListener("click", (e) => {
     return;
   }
   showTab(tab);
+});
+
+document.getElementById("loginLogDate")?.addEventListener("change", () => {
+  if (typeof renderLoginLog === "function") renderLoginLog();
 });
 
 document.addEventListener("click", (e) => {
@@ -8501,6 +8520,116 @@ function saveAuditLog() {
 function logAudit(action, detail = "") {
   return;
 }
+
+function loadLoginLog() {
+  try {
+    const parsed = readSynced(LOGIN_LOG_KEY, []);
+    loginLog = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    loginLog = [];
+  }
+  return loginLog;
+}
+
+function saveLoginLog() {
+  try {
+    localStorage.setItem(LOGIN_LOG_KEY, JSON.stringify(loginLog.slice(0, LOGIN_LOG_MAX)));
+  } catch (err) {
+    console.warn("login log save:", err);
+  }
+}
+
+function recordLoginSession(member) {
+  if (!member?.id && !member?.name) return;
+  const now = new Date();
+  const entry = {
+    id: typeof generateId === "function" ? generateId() : String(Date.now()),
+    memberId: member.id || null,
+    memberName: member.name || "—",
+    at: now.toISOString(),
+    day: now.toISOString().slice(0, 10),
+  };
+  loadLoginLog();
+  // Évite double enregistrement à quelques secondes d'intervalle
+  const recent = loginLog.find(
+    (r) =>
+      r.memberId === entry.memberId &&
+      r.day === entry.day &&
+      Math.abs(new Date(r.at).getTime() - now.getTime()) < 60_000
+  );
+  if (recent) return;
+  loginLog.unshift(entry);
+  if (loginLog.length > LOGIN_LOG_MAX) loginLog = loginLog.slice(0, LOGIN_LOG_MAX);
+  saveLoginLog();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+}
+
+function getLoginLogForDay(day) {
+  loadLoginLog();
+  const d = String(day || "").slice(0, 10);
+  return loginLog
+    .filter((r) => (r.day || (r.at || "").slice(0, 10)) === d)
+    .sort((a, b) => new Date(b.at) - new Date(a.at));
+}
+
+function formatLoginTime(iso) {
+  try {
+    const d = new Date(iso);
+    return d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return "—";
+  }
+}
+
+function renderLoginLog() {
+  const list = document.getElementById("loginLogList");
+  const meta = document.getElementById("loginLogMeta");
+  const dateInput = document.getElementById("loginLogDate");
+  if (!list) return;
+  if (!(isLoggedIn() && isOwnerMember(getCurrentMember()))) {
+    list.innerHTML = `<p class="panel-desc">Accès réservé.</p>`;
+    return;
+  }
+  let day = dateInput?.value;
+  if (!day) {
+    day = new Date().toISOString().slice(0, 10);
+    if (dateInput) dateInput.value = day;
+  }
+  const rows = getLoginLogForDay(day);
+  if (meta) {
+    meta.textContent = rows.length
+      ? `${rows.length} connexion${rows.length > 1 ? "s" : ""} le ${day.split("-").reverse().join("/")}`
+      : `Aucune connexion enregistrée le ${day.split("-").reverse().join("/")}`;
+  }
+  if (!rows.length) {
+    list.innerHTML = `<p class="panel-desc">Personne ne s'est connecté ce jour-là (ou pas encore de données).</p>`;
+    return;
+  }
+  list.innerHTML = `
+    <div class="amende-table-wrap login-log-wrap">
+      <table class="amende-table login-log-table">
+        <thead>
+          <tr>
+            <th>Heure</th>
+            <th>Membre</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows
+            .map(
+              (r) => `<tr>
+            <td>${escapeHtml(formatLoginTime(r.at))}</td>
+            <td>${escapeHtml(r.memberName || "—")}</td>
+          </tr>`
+            )
+            .join("")}
+        </tbody>
+      </table>
+    </div>`;
+}
+
 
 function renderAuditLog() {
   const list = document.getElementById("auditLogList");
@@ -12564,6 +12693,7 @@ async function initApp() {
         }
         if (activeAdminSub === "admins" && typeof renderAdminList === "function") renderAdminList();
         if (activeAdminSub === "sauvegarde" && typeof renderAuditLog === "function") renderAuditLog();
+        if (activeAdminSub === "connexions" && typeof renderLoginLog === "function") renderLoginLog();
       }
     } catch (err) {
       console.warn("refresh UI après pull:", err);

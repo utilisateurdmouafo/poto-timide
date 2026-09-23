@@ -8751,3 +8751,16 @@ html, body {
   }
 }
 
+
+.login-log-date-label {
+  max-width: 16rem;
+  margin-bottom: 0.75rem;
+}
+.login-log-list {
+  margin-top: 0.35rem;
+}
+.login-log-table th,
+.login-log-table td {
+  padding: 0.4rem 0.55rem;
+  font-size: 0.88rem;
+}
