@@ -2657,9 +2657,6 @@ function renderAdminHub() {
 
 /** Tableau de bord admin (comme Réunion) — aucune sous-page visible */
 function showAdminHub() {
-  if (_adminNavBusy) return;
-  _adminNavBusy = true;
-  try {
   activeAdminSub = null;
   activeGestionSub = null;
   try {
@@ -2697,21 +2694,23 @@ function showAdminHub() {
     panel.hidden = true;
   });
 
-  renderAdminHub();
-  closeAdminMenu();
-  } finally {
-    _adminNavBusy = false;
+  try {
+    renderAdminHub();
+  } catch (err) {
+    console.warn("renderAdminHub:", err);
+  }
+  try {
+    closeAdminMenu();
+  } catch {
+    /* ignore */
   }
 }
 
 function showAdminSub(subId) {
-  if (_adminNavBusy) return;
   if (subId === "hub" || subId === "home" || !subId) {
     showAdminHub();
     return;
   }
-  _adminNavBusy = true;
-  try {
   if (subId === "bureau" || subId === "equipe") subId = "membres";
   if (subId === "ancienne-tournee") subId = "amendes";
   if (!ADMIN_SUBTABS.includes(subId) || !canAccessAdminSub(subId)) {
@@ -2791,14 +2790,15 @@ function showAdminSub(subId) {
   if (subId === "sauvegarde" && typeof renderAuditLog === "function") renderAuditLog();
   if (subId === "connexions" && typeof renderLoginLog === "function") renderLoginLog();
 
-  closeAdminMenu();
+  try {
+    closeAdminMenu();
+  } catch {
+    /* ignore */
+  }
   try {
     window.scrollTo({ top: 0, behavior: "smooth" });
   } catch {
     /* ignore */
-  }
-  } finally {
-    _adminNavBusy = false;
   }
 }
 
