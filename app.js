@@ -8634,8 +8634,9 @@ function renderLoginLog() {
 function renderAuditLog() {
   const list = document.getElementById("auditLogList");
   if (!list) return;
-  // Journal désactivé : n'affiche rien d'actif
-  list.innerHTML = `<p class="panel-desc">Journal des actions désactivé — aucune action n'est enregistrée pour le moment.</p>`;
+  list.innerHTML = "";
+  const panel = document.getElementById("auditLogPanel");
+  if (panel) panel.hidden = true;
   return;
   if (!auditLog.length) {
     list.innerHTML = `<p class="panel-desc">Aucune action enregistrée pour le moment.</p>`;
