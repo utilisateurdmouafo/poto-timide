@@ -427,7 +427,6 @@ let financierAccount = { ...DEFAULT_FINANCIER_ACCOUNT };
 let financeData = null;
 let activeFinanceSub = FINANCE_ARCHIVES_SUB;
 let activeAdminSub = null; // null = hub admin
-let _adminNavBusy = false;
 let activeGestionSub = "membres"; // alias
 let editingAmendeId = null;
 let appReady = false;
