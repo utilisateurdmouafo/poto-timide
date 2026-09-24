@@ -538,6 +538,7 @@ function getEntryAmount(entry) {
 
 function getTotalDonsOuAides() {
   return autreArgent.reduce((sum, entry) => {
+    if (!entry || entry.deletedAt) return sum;
     if (isAutreArgentRetrait(entry)) return sum;
     return sum + Math.max(0, getEntryAmount(entry));
   }, 0);
@@ -545,6 +546,7 @@ function getTotalDonsOuAides() {
 
 function getTotalRetraitsCaisse() {
   return autreArgent.reduce((sum, entry) => {
+    if (!entry || entry.deletedAt) return sum;
     if (!isAutreArgentRetrait(entry)) return sum;
     return sum + Math.abs(getEntryAmount(entry));
   }, 0);
