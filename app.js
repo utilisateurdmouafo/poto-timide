@@ -2520,7 +2520,15 @@ function getActiveMainTab() {
  * C'est là que l'admin configure le groupe.
  */
 function isAdminWorkspace() {
-  return canAccessAdminTab() && getActiveMainTab() === "admin";
+  if (!canAccessAdminTab()) return false;
+  if (getActiveMainTab() === "admin") return true;
+  const tab = document.getElementById("tab-admin");
+  if (tab && tab.classList.contains("active")) return true;
+  // Sous-page admin ouverte (hub → section)
+  if (typeof activeAdminSub === "string" && activeAdminSub && ADMIN_SUBTABS.includes(activeAdminSub)) {
+    return true;
+  }
+  return false;
 }
 
 /**
@@ -6273,7 +6281,20 @@ function deleteAmende(id) {
 }
 
 async function deleteAmendeRecord(id) {
-  if (!requireTabAccess("amendes", "supprimer une amende")) return;
+  if (!isLoggedIn()) {
+    alert("Veuillez vous connecter.");
+    return;
+  }
+  const canDelAmende =
+    (typeof isGroupAdmin === "function" && isGroupAdmin()) ||
+    (typeof isOwnerMember === "function" && isOwnerMember(getCurrentMember())) ||
+    (typeof canManageAmendesActions === "function" && canManageAmendesActions()) ||
+    (typeof hasRoleTabAccess === "function" && (hasRoleTabAccess("amendes") || hasRoleTabAccess("ancienne-tournee"))) ||
+    (typeof isFinancierPoste === "function" && isFinancierPoste());
+  if (!canDelAmende) {
+    alert("Tu n'as pas l'accès pour supprimer.");
+    return;
+  }
 
   const amende = getAmendeById(id);
   if (!amende) return;
@@ -7733,8 +7754,18 @@ function isLoanDeleted(loan) {
 }
 
 async function deletePret(loanId) {
-  if (!canManagePretsActions()) {
-    alert("Seul le Financier ou un administrateur peut supprimer un prêt.");
+  if (!isLoggedIn()) {
+    alert("Veuillez vous connecter.");
+    return;
+  }
+  const canDelPret =
+    (typeof isGroupAdmin === "function" && isGroupAdmin()) ||
+    (typeof isOwnerMember === "function" && isOwnerMember(getCurrentMember())) ||
+    (typeof canManagePretsActions === "function" && canManagePretsActions()) ||
+    (typeof canDecidePrets === "function" && canDecidePrets()) ||
+    (typeof hasRoleTabAccess === "function" && hasRoleTabAccess("prets"));
+  if (!canDelPret) {
+    alert("Tu n'as pas l'accès pour supprimer un prêt.");
     return;
   }
 
@@ -8013,6 +8044,8 @@ function renderPretNotifications() {
 
 /** Financier, admin, ou poste avec accès Prêts dans Admin */
 function canManagePretsActions() {
+  if (typeof isGroupAdmin === "function" && isGroupAdmin()) return true;
+  if (typeof isOwnerMember === "function" && isOwnerMember(getCurrentMember())) return true;
   if (canDecidePrets()) return true;
   return isAdminWorkspace() && hasRoleTabAccess("prets");
 }
@@ -8736,6 +8769,8 @@ function getEvenementTypeLabel(typeId) {
  * UI de gestion uniquement dans Admin → Événements (onglet public en lecture seule).
  */
 function canManageEvenements() {
+  if (typeof isGroupAdmin === "function" && isGroupAdmin()) return true;
+  if (typeof isOwnerMember === "function" && isOwnerMember(getCurrentMember())) return true;
   if (!isLoggedIn()) return false;
   if (typeof isNouveauMember === "function" && isNouveauMember(getCurrentMember())) return false;
   if (isGroupAdmin()) return true;
@@ -9123,6 +9158,19 @@ async function reimburseEvenementToBeneficiary(eventId) {
 }
 
 async function deleteEvenement(eventId) {
+  if (!isLoggedIn()) {
+    alert("Veuillez vous connecter.");
+    return;
+  }
+  const canDelEvt =
+    (typeof isGroupAdmin === "function" && isGroupAdmin()) ||
+    (typeof isOwnerMember === "function" && isOwnerMember(getCurrentMember())) ||
+    (typeof hasRoleTabAccess === "function" && hasRoleTabAccess("evenements"));
+  if (!canDelEvt) {
+    alert("Tu n'as pas l'accès pour supprimer un événement.");
+    return;
+  }
+
   if (!canManageEvenements()) {
     alert("Seuls les gestionnaires autorisés peuvent supprimer un événement.");
     return;
@@ -10115,8 +10163,8 @@ function startEditGuide(id) {
 
 async function deleteGuideArticle(id) {
   const item = guideArticles.find((a) => a.id === id);
-  if (!item) return;
-  if (!confirm("Supprimer cet article du guide ?")) return;
+  if (!item || item.deletedAt) return;
+  if (!(await appConfirm("Supprimer cet article du guide ?"))) return;
   item.deletedAt = new Date().toISOString();
   item.updatedAt = item.deletedAt;
   await saveGuideArticles();
@@ -10813,6 +10861,12 @@ function startEditCommunication(id) {
 }
 
 async function deleteCommunication(id) {
+  if (!isLoggedIn()) return;
+  if (!(isGroupAdmin() || isOwnerMember(getCurrentMember()) || hasRoleTabAccess("communication"))) {
+    alert("Tu n'as pas l'accès pour supprimer.");
+    return;
+  }
+
   if (!requireTabAccess("communication", "supprimer une publication")) return;
   const post = communicationPosts.find((item) => item.id === id);
   if (!canManageCommunicationPost(post) || post.deletedAt) return;
@@ -10964,6 +11018,12 @@ function withdrawAutreArgent(memberId, amount, note, motif) {
 }
 
 async function deleteAutreArgent(entryId) {
+  if (!isLoggedIn()) return;
+  if (!(isGroupAdmin() || isOwnerMember(getCurrentMember()) || isFinancierPoste() || hasRoleTabAccess("caisse"))) {
+    alert("Tu n'as pas l'accès pour supprimer.");
+    return;
+  }
+
   if (!requireCaisseArgentAccess("supprimer une entrée d'autre argent")) return;
 
   const entry = autreArgent.find((item) => item.id === entryId);
@@ -11411,7 +11471,14 @@ function purgeMemberReferences(memberId) {
 }
 
 async function deleteMember(id) {
-  if (!requireTabAccess("membres", "supprimer des membres")) return;
+  if (!isLoggedIn()) {
+    alert("Veuillez vous connecter.");
+    return;
+  }
+  if (!(isGroupAdmin() || isOwnerMember(getCurrentMember()) || hasRoleTabAccess("membres"))) {
+    alert("Tu n'as pas l'accès pour supprimer un membre.");
+    return;
+  }
 
   const member = members.find((m) => m.id === id);
   if (!member) return;
@@ -13153,5 +13220,52 @@ document.addEventListener(
   },
   true
 );
+
+// Expose suppressions pour onclick HTML + tests
+window.deleteAncienneTourneeDette = deleteAncienneTourneeDette;
+window.deleteAmendeRecord = deleteAmendeRecord;
+window.deleteMember = deleteMember;
+window.deletePret = deletePret;
+window.deleteEvenement = deleteEvenement;
+window.deleteLoiArticle = deleteLoiArticle;
+window.deleteGuideArticle = deleteGuideArticle;
+window.deleteCommunication = deleteCommunication;
+window.deleteAutreArgent = deleteAutreArgent;
+window.deleteCapitalHorsGroupe = deleteCapitalHorsGroupe;
+
+/** Test interne : liste tous les types de boutons supprimer présents dans le DOM */
+window.__testDeleteButtons = function () {
+  const selectors = [
+    ".btn-delete",
+    ".btn-amende-delete",
+    ".btn-pret-delete",
+    ".btn-evenement-delete",
+    ".btn-loi-delete",
+    ".btn-guide-delete",
+    ".btn-comm-delete",
+    ".btn-autre-argent-delete",
+    ".btn-ancienne-tournee-delete",
+    ".btn-capital-hors-delete",
+    ".pret-notif-delete",
+  ];
+  const report = {};
+  selectors.forEach((sel) => {
+    const nodes = document.querySelectorAll(sel);
+    report[sel] = {
+      count: nodes.length,
+      ids: Array.from(nodes)
+        .slice(0, 5)
+        .map((n) => n.dataset.id || n.dataset.loanId || n.dataset.eventId || n.dataset.loiId || n.dataset.guideId || ""),
+    };
+  });
+  console.table(
+    Object.entries(report).map(([sel, v]) => ({
+      bouton: sel,
+      quantite: v.count,
+      exemples_id: v.ids.join(", "),
+    }))
+  );
+  return report;
+};
 
 initApp();
