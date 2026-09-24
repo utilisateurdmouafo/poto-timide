@@ -50,7 +50,10 @@ function rawSetItem(key, value) {
 function friendlyNetworkError(err) {
   const msg = String(err?.message || err || "");
   if (/failed to fetch|networkerror|load failed|network request failed/i.test(msg)) {
-    return "Connexion au serveur impossible. Chez Orange, le filtre peut bloquer onrender.com. Essaie la 4G / un autre réseau, ou ouvre le site dans Chrome/Safari sans l'appli installée.";
+    return "Connexion au serveur impossible. Vérifie que le site est démarré (Hetzner / Caddy). Essaie aussi la 4G si le Wi‑Fi bloque.";
+  }
+  if (/502|503|504|bad gateway|service unavailable|not ready/i.test(msg)) {
+    return "Le serveur n'est pas prêt (application arrêtée ou en redémarrage). Réessaie dans 30 secondes.";
   }
   return msg || "Erreur réseau";
 }
@@ -75,6 +78,12 @@ async function apiFetch(url, options = {}) {
   }
 
   if (!res.ok) {
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error(
+        body?.error ||
+          "Le serveur n'est pas prêt (application arrêtée ou en redémarrage). Réessaie dans 30 secondes."
+      );
+    }
     throw new Error(body?.error || `Erreur ${res.status}`);
   }
 
