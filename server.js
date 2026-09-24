@@ -913,19 +913,50 @@ function getDefaultMembers() {
 
 async function ensureUserForMember(member, forceReset = false) {
   const username = normalizeUsername(member.name);
+  if (!username || !member?.id) return;
   const existing = await db.get("SELECT * FROM users WHERE id = ?", [member.id]);
   let changed = false;
 
   if (!existing) {
-    await db.run(
-      "INSERT INTO users (id, username, password_hash, must_change_password) VALUES (?, ?, ?, 1)",
-      [member.id, username, hashPassword(DEFAULT_PASSWORD)]
-    );
-    changed = true;
+    // username déjà pris par un autre id → ne pas planter le démarrage
+    const byName = await db.get("SELECT * FROM users WHERE username = ?", [username]);
+    if (byName) {
+      // Réutilise le compte existant : on ne recrée pas
+      if (forceReset) {
+        try {
+          await db.run("UPDATE users SET password_hash = ?, must_change_password = 1 WHERE username = ?", [
+            hashPassword(DEFAULT_PASSWORD),
+            username,
+          ]);
+          changed = true;
+        } catch (e) {
+          console.warn("ensureUserForMember forceReset:", e?.message || e);
+        }
+      }
+    } else {
+      try {
+        await db.run(
+          "INSERT INTO users (id, username, password_hash, must_change_password) VALUES (?, ?, ?, 1)",
+          [member.id, username, hashPassword(DEFAULT_PASSWORD)]
+        );
+        changed = true;
+      } catch (e) {
+        // UNIQUE username / id : ignore (seed concurrent ou déjà présent)
+        const msg = String(e?.message || e || "");
+        if (!/UNIQUE|constraint/i.test(msg)) throw e;
+        console.warn("ensureUserForMember insert ignoré:", msg);
+      }
+    }
   } else {
     if (existing.username !== username) {
-      await db.run("UPDATE users SET username = ? WHERE id = ?", [username, member.id]);
-      changed = true;
+      try {
+        await db.run("UPDATE users SET username = ? WHERE id = ?", [username, member.id]);
+        changed = true;
+      } catch (e) {
+        const msg = String(e?.message || e || "");
+        if (!/UNIQUE|constraint/i.test(msg)) throw e;
+        console.warn("ensureUserForMember rename ignoré:", msg);
+      }
     }
 
     if (forceReset) {
