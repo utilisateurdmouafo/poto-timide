@@ -545,7 +545,9 @@ function isMemberAdmin(memberId) {
 
 function loadAutreArgent() {
   const parsed = readSynced(AUTRE_ARGENT_KEY, []);
-  return Array.isArray(parsed) ? parsed : [];
+  if (!Array.isArray(parsed)) return [];
+  // garder tombstones (deletedAt) pour merge sync
+  return parsed.filter((e) => e && e.id);
 }
 
 function loadAncienneTourneeDettes() {

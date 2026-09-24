@@ -1770,15 +1770,20 @@ function withdrawAutreArgent(memberId, amount, note, motif) {
 }
 
 async function deleteAutreArgent(entryId) {
-  if (!canDo("caisse")) {
+  if (!requireLogin()) return;
+  // Accès large : admin / financier / rôle caisse
+  if (!(typeof canDo === "function" ? canDo("caisse") : canManageCaisseArgent())) {
     alert("Pas l'accès pour supprimer.");
     return;
   }
 
-  if (!requireCaisseArgentAccess("supprimer une entrée d'autre argent")) return;
-
-  const entry = autreArgent.find((item) => item.id === entryId);
-  if (!entry) return;
+  const id = String(entryId || "");
+  const entry = autreArgent.find((item) => item && String(item.id) === id && !item.deletedAt);
+  if (!entry) {
+    // déjà parti : rafraîchir l'UI
+    if (typeof renderAutreArgent === "function") renderAutreArgent();
+    return;
+  }
 
   const member =
     entry.memberId === "groupe"
@@ -1795,13 +1800,34 @@ async function deleteAutreArgent(entryId) {
     return;
   }
 
-  autreArgent = autreArgent.filter((item) => item.id !== entryId);
-  saveAutreArgent();
+  const now = new Date().toISOString();
+  // Soft-delete pour que la synchro ne ramène pas la ligne
+  entry.deletedAt = now;
+  entry.updatedAt = now;
+  autreArgent = autreArgent.map((item) =>
+    String(item.id) === id ? { ...item, deletedAt: now, updatedAt: now } : item
+  );
+
+  // Retrait immédiat du DOM
+  document.querySelectorAll(`.btn-autre-argent-delete[data-id="${CSS.escape(id)}"]`).forEach((btn) => {
+    btn.closest("tr, .amende-history-row, article, li")?.remove();
+  });
+
+  saveAutreArgent(true);
+  if (typeof bumpLiveDataRevision === "function") bumpLiveDataRevision();
+  if (typeof renderAutreArgent === "function") renderAutreArgent();
+  if (typeof renderFondCaissePanel === "function") renderFondCaissePanel();
+  if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
   showAutreArgentSaveMessage(
     isWithdraw
       ? "Retrait supprimé — le montant est remis dans la caisse disponible."
       : "Entrée supprimée — montant retiré de la caisse disponible."
   );
+  try {
+    if (typeof potoFlushSync === "function") await potoFlushSync();
+  } catch (e) {
+    console.warn("sync deleteAutreArgent", e);
+  }
 }
 
 
@@ -1888,6 +1914,7 @@ function buildCaisseHistoryTableHtml(rows, { emptyText = "Aucun mouvement.", has
 /** Lignes de l'historique caisse (dons / retraits) — withActions=false = lecture seule */
 function buildAutreArgentHistoryRows(withActions = false) {
   return [...autreArgent]
+    .filter((entry) => entry && !entry.deletedAt)
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
     .map((entry) => {
       const member = getMemberById(entry.memberId);
