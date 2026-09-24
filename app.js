@@ -8769,11 +8769,10 @@ function getEvenementTypeLabel(typeId) {
  * UI de gestion uniquement dans Admin → Événements (onglet public en lecture seule).
  */
 function canManageEvenements() {
-  if (typeof isGroupAdmin === "function" && isGroupAdmin()) return true;
-  if (typeof isOwnerMember === "function" && isOwnerMember(getCurrentMember())) return true;
   if (!isLoggedIn()) return false;
   if (typeof isNouveauMember === "function" && isNouveauMember(getCurrentMember())) return false;
   if (isGroupAdmin()) return true;
+  if (typeof isOwnerMember === "function" && isOwnerMember(getCurrentMember())) return true;
   // Financier / poste avec accès événements
   if (typeof isFinancierPoste === "function" && isFinancierPoste()) return true;
   return hasRoleTabAccess("evenements");
@@ -10866,8 +10865,6 @@ async function deleteCommunication(id) {
     alert("Tu n'as pas l'accès pour supprimer.");
     return;
   }
-
-  if (!requireTabAccess("communication", "supprimer une publication")) return;
   const post = communicationPosts.find((item) => item.id === id);
   if (!canManageCommunicationPost(post) || post.deletedAt) return;
   if (!(await appConfirm(`Supprimer « ${post.title} » ?`))) return;
