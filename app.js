@@ -3174,6 +3174,14 @@ function openConfirmModal(opts = {}) {
 }
 
 function appConfirm(message, title = "Confirmation") {
+  const modal = document.getElementById("confirmModal");
+  if (!modal || typeof openConfirmModal !== "function") {
+    try {
+      return Promise.resolve(window.confirm(String(message ?? "")));
+    } catch {
+      return Promise.resolve(true);
+    }
+  }
   return openConfirmModal({
     title,
     message: String(message ?? ""),
@@ -3621,11 +3629,25 @@ function requireTabAccess(tabId, actionLabel) {
     openLoginModal();
     return false;
   }
+  // Owner / admin groupe : toujours autorisé
+  if (typeof isGroupAdmin === "function" && isGroupAdmin()) return true;
+  if (typeof isOwnerMember === "function" && isOwnerMember(getCurrentMember())) return true;
+  // Financier pour caisse / prêts / amendes
+  if (
+    typeof isFinancierPoste === "function" &&
+    isFinancierPoste() &&
+    ["caisse", "prets", "amendes", "evenements"].includes(tabId)
+  ) {
+    return true;
+  }
   if (isSimpleAccountView()) {
     alert(`Cette action se fait dans l'onglet Admin.`);
     return false;
   }
   if (hasRoleTabAccess(tabId)) return true;
+  // Accès bureau/membres unifié
+  if (tabId === "membres" && (hasRoleTabAccess("membres") || hasRoleTabAccess("bureau"))) return true;
+  if (tabId === "ancienne-tournee" && (hasRoleTabAccess("amendes") || hasRoleTabAccess("ancienne-tournee"))) return true;
   alert(`Vous n'avez pas l'autorisation de ${actionLabel} pour l'onglet « ${getTabLabel(tabId)} ».`);
   return false;
 }
@@ -5172,9 +5194,14 @@ function getDetteCardCopy(amende) {
 
 function canManageAmendesActions() {
   if (!isLoggedIn()) return false;
-  if (!isAdminWorkspace()) return false;
   if (isGroupAdmin()) return true;
-  return hasRoleTabAccess("amendes");
+  if (typeof isOwnerMember === "function" && isOwnerMember(getCurrentMember())) return true;
+  if (!isAdminWorkspace()) return false;
+  return (
+    hasRoleTabAccess("amendes") ||
+    hasRoleTabAccess("ancienne-tournee") ||
+    (typeof isFinancierPoste === "function" && isFinancierPoste())
+  );
 }
 
 function canRepayAmende(amende) {
@@ -13011,5 +13038,120 @@ function setupPwaInstall() {
   dismissBtn?.addEventListener("click", () => hideInstallBanner(true));
   maybeShowInstallBanner();
 }
+
+
+/* GLOBAL_DELETE_DELEGATE — filet de sécurité pour tous les boutons Supprimer */
+document.addEventListener(
+  "click",
+  (e) => {
+    const t = e.target;
+    if (!(t instanceof Element)) return;
+    const btn =
+      t.closest(".btn-amende-delete") ||
+      t.closest(".btn-delete") ||
+      t.closest(".btn-pret-delete") ||
+      t.closest(".btn-evenement-delete") ||
+      t.closest(".btn-loi-delete") ||
+      t.closest(".btn-guide-delete") ||
+      t.closest(".btn-comm-delete") ||
+      t.closest(".btn-autre-argent-delete") ||
+      t.closest(".btn-ancienne-tournee-delete") ||
+      t.closest(".btn-capital-hors-delete");
+    if (!btn) return;
+    // Laisser les handlers spécifiques s'exécuter s'ils stoppent la propagation
+    // On ne double-traite que si data-delete-handled n'est pas posé
+    if (btn.dataset.deleteHandled === "1") return;
+    const id =
+      btn.dataset.id ||
+      btn.dataset.loanId ||
+      btn.dataset.eventId ||
+      btn.dataset.loiId ||
+      btn.dataset.guideId ||
+      btn.dataset.memberId ||
+      "";
+    // Membres
+    if (btn.classList.contains("btn-delete") && id && typeof deleteMember === "function") {
+      e.preventDefault();
+      e.stopPropagation();
+      btn.dataset.deleteHandled = "1";
+      setTimeout(() => delete btn.dataset.deleteHandled, 800);
+      deleteMember(id);
+      return;
+    }
+    // Amendes / dettes
+    if (btn.classList.contains("btn-amende-delete") && id && typeof deleteAmendeRecord === "function") {
+      e.preventDefault();
+      e.stopPropagation();
+      btn.dataset.deleteHandled = "1";
+      setTimeout(() => delete btn.dataset.deleteHandled, 800);
+      deleteAmendeRecord(id);
+      return;
+    }
+    // Prêts
+    if (btn.classList.contains("btn-pret-delete") && !btn.classList.contains("btn-evenement-delete") && !btn.classList.contains("btn-loi-delete") && !btn.classList.contains("btn-guide-delete") && !btn.classList.contains("btn-capital-hors-delete") && btn.dataset.loanId && typeof deletePret === "function") {
+      e.preventDefault();
+      e.stopPropagation();
+      btn.dataset.deleteHandled = "1";
+      setTimeout(() => delete btn.dataset.deleteHandled, 800);
+      deletePret(btn.dataset.loanId);
+      return;
+    }
+    // Événements
+    if (btn.classList.contains("btn-evenement-delete") && btn.dataset.eventId && typeof deleteEvenement === "function") {
+      e.preventDefault();
+      e.stopPropagation();
+      btn.dataset.deleteHandled = "1";
+      setTimeout(() => delete btn.dataset.deleteHandled, 800);
+      deleteEvenement(btn.dataset.eventId);
+      return;
+    }
+    // Loi
+    if (btn.classList.contains("btn-loi-delete") && btn.dataset.loiId && typeof deleteLoiArticle === "function") {
+      e.preventDefault();
+      e.stopPropagation();
+      btn.dataset.deleteHandled = "1";
+      setTimeout(() => delete btn.dataset.deleteHandled, 800);
+      deleteLoiArticle(btn.dataset.loiId);
+      return;
+    }
+    // Guide
+    if (btn.classList.contains("btn-guide-delete") && btn.dataset.guideId && typeof deleteGuideArticle === "function") {
+      e.preventDefault();
+      e.stopPropagation();
+      btn.dataset.deleteHandled = "1";
+      setTimeout(() => delete btn.dataset.deleteHandled, 800);
+      deleteGuideArticle(btn.dataset.guideId);
+      return;
+    }
+    // Communication
+    if (btn.classList.contains("btn-comm-delete") && id && typeof deleteCommunication === "function") {
+      e.preventDefault();
+      e.stopPropagation();
+      btn.dataset.deleteHandled = "1";
+      setTimeout(() => delete btn.dataset.deleteHandled, 800);
+      deleteCommunication(id);
+      return;
+    }
+    // Autre argent
+    if (btn.classList.contains("btn-autre-argent-delete") && id && typeof deleteAutreArgent === "function") {
+      e.preventDefault();
+      e.stopPropagation();
+      btn.dataset.deleteHandled = "1";
+      setTimeout(() => delete btn.dataset.deleteHandled, 800);
+      deleteAutreArgent(id);
+      return;
+    }
+    // Ex tournée
+    if (btn.classList.contains("btn-ancienne-tournee-delete") && id && typeof deleteAncienneTourneeDette === "function") {
+      e.preventDefault();
+      e.stopPropagation();
+      btn.dataset.deleteHandled = "1";
+      setTimeout(() => delete btn.dataset.deleteHandled, 800);
+      deleteAncienneTourneeDette(id);
+      return;
+    }
+  },
+  true
+);
 
 initApp();
