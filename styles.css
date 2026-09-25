@@ -9409,3 +9409,36 @@ html, body {
   color: inherit !important;
 }
 
+/* Admin panels: is-active always visible */
+#tab-admin .gestion-subpanel.is-active {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+  width: 100% !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+#tab-admin .gestion-subpanel.is-active[hidden] {
+  display: flex !important;
+}
+#adminSubcontent:not([hidden]) {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.75rem !important;
+  width: 100% !important;
+  min-height: 4rem !important;
+}
+#adminBackBar:not([hidden]) {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.5rem !important;
+  margin: 0.35rem 0 0.5rem !important;
+}
+#loginLogPanel {
+  display: block !important;
+  visibility: visible !important;
+}
+#loginLogList {
+  min-height: 2rem;
+}
+

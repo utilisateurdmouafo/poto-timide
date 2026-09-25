@@ -259,7 +259,15 @@ function showAdminSub(subId) {
   document.querySelectorAll("#tab-admin .gestion-subpanel[data-admin-panel]").forEach((panel) => {
     const match = panel.dataset.adminPanel === subId;
     panel.classList.toggle("is-active", match);
-    panel.hidden = !match;
+    if (match) {
+      panel.hidden = false;
+      panel.removeAttribute("hidden");
+      panel.style.display = "flex";
+    } else {
+      panel.hidden = true;
+      panel.setAttribute("hidden", "");
+      panel.style.display = "none";
+    }
   });
 
   // Rendu ciblé de la section
