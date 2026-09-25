@@ -9241,3 +9241,171 @@ html, body {
   }
 }
 
+
+/* ============================================================
+   MEMBRES ADMIN — mise en page définitive (2–3 / ligne)
+   ============================================================ */
+#tab-admin .member-list,
+#memberListAdmin,
+#memberListAdmin.member-list {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(140px, 1fr)) !important;
+  gap: 0.55rem !important;
+  width: 100% !important;
+  list-style: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+@media (min-width: 720px) {
+  #tab-admin .member-list,
+  #memberListAdmin,
+  #memberListAdmin.member-list {
+    grid-template-columns: repeat(3, minmax(160px, 1fr)) !important;
+  }
+}
+
+#tab-admin .member-item,
+#memberListAdmin .member-item {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: flex-start !important;
+  gap: 0.35rem !important;
+  padding: 0.55rem 0.6rem !important;
+  margin: 0 !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+  border: 1px solid var(--border, #e2e8f0) !important;
+  border-radius: 10px !important;
+  background: #ffffff !important;
+  writing-mode: horizontal-tb !important;
+  overflow: visible !important;
+}
+
+#tab-admin .member-info,
+#memberListAdmin .member-info {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  gap: 0.45rem !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  flex: none !important;
+  overflow: visible !important;
+}
+
+#tab-admin .member-avatar,
+#memberListAdmin .member-avatar {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  flex-shrink: 0 !important;
+  border-radius: 8px !important;
+  font-size: 0.72rem !important;
+  font-weight: 700 !important;
+  color: var(--primary, #0e7490) !important;
+  background: var(--primary-light, #ecfeff) !important;
+}
+
+#tab-admin .member-text,
+#memberListAdmin .member-text {
+  display: block !important;
+  flex: 1 1 auto !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
+  width: auto !important;
+  max-width: 100% !important;
+}
+
+#tab-admin .member-name,
+#memberListAdmin .member-name,
+#tab-admin .member-name p,
+#tab-admin p.member-name {
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: 0.88rem !important;
+  font-weight: 700 !important;
+  line-height: 1.3 !important;
+  color: #0f172a !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  writing-mode: horizontal-tb !important;
+  word-break: normal !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+#tab-admin .member-cotisation,
+#memberListAdmin .member-cotisation {
+  color: var(--primary, #0e7490) !important;
+  font-weight: 700 !important;
+  font-size: 0.82rem !important;
+}
+
+#tab-admin .member-date,
+#memberListAdmin .member-date {
+  display: block !important;
+  margin: 0.15rem 0 0 !important;
+  font-size: 0.72rem !important;
+  color: #64748b !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+#tab-admin .member-right,
+#memberListAdmin .member-right {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 0.3rem !important;
+  width: 100% !important;
+  flex-shrink: 0 !important;
+}
+
+#tab-admin .member-actions,
+#memberListAdmin .member-actions {
+  display: flex !important;
+  flex-direction: row !important;
+  gap: 0.3rem !important;
+  margin-left: 0 !important;
+}
+
+#tab-admin .member-item .btn-reset-pwd,
+#tab-admin .member-item .btn-delete,
+#memberListAdmin .btn-reset-pwd,
+#memberListAdmin .btn-delete {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 1.75rem !important;
+  padding: 0.25rem 0.5rem !important;
+  font-size: 0.72rem !important;
+  border-radius: 7px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+#tab-admin .member-item .tag-admin,
+#tab-admin .member-item .tag-you,
+#tab-admin .member-item .tag-online,
+#tab-admin .member-item .tag-nouveau,
+#tab-admin .member-item .role-badge,
+#tab-admin .member-item .admin-only-note {
+  display: inline-block !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  font-size: 0.65rem !important;
+  color: inherit !important;
+}
+
