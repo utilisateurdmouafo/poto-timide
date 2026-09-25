@@ -1556,7 +1556,7 @@ body::after {
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 360px) {
   .member-list {
     grid-template-columns: 1fr;
   }
@@ -9061,24 +9061,37 @@ html, body {
 }
 
 
-/* —— Harmonisation Membres / Bureau = style cartes Événements —— */
-#tab-admin .member-list {
+/* —— Membres admin : 2–3 cartes par ligne, texte horizontal —— */
+#tab-admin .member-list,
+#memberListAdmin.member-list {
   display: grid !important;
-  grid-template-columns: 1fr !important;
-  gap: 0.4rem !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.5rem !important;
+  width: 100% !important;
+}
+@media (min-width: 700px) {
+  #tab-admin .member-list,
+  #memberListAdmin.member-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
 }
 #tab-admin .member-item {
   display: flex !important;
   flex-direction: row !important;
+  flex-wrap: nowrap !important;
   align-items: center !important;
   justify-content: space-between !important;
-  gap: 0.5rem !important;
-  padding: 0.45rem 0.55rem !important;
+  gap: 0.4rem !important;
+  padding: 0.5rem 0.55rem !important;
   margin: 0 !important;
   border: 1px solid var(--border) !important;
   border-radius: 10px !important;
   background: #fff !important;
   box-shadow: none !important;
+  min-width: 0 !important;
+  width: auto !important;
+  max-width: none !important;
+  writing-mode: horizontal-tb !important;
 }
 #tab-admin .member-item:hover {
   border-color: #94a3b8 !important;
@@ -9086,10 +9099,12 @@ html, body {
 }
 #tab-admin .member-info {
   display: flex !important;
+  flex-direction: row !important;
   align-items: center !important;
-  gap: 0.45rem !important;
+  gap: 0.4rem !important;
   min-width: 0 !important;
-  flex: 1 !important;
+  flex: 1 1 auto !important;
+  overflow: hidden !important;
 }
 #tab-admin .member-avatar {
   width: 28px !important;
@@ -9098,29 +9113,45 @@ html, body {
   font-size: 0.7rem !important;
   flex-shrink: 0 !important;
 }
+#tab-admin .member-text {
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  overflow: hidden !important;
+}
 #tab-admin .member-name {
-  font-size: 0.88rem !important;
+  font-size: 0.82rem !important;
   font-weight: 600 !important;
   margin: 0 !important;
+  line-height: 1.25 !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  writing-mode: horizontal-tb !important;
+  word-break: normal !important;
 }
 #tab-admin .member-date {
-  font-size: 0.72rem !important;
+  font-size: 0.68rem !important;
   margin: 0.1rem 0 0 !important;
   color: #64748b !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
 }
 #tab-admin .member-right,
 #tab-admin .member-actions {
   display: flex !important;
+  flex-direction: row !important;
   align-items: center !important;
-  gap: 0.3rem !important;
+  gap: 0.25rem !important;
   flex-shrink: 0 !important;
 }
 #tab-admin .member-item .btn-reset-pwd,
 #tab-admin .member-item .btn-delete {
   min-height: 1.7rem !important;
-  padding: 0.2rem 0.45rem !important;
-  font-size: 0.72rem !important;
+  padding: 0.2rem 0.4rem !important;
+  font-size: 0.7rem !important;
   border-radius: 7px !important;
+  flex-shrink: 0 !important;
 }
 
 /* Bureau : cartes style événement, plus pastilles minuscules */
