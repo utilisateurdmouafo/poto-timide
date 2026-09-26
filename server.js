@@ -1323,29 +1323,33 @@ function createApp() {
   
 const LOGIN_LOG_KEY = "poto-timide-login-log";
 const LOGIN_LOG_MAX = 5000;
+/** Si un poto était absent plus longtemps que ça, une nouvelle présence = nouvelle ligne journal */
+const PRESENCE_GAP_MS = 2 * 60 * 1000;
 
-async function appendLoginLogEntry(member) {
-  if (!member?.id) return;
+function parisDay(d = new Date()) {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Paris",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
+  } catch {
+    return d.toISOString().slice(0, 10);
+  }
+}
+
+async function appendPresenceLogEntry(person) {
+  if (!person?.id) return;
   try {
     const now = new Date();
-    // Jour en heure Europe/Paris (évite décalage UTC)
-    let day;
-    try {
-      day = new Intl.DateTimeFormat("en-CA", {
-        timeZone: "Europe/Paris",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-      }).format(now);
-    } catch {
-      day = now.toISOString().slice(0, 10);
-    }
     const entry = {
-      id: `login-${member.id}-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
-      memberId: member.id,
-      memberName: member.name || "—",
+      id: `presence-${person.id}-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
+      memberId: person.id,
+      memberName: person.name || "—",
       at: now.toISOString(),
-      day,
+      day: parisDay(now),
+      source: "online",
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };
@@ -1355,9 +1359,51 @@ async function appendLoginLogEntry(member) {
     if (list.length > LOGIN_LOG_MAX) list = list.slice(0, LOGIN_LOG_MAX);
     await setData(LOGIN_LOG_KEY, list);
   } catch (err) {
-    console.warn("appendLoginLogEntry:", err?.message || err);
+    console.warn("appendPresenceLogEntry:", err?.message || err);
   }
 }
+
+/**
+ * Basé sur "Connectés en ce moment" :
+ * si un membre est en ligne et n'a pas de ligne récente (< PRESENCE_GAP), on ajoute heure + nom.
+ */
+async function syncPresenceLogFromOnline(onlineList) {
+  if (!Array.isArray(onlineList) || !onlineList.length) return;
+  try {
+    let list = (await getData(LOGIN_LOG_KEY)) || [];
+    if (!Array.isArray(list)) list = [];
+    const now = Date.now();
+    let changed = false;
+
+    for (const person of onlineList) {
+      if (!person?.id) continue;
+      const latest = list.find((e) => e && String(e.memberId) === String(person.id) && !e.deletedAt);
+      const latestAt = latest?.at ? new Date(latest.at).getTime() : 0;
+      if (latestAt && now - latestAt < PRESENCE_GAP_MS) continue;
+
+      const ts = new Date();
+      list.unshift({
+        id: `presence-${person.id}-${ts.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
+        memberId: person.id,
+        memberName: person.name || "—",
+        at: ts.toISOString(),
+        day: parisDay(ts),
+        source: "online",
+        createdAt: ts.toISOString(),
+        updatedAt: ts.toISOString(),
+      });
+      changed = true;
+    }
+
+    if (changed) {
+      if (list.length > LOGIN_LOG_MAX) list = list.slice(0, LOGIN_LOG_MAX);
+      await setData(LOGIN_LOG_KEY, list);
+    }
+  } catch (err) {
+    console.warn("syncPresenceLogFromOnline:", err?.message || err);
+  }
+}
+
 
   app.post("/api/auth/login", async (req, res) => {
     try {
@@ -1389,13 +1435,7 @@ async function appendLoginLogEntry(member) {
       req.session.mustChangePassword = Boolean(user.must_change_password);
       req.session.lastSeen = Date.now();
 
-      // Journal de connexion serveur (consultable partout)
-      try {
-        await appendLoginLogEntry(member);
-      } catch (e) {
-        console.warn("login log server:", e?.message || e);
-      }
-
+      // Présence journalisée via /api/auth/online (Connectés en ce moment)
       req.session.save((err) => {
         if (err) {
           return res.status(500).json({ error: "Impossible de créer la session" });
@@ -1464,7 +1504,14 @@ async function appendLoginLogEntry(member) {
 
   app.get("/api/auth/online", requireAuth, async (req, res) => {
     try {
+      touchLastSeen(req);
       const online = await getOnlineMembers();
+      // Journal basé sur les connectés en ce moment
+      try {
+        await syncPresenceLogFromOnline(online);
+      } catch (e) {
+        console.warn("presence log:", e?.message || e);
+      }
       res.json({ online, count: online.length });
     } catch (err) {
       console.error(err);

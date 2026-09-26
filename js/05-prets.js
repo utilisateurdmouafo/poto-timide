@@ -760,44 +760,9 @@ function localDayISO(d = new Date()) {
   return `${y}-${m}-${day}`;
 }
 
-function recordLoginSession(member) {
-  if (!member || !member.id) return;
-  const now = new Date();
-  let day;
-  try {
-    day = new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Europe/Paris",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(now);
-  } catch {
-    day = localDayISO(now);
-  }
-  const entry = {
-    id: `login-${member.id}-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
-    memberId: member.id,
-    memberName: member.name || "—",
-    at: now.toISOString(),
-    day,
-    createdAt: now.toISOString(),
-    updatedAt: now.toISOString(),
-  };
-  loadLoginLog();
-  // Chaque connexion compte (même plusieurs fois le même jour)
-  loginLog.unshift(entry);
-  if (loginLog.length > LOGIN_LOG_MAX) loginLog = loginLog.slice(0, LOGIN_LOG_MAX);
-  saveLoginLog();
-  try {
-    if (typeof queueServerSync === "function") {
-      queueServerSync(LOGIN_LOG_KEY, JSON.stringify(loginLog));
-    }
-    if (typeof potoFlushSync === "function") {
-      Promise.resolve(potoFlushSync()).catch(() => {});
-    }
-  } catch (e) {
-    console.warn("login log sync:", e);
-  }
+function recordLoginSession(_member) {
+  // Désactivé : le journal se base sur /api/auth/online (Connectés en ce moment)
+  return;
 }
 
 function getLoginLogForDay(day) {
@@ -873,7 +838,7 @@ async function renderLoginLog(options = {}) {
         : `Aucune connexion enregistrée le ${day.split("-").reverse().join("/")}`;
     }
     if (!rows.length) {
-      list.innerHTML = `<p class="panel-desc">Personne ne s'est connecté ce jour-là (ou pas encore de données). Reconnecte-toi une fois pour tester.</p>`;
+      list.innerHTML = `<p class="panel-desc">Aucune présence en ligne enregistrée ce jour-là. Dès qu'un poto apparaît dans « Connectés en ce moment », il sera listé ici.</p>`;
       return;
     }
     list.innerHTML = `
