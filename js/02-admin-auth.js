@@ -893,12 +893,7 @@ async function loginMember(name, password) {
     } else {
       appEl.classList.remove("app-blurred");
     }
-    try {
-      const m = authState.member || getCurrentMember();
-      if (m) recordLoginSession(m);
-    } catch (e) {
-      console.warn("login log:", e);
-    }
+    // Journal de connexion : uniquement côté serveur (évite les doublons)
     updateSessionUI();
 
     try {

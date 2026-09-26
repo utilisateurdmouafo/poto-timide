@@ -854,9 +854,19 @@ async function renderLoginLog(options = {}) {
       day = localDayISO();
       if (dateInput) dateInput.value = day;
     }
-    const rows = (loginLog || [])
+    const rawRows = (loginLog || [])
       .filter((r) => r && !r.deletedAt && (r.day || (r.at || "").slice(0, 10)) === day)
       .sort((a, b) => new Date(b.at) - new Date(a.at));
+    // Dédupliquer : même membre + même seconde (double enreg. ancien client+serveur)
+    const seen = new Set();
+    const rows = [];
+    for (const r of rawRows) {
+      const sec = String(r.at || "").slice(0, 19); // jusqu'à la seconde
+      const key = `${r.memberId || r.memberName}|${sec}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push(r);
+    }
     if (meta) {
       meta.textContent = rows.length
         ? `${rows.length} connexion${rows.length > 1 ? "s" : ""} le ${day.split("-").reverse().join("/")}`
