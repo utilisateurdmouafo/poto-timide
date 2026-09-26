@@ -760,7 +760,7 @@ document.getElementById("reunionDashboard")?.addEventListener("click", (e) => {
 });
 
 document.getElementById("loginLogDate")?.addEventListener("change", () => {
-  if (typeof renderLoginLog === "function") renderLoginLog();
+  if (typeof renderLoginLog === "function") renderLoginLog({ pull: false });
 });
 
 document.addEventListener("click", (e) => {

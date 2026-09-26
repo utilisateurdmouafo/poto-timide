@@ -1530,7 +1530,7 @@ async function initApp() {
         }
         if (activeAdminSub === "admins" && typeof renderAdminList === "function") renderAdminList();
         if (activeAdminSub === "sauvegarde" && typeof renderAuditLog === "function") renderAuditLog();
-        if (activeAdminSub === "connexions" && typeof renderLoginLog === "function") renderLoginLog();
+        if (activeAdminSub === "connexions" && typeof renderLoginLog === "function") renderLoginLog({ pull: false });
       }
     } catch (err) {
       console.warn("refresh UI après pull:", err);

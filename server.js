@@ -1328,12 +1328,24 @@ async function appendLoginLogEntry(member) {
   if (!member?.id) return;
   try {
     const now = new Date();
+    // Jour en heure Europe/Paris (évite décalage UTC)
+    let day;
+    try {
+      day = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Paris",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(now);
+    } catch {
+      day = now.toISOString().slice(0, 10);
+    }
     const entry = {
       id: `login-${member.id}-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
       memberId: member.id,
       memberName: member.name || "—",
       at: now.toISOString(),
-      day: now.toISOString().slice(0, 10),
+      day,
       createdAt: now.toISOString(),
       updatedAt: now.toISOString(),
     };
@@ -1701,6 +1713,28 @@ async function appendLoginLogEntry(member) {
       clearInterval(heartbeat);
       liveClients.delete(res);
     });
+  });
+
+  
+  app.get("/api/admin/login-log", requireAuth, async (req, res) => {
+    try {
+      const members = (await getData(MEMBERS_KEY)) || [];
+      const ownerId = findOwnerInMembers(members)?.id || getOwnerFallbackMember()?.id || null;
+      if (!ownerId || req.session.userId !== ownerId) {
+        return res.status(403).json({ error: "Réservé au propriétaire" });
+      }
+      let list = (await getData(LOGIN_LOG_KEY)) || [];
+      if (!Array.isArray(list)) list = [];
+      // plus récents d'abord, max 2000
+      list = list
+        .filter((e) => e && e.id && !e.deletedAt)
+        .sort((a, b) => new Date(b.at || 0) - new Date(a.at || 0))
+        .slice(0, 2000);
+      res.json({ entries: list, count: list.length });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Erreur serveur" });
+    }
   });
 
   app.get("/api/admin/db-status", requireAuth, requireAdmin, async (req, res) => {

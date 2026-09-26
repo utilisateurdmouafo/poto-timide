@@ -753,15 +753,33 @@ function saveLoginLog() {
   }
 }
 
+function localDayISO(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function recordLoginSession(member) {
   if (!member || !member.id) return;
   const now = new Date();
+  let day;
+  try {
+    day = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Europe/Paris",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(now);
+  } catch {
+    day = localDayISO(now);
+  }
   const entry = {
     id: `login-${member.id}-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
     memberId: member.id,
     memberName: member.name || "—",
     at: now.toISOString(),
-    day: now.toISOString().slice(0, 10),
+    day,
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
   };
@@ -799,7 +817,9 @@ function formatLoginTime(iso) {
   }
 }
 
-async function renderLoginLog() {
+let _loginLogRenderBusy = false;
+
+async function renderLoginLog(options = {}) {
   const list = document.getElementById("loginLogList");
   const meta = document.getElementById("loginLogMeta");
   const dateInput = document.getElementById("loginLogDate");
@@ -808,31 +828,45 @@ async function renderLoginLog() {
     list.innerHTML = `<p class="panel-desc">Accès réservé.</p>`;
     return;
   }
-  // Recharger depuis le serveur pour voir toutes les connexions (tous navigateurs)
+  if (_loginLogRenderBusy) return;
+  _loginLogRenderBusy = true;
   try {
-    if (typeof loadDataFromServer === "function") {
-      await loadDataFromServer();
+    // Pull léger une seule fois (pas de loadDataFromServer = boucle)
+    if (options.pull !== false && typeof apiFetch === "function") {
+      try {
+        const data = await apiFetch("/api/admin/login-log");
+        if (Array.isArray(data?.entries)) {
+          loginLog = data.entries;
+          try {
+            localStorage.setItem(LOGIN_LOG_KEY, JSON.stringify(loginLog.slice(0, LOGIN_LOG_MAX)));
+          } catch { /* ignore */ }
+        }
+      } catch (e) {
+        console.warn("login-log API:", e);
+        loadLoginLog();
+      }
+    } else {
+      loadLoginLog();
     }
-  } catch (e) {
-    console.warn("login log pull:", e);
-  }
-  loadLoginLog();
-  let day = dateInput?.value;
-  if (!day) {
-    day = new Date().toISOString().slice(0, 10);
-    if (dateInput) dateInput.value = day;
-  }
-  const rows = getLoginLogForDay(day);
-  if (meta) {
-    meta.textContent = rows.length
-      ? `${rows.length} connexion${rows.length > 1 ? "s" : ""} le ${day.split("-").reverse().join("/")}`
-      : `Aucune connexion enregistrée le ${day.split("-").reverse().join("/")}`;
-  }
-  if (!rows.length) {
-    list.innerHTML = `<p class="panel-desc">Personne ne s'est connecté ce jour-là (ou pas encore de données).</p>`;
-    return;
-  }
-  list.innerHTML = `
+
+    let day = dateInput?.value;
+    if (!day) {
+      day = localDayISO();
+      if (dateInput) dateInput.value = day;
+    }
+    const rows = (loginLog || [])
+      .filter((r) => r && !r.deletedAt && (r.day || (r.at || "").slice(0, 10)) === day)
+      .sort((a, b) => new Date(b.at) - new Date(a.at));
+    if (meta) {
+      meta.textContent = rows.length
+        ? `${rows.length} connexion${rows.length > 1 ? "s" : ""} le ${day.split("-").reverse().join("/")}`
+        : `Aucune connexion enregistrée le ${day.split("-").reverse().join("/")}`;
+    }
+    if (!rows.length) {
+      list.innerHTML = `<p class="panel-desc">Personne ne s'est connecté ce jour-là (ou pas encore de données). Reconnecte-toi une fois pour tester.</p>`;
+      return;
+    }
+    list.innerHTML = `
     <div class="amende-table-wrap login-log-wrap">
       <table class="amende-table login-log-table">
         <thead>
@@ -853,6 +887,9 @@ async function renderLoginLog() {
         </tbody>
       </table>
     </div>`;
+  } finally {
+    _loginLogRenderBusy = false;
+  }
 }
 
 
