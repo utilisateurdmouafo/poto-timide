@@ -754,29 +754,31 @@ function saveLoginLog() {
 }
 
 function recordLoginSession(member) {
-  if (!member?.id && !member?.name) return;
+  if (!member || !member.id) return;
   const now = new Date();
   const entry = {
-    id: typeof generateId === "function" ? generateId() : String(Date.now()),
-    memberId: member.id || null,
+    id: `login-${member.id}-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
+    memberId: member.id,
     memberName: member.name || "—",
     at: now.toISOString(),
     day: now.toISOString().slice(0, 10),
+    createdAt: now.toISOString(),
+    updatedAt: now.toISOString(),
   };
   loadLoginLog();
-  // Évite double enregistrement à quelques secondes d'intervalle
-  const recent = loginLog.find(
-    (r) =>
-      r.memberId === entry.memberId &&
-      r.day === entry.day &&
-      Math.abs(new Date(r.at).getTime() - now.getTime()) < 60_000
-  );
-  if (recent) return;
+  // Chaque connexion compte (même plusieurs fois le même jour)
   loginLog.unshift(entry);
   if (loginLog.length > LOGIN_LOG_MAX) loginLog = loginLog.slice(0, LOGIN_LOG_MAX);
   saveLoginLog();
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
+  try {
+    if (typeof queueServerSync === "function") {
+      queueServerSync(LOGIN_LOG_KEY, JSON.stringify(loginLog));
+    }
+    if (typeof potoFlushSync === "function") {
+      Promise.resolve(potoFlushSync()).catch(() => {});
+    }
+  } catch (e) {
+    console.warn("login log sync:", e);
   }
 }
 
@@ -797,7 +799,7 @@ function formatLoginTime(iso) {
   }
 }
 
-function renderLoginLog() {
+async function renderLoginLog() {
   const list = document.getElementById("loginLogList");
   const meta = document.getElementById("loginLogMeta");
   const dateInput = document.getElementById("loginLogDate");
@@ -806,6 +808,15 @@ function renderLoginLog() {
     list.innerHTML = `<p class="panel-desc">Accès réservé.</p>`;
     return;
   }
+  // Recharger depuis le serveur pour voir toutes les connexions (tous navigateurs)
+  try {
+    if (typeof loadDataFromServer === "function") {
+      await loadDataFromServer();
+    }
+  } catch (e) {
+    console.warn("login log pull:", e);
+  }
+  loadLoginLog();
   let day = dateInput?.value;
   if (!day) {
     day = new Date().toISOString().slice(0, 10);

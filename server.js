@@ -47,6 +47,7 @@ const STORAGE_KEYS = [
   "poto-timide-financier-account",
   "poto-timide-data-revision",
   "poto-timide-audit-log",
+  "poto-timide-login-log",
 ];
 
 const DUMP_KIND = "poto-timide-full-dump";
@@ -338,6 +339,7 @@ const MERGE_BY_ID_KEYS = new Set([
   "poto-timide-loi",
   "poto-timide-guide",
   "poto-timide-audit-log",
+  "poto-timide-login-log",
   "poto-timide-amendes",
   "poto-timide-amendes-caisse",
   "poto-timide-ancienne-tournee-dettes",
@@ -1318,6 +1320,33 @@ function createApp() {
     next();
   }
 
+  
+const LOGIN_LOG_KEY = "poto-timide-login-log";
+const LOGIN_LOG_MAX = 5000;
+
+async function appendLoginLogEntry(member) {
+  if (!member?.id) return;
+  try {
+    const now = new Date();
+    const entry = {
+      id: `login-${member.id}-${now.getTime()}-${Math.random().toString(36).slice(2, 8)}`,
+      memberId: member.id,
+      memberName: member.name || "—",
+      at: now.toISOString(),
+      day: now.toISOString().slice(0, 10),
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
+    let list = (await getData(LOGIN_LOG_KEY)) || [];
+    if (!Array.isArray(list)) list = [];
+    list.unshift(entry);
+    if (list.length > LOGIN_LOG_MAX) list = list.slice(0, LOGIN_LOG_MAX);
+    await setData(LOGIN_LOG_KEY, list);
+  } catch (err) {
+    console.warn("appendLoginLogEntry:", err?.message || err);
+  }
+}
+
   app.post("/api/auth/login", async (req, res) => {
     try {
       const { username, password } = req.body || {};
@@ -1347,6 +1376,13 @@ function createApp() {
       );
       req.session.mustChangePassword = Boolean(user.must_change_password);
       req.session.lastSeen = Date.now();
+
+      // Journal de connexion serveur (consultable partout)
+      try {
+        await appendLoginLogEntry(member);
+      } catch (e) {
+        console.warn("login log server:", e?.message || e);
+      }
 
       req.session.save((err) => {
         if (err) {
