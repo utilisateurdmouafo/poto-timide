@@ -681,6 +681,7 @@ async function deleteCapitalHorsGroupe(id) {
   entry.deletedAt = now;
   entry.updatedAt = now;
   saveCapitalHorsGroupe();
+  if (typeof potoFlushSync === "function") await potoFlushSync();
   return true;
 }
 
@@ -732,6 +733,8 @@ function canInitiateNewPret() {
   if (!current) return false;
   if (getPendingVoteLoan()) return false;
   if (getBorrowerActiveLoan(current.id)) return false;
+  const banUntil = getLoanBanUntil(current.id);
+  if (banUntil && Date.now() < new Date(banUntil).getTime()) return false;
   if (getAncienneTourneeDette(current.id) > 0) return false;
   return true;
 }
@@ -759,10 +762,22 @@ function showPretSaveMessage(text, type = "success") {
   });
 }
 
+function getCaisseReserve() {
+  return CAISSE_RESERVE_PER_MEMBER * getGroupMembers().length;
+}
+
+function getLoanBanUntil(memberId) {
+  return prets
+    .filter((loan) => !isLoanDeleted(loan) && loan?.borrowerId === memberId && loan.loanBanUntil)
+    .map((loan) => loan.loanBanUntil)
+    .filter((date) => Number.isFinite(new Date(date).getTime()))
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0] || null;
+}
+
 function getBorrowableAmount() {
   // Caisse disponible déjà nette des prêts sortis / remboursements
   const caisse = getCaisseDisponible();
-  return Math.max(0, (caisse - CAISSE_RESERVE) / 2);
+  return Math.max(0, (caisse - getCaisseReserve()) / 2);
 }
 
 function getLoanVoters(borrowerId) {
@@ -839,7 +854,7 @@ function addMonthsYmd(ymd, months) {
 }
 
 function getLoanDueDates(loan) {
-  const base = toDateInputValue(getLoanRequestDate(loan));
+  const base = toDateInputValue(getLoanRepaymentStartDate(loan));
   if (!base) return null;
   const month1Ymd = addMonthsYmd(base, 1);
   const month2Ymd = addMonthsYmd(base, 2);
@@ -867,6 +882,10 @@ function formatLoanDueDatesLabel(loan, compact = false) {
 
 function getLoanRequestDate(loan) {
   return loan?.createdAt || loan?.approvedAt || "";
+}
+
+function getLoanRepaymentStartDate(loan) {
+  return loan?.approvedAt || loan?.createdAt || "";
 }
 
 let loanDateEditingId = null;
@@ -1218,6 +1237,29 @@ function notifyBorrower(loan, type, message) {
   upsertLoanNotification(loan.borrowerId, loan.id, type, message);
 }
 
+function applyDynamicLoanSanction(loan, ratio, now) {
+  if (loan.interestApplied) return false;
+
+  const initialAmount = Number(loan.amount) || 0;
+  loan.interestApplied = true;
+  loan.interestAmount = Math.round(initialAmount * LOAN_INTEREST_RATE * 100) / 100;
+  loan.sanctionAppliedAt = new Date(now).toISOString();
+  loan.repaymentRatioAtSanction = Math.round(ratio * 10000) / 10000;
+
+  if (ratio >= 0.6) {
+    loan.sanctionLevel = "interest";
+  } else if (ratio >= 0.3) {
+    loan.sanctionLevel = "interest-and-half-tournee-ban";
+    loan.loanBanUntil = addMonthsYmd(toDateInputValue(new Date(now)), 5) + "T23:59:59.999Z";
+  } else {
+    loan.sanctionLevel = "interest-and-full-tournee-ban";
+    loan.loanBanUntil = addMonthsYmd(toDateInputValue(new Date(now)), 10) + "T23:59:59.999Z";
+  }
+
+  loan.status = "defaulted";
+  return true;
+}
+
 function processLoanStatusUpdates() {
   const now = Date.now();
   let changed = false;
@@ -1239,7 +1281,7 @@ function processLoanStatusUpdates() {
   });
 
   prets.forEach((loan) => {
-    if (loan.status !== "active") return;
+    if (!loan || !["active", "defaulted"].includes(loan.status)) return;
 
     const dueDates = getLoanDueDates(loan);
     if (!dueDates) return;
@@ -1251,11 +1293,19 @@ function processLoanStatusUpdates() {
       return;
     }
 
-    if (Date.now() > dueDates.month2.getTime() && !loan.interestApplied) {
-      loan.interestApplied = true;
-      loan.interestAmount = Math.round(balance * LOAN_INTEREST_RATE * 100) / 100;
-      loan.status = "defaulted";
-      const interestMsg = `Retard de remboursement : intérêts de 10 % appliqués (${formatEuro(loan.interestAmount)}).`;
+    const ratio = Math.max(0, Number(loan.totalRepaid) || 0) / Math.max(1, Number(loan.amount) || 0);
+    if (Date.now() > dueDates.month1.getTime() && !loan.firstMonthEvaluated) {
+      loan.firstMonthEvaluated = true;
+      if (ratio < REPAYMENT_MONTH1_RATIO) {
+        changed = applyDynamicLoanSanction(loan, ratio, now) || changed;
+      }
+      changed = true;
+    } else if (Date.now() > dueDates.month2.getTime() && !loan.interestApplied) {
+      changed = applyDynamicLoanSanction(loan, ratio, now) || changed;
+    }
+
+    if (loan.interestApplied && loan.sanctionAppliedAt === new Date(now).toISOString()) {
+      const interestMsg = `Retard de remboursement : intérêts de 10 % appliqués sur le montant initial (${formatEuro(loan.interestAmount)}).`;
       notifyBorrower(loan, "loan_interest", interestMsg);
       queuePushMessage(loan.borrowerId, {
         title: "Retard de prêt",
@@ -1264,7 +1314,6 @@ function processLoanStatusUpdates() {
         loanId: loan.id,
         tag: `loan-interest-${loan.id}`,
       });
-      changed = true;
     }
   });
 
@@ -1325,6 +1374,12 @@ function initiatePret(amount, note) {
     return;
   }
 
+  const banUntil = getLoanBanUntil(current.id);
+  if (banUntil && Date.now() < new Date(banUntil).getTime()) {
+    alert(`Tu es interdit de prêt jusqu'au ${formatDate(banUntil)} en application de l'article 4.4.`);
+    return;
+  }
+
   const available = getBorrowableAmount();
   if (parsedAmount > available) {
     alert(`Montant trop élevé. Empruntable : ${formatEuro(available)}.`);
@@ -1351,6 +1406,11 @@ function initiatePret(amount, note) {
     repayments: [],
     interestApplied: false,
     interestAmount: 0,
+    firstMonthEvaluated: false,
+    sanctionLevel: null,
+    sanctionAppliedAt: null,
+    repaymentRatioAtSanction: null,
+    loanBanUntil: null,
     autoApprovedByTimeout: false,
   };
 
@@ -1491,7 +1551,7 @@ async function votePret(loanId, vote) {
 
 const PENDING_FINANCIER_STATUSES = ["voting", "awaiting_financier"];
 
-function financierDecidePret(loanId, decision) {
+async function financierDecidePret(loanId, decision) {
   if (!canManagePretsActions()) {
     alert("Seul le Financier ou un administrateur peut valider les prêts.");
     return;
@@ -1533,6 +1593,16 @@ function financierDecidePret(loanId, decision) {
     `${borrower?.name || "membre"} — ${formatEuro(loan.amount)}`
   );
   savePrets();
+  const flush = window.potoFlushSync || window.flushPotoServerSync;
+  if (typeof flush === "function") {
+    try {
+      await flush();
+    } catch (err) {
+      console.warn("Synchronisation de la décision du prêt échouée", err);
+    }
+  }
+  renderPrets();
+  if (typeof renderAdminPrets === "function") renderAdminPrets();
 }
 
 function ensureLoanRepayments(loan) {

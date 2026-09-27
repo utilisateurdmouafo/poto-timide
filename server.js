@@ -675,7 +675,10 @@ function mergeEvenementsWithPayments(existing, incoming) {
 async function persistStorageValue(key, value) {
   try {
     const existingRaw = await getRawData(key);
-    if (key === "poto-timide-prets") {
+    if (key === "poto-timide-members") {
+      // La liste complète est la source de vérité : une suppression doit rester supprimée.
+      value = unwrapStored(value) || [];
+    } else if (key === "poto-timide-prets") {
       value = mergeLoansWithVotes(unwrapStored(existingRaw) || [], unwrapStored(value) || []);
     } else if (key === "poto-timide-evenements") {
       value = mergeEvenementsWithPayments(unwrapStored(existingRaw) || [], unwrapStored(value) || []);

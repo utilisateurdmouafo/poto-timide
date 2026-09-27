@@ -1,4 +1,4 @@
-function deleteOwnNotification(notificationId) {
+async function deleteOwnNotification(notificationId) {
   const current = getCurrentMember();
   if (!current || !notificationId) return;
 
@@ -12,7 +12,7 @@ function deleteOwnNotification(notificationId) {
   notif.deletedAt = now;
   notif.updatedAt = now;
   saveNotifications(false);
-  if (typeof window.flushPotoServerSync === "function") window.flushPotoServerSync();
+  if (typeof window.flushPotoServerSync === "function") await window.flushPotoServerSync();
   renderPretNotifications();
 }
 
@@ -32,7 +32,7 @@ async function deleteAllOwnNotifications() {
     }
   });
   saveNotifications(false);
-  if (typeof window.flushPotoServerSync === "function") window.flushPotoServerSync();
+  if (typeof window.flushPotoServerSync === "function") await window.flushPotoServerSync();
   renderPretNotifications();
 }
 
@@ -52,6 +52,9 @@ function renderInitiatePretPanel() {
     } else if (ownLoan) {
       pretLockMsg.hidden = false;
       pretLockMsg.textContent = `Vous avez déjà un prêt en cours (${getPretStatusLabel(ownLoan.status).toLowerCase()}).`;
+    } else if (current && getLoanBanUntil(current.id) && Date.now() < new Date(getLoanBanUntil(current.id)).getTime()) {
+      pretLockMsg.hidden = false;
+      pretLockMsg.textContent = `Tu es interdit de prêt jusqu'au ${formatDate(getLoanBanUntil(current.id))} selon l'article 4.4.`;
     } else if (current && getAncienneTourneeDette(current.id) > 0) {
       pretLockMsg.hidden = false;
       pretLockMsg.textContent = `Tu as une dette d'ancienne tournée (${formatEuro(getAncienneTourneeDette(current.id))}). Rembourse-la avant de faire un prêt.`;
@@ -127,7 +130,7 @@ function renderPretSummary() {
     <div class="pret-summary-card pret-summary-main">
       <span class="pret-summary-label">Argent empruntable</span>
       <strong class="pret-summary-amount">${formatEuro(borrowable)}</strong>
-      <span class="pret-summary-formula">(Caisse disponible − ${formatEuro(CAISSE_RESERVE)}) ÷ 2</span>
+      <span class="pret-summary-formula">(Caisse disponible − ${formatEuro(getCaisseReserve())}) ÷ 2</span>
     </div>
     <div class="pret-summary-card">
       <span class="pret-summary-label">Caisse disponible</span>
@@ -303,6 +306,16 @@ function buildLoanCard(loan, mode) {
               <input type="number" class="pret-repay-input" data-loan-id="${loan.id}" min="0.5" step="0.5" max="${balance}" placeholder="Montant remboursé" inputmode="decimal" aria-label="Montant remboursé, reste ${formatEuro(balance)}" />
               <button type="button" class="btn-primary btn-pret-repay" data-loan-id="${loan.id}">Enregistrer remboursement</button>
             </div>`
+          : ""
+      }
+      ${
+        loan.interestApplied
+          ? `<p class="pret-sanction">Article 4.4 : intérêt de 10 % appliqué sur le montant initial (${formatEuro(loan.interestAmount || 0)}).</p>`
+          : ""
+      }
+      ${
+        loan.loanBanUntil
+          ? `<p class="pret-sanction">Interdiction de prêt jusqu'au ${escapeHtml(formatDate(loan.loanBanUntil))}.</p>`
           : ""
       }
       ${buildLoanRepaymentsBlock(loan)}
@@ -1351,14 +1364,21 @@ async function deleteEvenement(eventId) {
 
   if (!(await appConfirm(confirmMsg))) return;
 
-  amendes = amendes.filter((amende) => amende.evenementId !== eventId);
+  const now = new Date().toISOString();
+  amendes = amendes.map((amende) =>
+    amende.evenementId === eventId
+      ? { ...amende, amount: 0, deletedAt: now, updatedAt: now }
+      : amende
+  );
   localStorage.setItem(AMENDES_KEY, JSON.stringify(amendes));
 
-  evenements = evenements.filter((item) => item.id !== eventId);
+  evenements = evenements.map((item) =>
+    item.id === eventId ? { ...item, deletedAt: now, updatedAt: now } : item
+  );
   saveEvenements(false);
   bumpLiveDataRevision();
   if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
+    await potoFlushSync();
   }
 
   renderAmendes();
@@ -1391,12 +1411,17 @@ async function resetClosedEvenements() {
 
   const closedIds = new Set(closedEvents.map((evt) => evt.id));
 
-  amendes = amendes.filter(
-    (amende) => !(isDetteAmende(amende) && amende.evenementId && closedIds.has(amende.evenementId))
+  const now = new Date().toISOString();
+  amendes = amendes.map((amende) =>
+    isDetteAmende(amende) && amende.evenementId && closedIds.has(amende.evenementId)
+      ? { ...amende, amount: 0, deletedAt: now, updatedAt: now }
+      : amende
   );
   localStorage.setItem(AMENDES_KEY, JSON.stringify(amendes));
 
-  evenements = evenements.filter((evt) => !isEvenementClosed(evt));
+  evenements = evenements.map((evt) =>
+    closedIds.has(evt.id) ? { ...evt, deletedAt: now, updatedAt: now } : evt
+  );
   saveEvenements();
   renderAmendes();
   showEvenementSaveMessage(`${closedEvents.length} événement(s) clôturé(s) réinitialisé(s).`);

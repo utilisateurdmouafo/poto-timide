@@ -247,7 +247,7 @@
 
         <section class="panel" id="initiatePretPanel">
           <h2>Initier un prêt</h2>
-          <p class="panel-desc">Une demande en vote à la fois. Max : (caisse disponible − 300 €) ÷ 2.</p>
+          <p class="panel-desc" id="pretInitiateDesc">Une demande en vote à la fois. Le plafond dépend de la caisse et de la réserve par membre.</p>
           <p class="info-msg" id="pretLockMsg" hidden></p>
           <form id="pretForm" class="pret-form pret-form-inline">
             <label class="pret-field-amount">
@@ -1113,13 +1113,15 @@
 
   <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
 
-    <script src="api-client.js?v=pwa-119"></script>
-  <script src="js/01-core.js?v=pwa-119"></script>
-  <script src="js/02-admin-auth.js?v=pwa-119"></script>
-  <script src="js/03-membres-tournee.js?v=pwa-119"></script>
-  <script src="js/04-amendes.js?v=pwa-119"></script>
-  <script src="js/05-prets.js?v=pwa-119"></script>
-  <script src="js/06-evenements-comm.js?v=pwa-119"></script>
-  <script src="js/07-boot.js?v=pwa-119"></script>
+    <script src="api-client.js?v=pwa-121"></script>
+  <script src="api-auth.js?v=pwa-121"></script>
+  <script src="api-sync.js?v=pwa-121"></script>
+  <script src="js/01-core.js?v=pwa-129"></script>
+  <script src="js/02-admin-auth.js?v=pwa-129"></script>
+  <script src="js/03-membres-tournee.js?v=pwa-129"></script>
+  <script src="js/04-amendes.js?v=pwa-129"></script>
+  <script src="js/05-prets.js?v=pwa-129"></script>
+  <script src="js/06-evenements-comm.js?v=pwa-129"></script>
+  <script src="js/07-boot.js?v=pwa-129"></script>
 </body>
 </html>

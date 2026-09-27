@@ -927,13 +927,15 @@ async function handlePretActionClick(e) {
   if (approveBtn) {
     const borrower = getMemberById(getLoanById(approveBtn.dataset.loanId)?.borrowerId);
     if (await appConfirm(`Accorder immédiatement le prêt de ${borrower?.name || "ce membre"} ?`)) {
-      financierDecidePret(approveBtn.dataset.loanId, "approved");
+      approveBtn.disabled = true;
+      await financierDecidePret(approveBtn.dataset.loanId, "approved");
     }
   }
 
   if (rejectBtn) {
     if (await appConfirm("Refuser cette demande de prêt ?")) {
-      financierDecidePret(rejectBtn.dataset.loanId, "rejected");
+      rejectBtn.disabled = true;
+      await financierDecidePret(rejectBtn.dataset.loanId, "rejected");
     }
   }
 
@@ -1990,6 +1992,8 @@ window.__testDeleteButtons = function () {
     ".btn-ancienne-tournee-delete",
     ".btn-capital-hors-delete",
     ".pret-notif-delete",
+    "#fondCaisseAnnuelDeleteBtn",
+    "#pretNotificationsClearBtn",
   ];
   const report = {};
   selectors.forEach((sel) => {

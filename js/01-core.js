@@ -133,7 +133,7 @@ const GESTION_SUBTAB_KEY = ADMIN_SUBTAB_KEY;
 const MAX_MEMBERS = 50;
 const ADMIN_NAME = "Dario";
 const DEFAULT_FOND_CAISSE = 0;
-const CAISSE_RESERVE = 300;
+const CAISSE_RESERVE_PER_MEMBER = 20;
 const LOAN_VOTE_HOURS = 24;
 const LOAN_INTEREST_RATE = 0.1;
 const REPAYMENT_MONTH1_RATIO = 0.8;
@@ -425,6 +425,7 @@ const DEFAULT_FINANCIER_ACCOUNT = {
 };
 let financierAccount = { ...DEFAULT_FINANCIER_ACCOUNT };
 let financeData = null;
+let financeStatusRefreshTimer = null;
 let activeFinanceSub = FINANCE_ARCHIVES_SUB;
 let activeAdminSub = null; // null = hub admin
 let activeGestionSub = "membres"; // alias
@@ -1039,13 +1040,14 @@ function buildFinancePretRows() {
     .map((loan) => {
       const repaid = Math.round((Number(loan.totalRepaid) || 0) * 100) / 100;
       const remaining = Math.round((getLoanBalance(loan) || 0) * 100) / 100;
-      const original = Math.round((Number(loan.amount) || 0) * 100) / 100;
+      const original = Math.round(((Number(loan.amount) || 0) + (Number(loan.interestAmount) || 0)) * 100) / 100;
       const member = getMemberById(loan.borrowerId);
+      const interestLabel = loan.interestAmount ? ` · Intérêts : ${formatEuro(loan.interestAmount)}` : "";
       return {
         id: loan.id,
         date: getLoanRequestDate(loan),
         type: "pret",
-        detail: member?.name || "—",
+        detail: `${member?.name || "—"}${interestLabel}`,
         original,
         repaid,
         remaining,
@@ -1112,6 +1114,16 @@ function buildFinanceHistoryRows() {
     const loan = getLoanById(row.id);
     const note = String(loan?.note || "").trim();
     const detail = note ? `${row.detail} — ${note}` : row.detail;
+    const baseStatus = row.settled
+      ? "Soldé"
+      : getPretStatusLabel(loan?.status || "active");
+    const countdown = !row.settled && !loan?.interestAmount
+      ? getLoanRepaymentCountdown(loan)
+      : "";
+    const sanction = loan?.interestAmount
+      ? `prêt init ${formatEuro(loan.amount)} · art. 4.4 : ${formatEuro(loan.interestAmount)}`
+      : "";
+    const statusLabel = [baseStatus, countdown, sanction].filter(Boolean).join(" · ");
     return {
       id: `pret-${row.id}`,
       date: row.date,
@@ -1120,9 +1132,7 @@ function buildFinanceHistoryRows() {
       original: row.original || 0,
       repaid: row.repaid ?? 0,
       remaining: row.remaining ?? 0,
-      statusLabel: row.settled
-        ? "Soldé"
-        : getPretStatusLabel(loan?.status || "active"),
+      statusLabel,
       chipClass: row.settled ? "is-paid" : row.remaining > 0 ? "is-open" : "is-paid",
       settled: row.settled,
       sortAt: row.sortAt || row.date,
@@ -1132,6 +1142,20 @@ function buildFinanceHistoryRows() {
   return [...caisseRows, ...pretRows].sort(
     (a, b) => new Date(b.sortAt || 0) - new Date(a.sortAt || 0)
   );
+}
+
+function getLoanRepaymentCountdown(loan) {
+  if (!loan || typeof getLoanDueDates !== "function") return "";
+  const dueDates = getLoanDueDates(loan);
+  if (!dueDates) return "";
+
+  const ratio = (Number(loan.totalRepaid) || 0) / Math.max(1, Number(loan.amount) || 0);
+  const target = ratio >= REPAYMENT_MONTH1_RATIO ? dueDates.month2 : dueDates.month1;
+  const targetLabel = ratio >= REPAYMENT_MONTH1_RATIO ? "Payer le solde avant le" : "Payer 80 % avant le";
+  const days = Math.ceil((target.getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+  if (days < 0) return `${targetLabel} ${formatDate(target.toISOString())} (délai dépassé)`;
+  if (days === 0) return `${targetLabel} aujourd'hui`;
+  return `${targetLabel} ${formatDate(target.toISOString())} (${days} jour${days > 1 ? "s" : ""})`;
 }
 
 function renderFinanceArchives() {
@@ -1177,6 +1201,10 @@ function renderFinanceSubcontent() {
 }
 
 function renderFinance() {
+  if (financeStatusRefreshTimer) clearInterval(financeStatusRefreshTimer);
+  financeStatusRefreshTimer = setInterval(() => {
+    if (window.location.hash === "#finance") renderFinanceSubcontent();
+  }, 60 * 1000);
   activeFinanceSub = getFinanceSubtab();
   // Fond de caisse : uniquement Admin → Caisse
   if (financeSubCaisse) financeSubCaisse.hidden = true;
@@ -2229,6 +2257,7 @@ async function deleteFondCaisseAnnuel(year) {
 
   delete fondCaisseAnnuel.years[key];
   saveFondCaisseAnnuel();
+  if (typeof potoFlushSync === "function") await potoFlushSync();
   renderAutreArgent();
   renderFinanceDashboard();
   renderPrets();
