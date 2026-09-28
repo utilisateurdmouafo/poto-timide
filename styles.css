@@ -9707,3 +9707,34 @@ button.reunion-strip-item:focus-visible {
 button.reunion-strip-item:active {
   transform: scale(0.98);
 }
+
+
+/* Tri colonnes tableaux */
+table thead th {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  position: relative;
+}
+table thead th:hover {
+  filter: brightness(0.97);
+}
+table thead th.is-sorted-asc::after,
+table thead th.is-sorted-desc::after {
+  content: "";
+  display: inline-block;
+  margin-left: 0.28em;
+  width: 0;
+  height: 0;
+  vertical-align: middle;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+}
+table thead th.is-sorted-asc::after {
+  border-bottom: 5px solid currentColor;
+  opacity: 0.85;
+}
+table thead th.is-sorted-desc::after {
+  border-top: 5px solid currentColor;
+  opacity: 0.85;
+}
