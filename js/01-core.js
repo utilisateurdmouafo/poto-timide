@@ -1588,7 +1588,8 @@ function getTourneeOrderIds(kind, monthIndex, useDraft = canEditTourneePlanning(
   const yearRecord = getTourneeYearRecord(tourneeYear, useDraft);
   const map = yearRecord[tourneeOrderKey(kind)] || {};
   const ids = normalizeTourneeMonthIds(map[String(monthIndex)] || []);
-  if (ids.length || kind === "ristourne") return ids;
+  const hasExplicitOrder = Object.prototype.hasOwnProperty.call(map, String(monthIndex));
+  if (hasExplicitOrder || ids.length || kind === "ristourne") return ids;
   return getTourneeMonthAssignment(tourneeYear, monthIndex, useDraft);
 }
 
@@ -1598,8 +1599,8 @@ function setTourneeOrderDraft(kind, monthIndex, memberIds) {
   const yearRecord = ensureTourneeYearDraft(tourneeYear);
   if (!yearRecord[key] || typeof yearRecord[key] !== "object") yearRecord[key] = {};
   const normalized = normalizeTourneeMonthIds(memberIds);
-  if (normalized.length === 0) delete yearRecord[key][String(monthIndex)];
-  else yearRecord[key][String(monthIndex)] = normalized;
+  // Une liste vide explicite masque l'ancien planning par défaut pour ce mois.
+  yearRecord[key][String(monthIndex)] = normalized;
 }
 
 function addTourneeOrderMember(kind, monthIndex, memberId) {
