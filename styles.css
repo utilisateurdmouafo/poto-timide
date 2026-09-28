@@ -9625,3 +9625,41 @@ html, body {
   color: #94a3b8;
   line-height: 1;
 }
+
+.reunion-kpi-orange,
+.reunion-kpi.reunion-kpi-orange {
+  background: linear-gradient(145deg, #ea580c 0%, #c2410c 100%);
+  color: #fff7ed;
+  border: none;
+}
+.reunion-kpi-teal,
+.reunion-kpi.reunion-kpi-teal {
+  background: linear-gradient(145deg, #0e7490 0%, #155e75 100%);
+  color: #ecfeff;
+  border: none;
+}
+.reunion-kpi-green,
+.reunion-kpi.reunion-kpi-green {
+  background: linear-gradient(145deg, #059669 0%, #047857 100%);
+  color: #ecfdf5;
+  border: none;
+}
+.reunion-kpi-danger,
+.reunion-kpi.reunion-kpi-danger {
+  background: linear-gradient(145deg, #dc2626 0%, #b91c1c 100%);
+  color: #fef2f2;
+  border: none;
+}
+.reunion-kpi-navy,
+.reunion-kpi.reunion-kpi-navy {
+  background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
+  color: #f8fafc;
+  border: none;
+}
+.reunion-menu-hub {
+  margin-top: 0.25rem;
+}
+.reunion-menu-hub .admin-hub-btn {
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}

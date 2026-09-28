@@ -593,84 +593,17 @@ function buildReunionDashboardHtml() {
     ];
 
     const menus = [
-      {
-        go: "communication",
-        label: "Communication",
-        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 8.5h9.5a3 3 0 0 1 3 3V16a3 3 0 0 1-3 3H11l-3.2 2.2A.8.8 0 0 1 6.5 20.6V19H5a3 3 0 0 1-3-3v-4.5A3 3 0 0 1 5 8.5Z" stroke="currentColor" stroke-width="1.7"/></svg>`,
-        hint: "Communiqués, ordre du jour, rapports",
-        badge: "",
-      },
-      {
-        go: "membres",
-        label: "Membres & Bureau",
-        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M3.6 19c.4-3 2.7-5 5.4-5s5 2 5.4 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
-        hint: `${memberCount} membre${memberCount > 1 ? "s" : ""}`,
-        badge: memberCount ? String(memberCount) : "",
-      },
-      {
-        go: "tournee",
-        label: "Tournée",
-        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="6.5" width="18" height="9.5" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M3 12h18" stroke="currentColor" stroke-width="1.7"/></svg>`,
-        hint: "Planning réception & ristourne",
-        badge: "",
-      },
-      {
-        go: "prets",
-        label: "Prêts",
-        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v18M7 8h7a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
-        hint: votingLoans.length
-          ? `${votingLoans.length} vote${votingLoans.length > 1 ? "s" : ""} · ${activeLoans.length} en cours`
-          : `${activeLoans.length} en cours · max ${formatEuro(maxEmpruntable)}`,
-        badge: activeLoans.length || votingLoans.length
-          ? String(activeLoans.length + votingLoans.length)
-          : "",
-      },
-      {
-        go: "evenements",
-        label: "Événements",
-        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M8 3v4M16 3v4M3.5 10h17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
-        hint: openEvents.length
-          ? `${openEvents.length} ouvert${openEvents.length > 1 ? "s" : ""}`
-          : "Aucun ouvert",
-        badge: openEvents.length ? String(openEvents.length) : "",
-      },
-      {
-        go: "amendes",
-        label: "Dettes & amendes",
-        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7"/><path d="M12 8v5M12 16.2h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
-        hint:
-          openAmendes.length || openEx.length
-            ? `${openAmendes.length} amende${openAmendes.length > 1 ? "s" : ""} · ${openEx.length} ex tournée`
-            : "Rien à régler",
-        badge:
-          openAmendes.length + openEx.length
-            ? String(openAmendes.length + openEx.length)
-            : "",
-      },
-      {
-        go: "finance",
-        label: "Finance",
-        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
-        hint: `Dispo ${formatEuro(caisseDispo)}`,
-        badge: "",
-      },
-      {
-        go: "loi",
-        label: "La loi",
-        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 4h9l3 3v13H6V4Z" stroke="currentColor" stroke-width="1.7"/><path d="M14 4v4h4M9 12h6M9 16h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
-        hint: "Règles du groupe",
-        badge: "",
-      },
+      { go: "communication", label: "Communication", tone: "navy" },
+      { go: "membres", label: "Membres & Bureau", tone: "navy" },
+      { go: "tournee", label: "Tournée", tone: "green" },
+      { go: "prets", label: "Prêts", tone: "orange" },
+      { go: "evenements", label: "Événements", tone: "orange" },
+      { go: "amendes", label: "Dettes & amendes", tone: "danger" },
+      { go: "finance", label: "Finance", tone: "teal" },
+      { go: "loi", label: "La loi", tone: "navy" },
     ];
-
     if (showAdmin) {
-      menus.push({
-        go: "admin",
-        label: "Admin",
-        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-2.8 7.8-7 9-4.2-1.2-7-4.5-7-9V6l7-3Z" stroke="currentColor" stroke-width="1.7"/><path d="M9.5 12.2l1.7 1.7 3.5-3.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-        hint: "Gestion du site",
-        badge: "",
-      });
+      menus.push({ go: "admin", label: "Admin", tone: "navy" });
     }
 
     const stripHtml = `<div class="reunion-strip">${strip
@@ -679,20 +612,13 @@ function buildReunionDashboardHtml() {
       )
       .join("")}</div>`;
 
-    const menuHtml = `<div class="reunion-menu-grid">${menus
-      .map((m) => {
-        const badge = m.badge
-          ? `<span class="reunion-menu-badge">${escapeHtml(m.badge)}</span>`
-          : "";
-        return `<button type="button" class="reunion-menu-btn" data-reunion-go="${escapeHtml(m.go)}">
-          <span class="reunion-menu-icon">${m.icon}</span>
-          <span class="reunion-menu-text">
-            <span class="reunion-menu-label">${escapeHtml(m.label)}${badge}</span>
-            <span class="reunion-menu-hint">${escapeHtml(m.hint || "")}</span>
-          </span>
-          <span class="reunion-menu-arrow" aria-hidden="true">›</span>
-        </button>`;
-      })
+    const menuHtml = `<div class="admin-hub-grid reunion-menu-hub">${menus
+      .map(
+        (item) =>
+          `<button type="button" class="reunion-kpi reunion-kpi-${escapeHtml(item.tone || "navy")} admin-hub-btn" data-reunion-go="${escapeHtml(item.go)}">
+            <span class="admin-hub-label">${escapeHtml(item.label)}</span>
+          </button>`
+      )
       .join("")}</div>`;
 
     return `${stripHtml}${menuHtml}`;
