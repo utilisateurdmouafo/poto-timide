@@ -690,6 +690,21 @@ changePasswordForm?.addEventListener("submit", (e) => {
 saveCotisationsBtn?.addEventListener("click", saveCotisationsData);
 
 cotisationBody?.addEventListener("click", (e) => {
+  const moveBtn = e.target.closest(".tournee-order-move");
+  if (moveBtn && cotisationBody.contains(moveBtn)) {
+    e.preventDefault();
+    if (!canEditTourneePlanning()) return;
+    const kind = moveBtn.dataset.kind;
+    const monthIndex = Number(moveBtn.dataset.month);
+    const memberId = moveBtn.dataset.member;
+    const direction = Number(moveBtn.dataset.direction);
+    if (kind && memberId && Number.isInteger(monthIndex) && Number.isInteger(direction)) {
+      moveTourneeOrderMember(kind, monthIndex, memberId, direction);
+      renderTourneeTable();
+    }
+    return;
+  }
+
   const removeBtn = e.target.closest(".tournee-order-remove");
   if (!removeBtn || !cotisationBody.contains(removeBtn)) return;
   e.preventDefault();
