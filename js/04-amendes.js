@@ -456,11 +456,19 @@ function loadNotifications() {
 
 function savePrets(shouldRender = true) {
   localStorage.setItem(PRETS_KEY, JSON.stringify(prets));
+  try {
+    if (typeof queueServerSync === "function") {
+      queueServerSync(PRETS_KEY, JSON.stringify(prets));
+    }
+  } catch { /* ignore */ }
+  if (typeof bumpLiveDataRevision === "function") bumpLiveDataRevision();
   if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
   if (!shouldRender) return;
-  renderPrets();
-  renderMesDettes();
+  if (typeof renderPrets === "function") renderPrets();
+  if (typeof renderAdminPrets === "function") renderAdminPrets();
+  if (typeof renderMesDettes === "function") renderMesDettes();
   if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
+  if (typeof renderFinance === "function") renderFinance();
 }
 
 function saveNotifications(shouldRender = true) {
@@ -1682,13 +1690,23 @@ function recordRepayment(loanId, amount) {
     "Prêt · remboursement",
     `${borrower?.name || "membre"} — ${formatEuro(parsedAmount)} (prêt ${formatEuro(loan.amount)})`
   );
-  savePrets();
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
+  savePrets(true);
+  const msg = `${formatEuro(parsedAmount)} retournés dans la caisse. Reste sur ce prêt : ${formatEuro(getLoanBalance(loan))}.`;
+  showPretSaveMessage(msg);
+  // Sync serveur prioritaire pour que tous les appareils voient le nouveau reste
+  const flush = window.potoFlushSync || window.flushPotoServerSync;
+  if (typeof flush === "function") {
+    Promise.resolve(flush())
+      .then((ok) => (ok ? null : flush()))
+      .then(() => {
+        if (typeof reloadFromStorage === "function") reloadFromStorage();
+        if (typeof renderPrets === "function") renderPrets();
+        if (typeof renderAdminPrets === "function") renderAdminPrets();
+        if (typeof renderFinance === "function") renderFinance();
+        if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
+      })
+      .catch(() => {});
   }
-  showPretSaveMessage(
-    `${formatEuro(parsedAmount)} retournés dans la caisse. Reste sur ce prêt : ${formatEuro(getLoanBalance(loan))}. Prêts sortis : ${formatEuro(getLoansCapitalOut())}.`
-  );
 }
 
 async function undoLoanRepayment(loanId, repaymentId) {

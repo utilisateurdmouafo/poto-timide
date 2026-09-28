@@ -941,10 +941,16 @@ async function handlePretActionClick(e) {
 
   if (repayBtn) {
     const root = e.currentTarget;
+    const loanId = repayBtn.dataset.loanId;
     const input =
-      root.querySelector?.(`.pret-repay-input[data-loan-id="${repayBtn.dataset.loanId}"]`) ||
-      document.querySelector(`.pret-repay-input[data-loan-id="${repayBtn.dataset.loanId}"]`);
-    if (input) recordRepayment(repayBtn.dataset.loanId, input.value);
+      root.querySelector?.(`.pret-repay-input[data-loan-id="${loanId}"]`) ||
+      document.querySelector(`.pret-repay-input[data-loan-id="${loanId}"]`);
+    if (input) {
+      recordRepayment(loanId, input.value);
+      input.value = "";
+    } else {
+      alert("Indique d'abord le montant dans le champ Montant.");
+    }
   }
 
   if (undoRepayBtn) {
@@ -1468,6 +1474,8 @@ async function initApp() {
       if (typeof renderEvenements === "function") renderEvenements();
       if (typeof renderAmendes === "function") renderAmendes();
       if (typeof renderMesDettes === "function") renderMesDettes();
+      if (typeof renderPrets === "function") renderPrets();
+      if (typeof renderAdminPrets === "function") renderAdminPrets();
       if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
       if (typeof renderFondCaisseAnnuel === "function") renderFondCaisseAnnuel();
       if (typeof renderAncienneTourneeMemberView === "function") renderAncienneTourneeMemberView();
