@@ -201,6 +201,19 @@ function mergeLoansPreferringNewer(existing, incoming) {
     }
     if (newerDeleted) status = "rejected";
 
+    const mergedRepayments = mergeLoanRepayments(prev.repayments, loan.repayments);
+    const totalRepaidMerged =
+      Math.round(mergedRepayments.reduce((s, r) => s + (Number(r.amount) || 0), 0) * 100) / 100;
+    const amountMerged = Math.round((Number(base.amount || other.amount) || 0) * 100) / 100;
+    // Capital soldé → completed, sans intérêts (priorité absolue)
+    let interestAmount = base.interestAmount ?? other.interestAmount ?? 0;
+    let interestApplied = !!(base.interestApplied || other.interestApplied);
+    if (amountMerged > 0 && totalRepaidMerged >= amountMerged) {
+      status = "completed";
+      interestAmount = 0;
+      interestApplied = false;
+    }
+
     const mergedUpdatedAt =
       nextTime >= prevTime
         ? loan.updatedAt || loan.deletedAt || prev.updatedAt || new Date().toISOString()
@@ -214,8 +227,11 @@ function mergeLoansPreferringNewer(existing, incoming) {
       ...other,
       ...base,
       status,
+      interestAmount,
+      interestApplied,
       votes: mergeLoanVotes(prev.votes, loan.votes),
-      repayments: mergeLoanRepayments(prev.repayments, loan.repayments),
+      repayments: mergedRepayments,
+      totalRepaid: totalRepaidMerged,
       deletedAt: newerDeleted || null,
       updatedAt: finalUpdatedAt,
     };

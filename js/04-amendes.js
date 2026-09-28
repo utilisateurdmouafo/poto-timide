@@ -1294,6 +1294,18 @@ function processLoanStatusUpdates() {
     const dueDates = getLoanDueDates(loan);
     if (!dueDates) return;
 
+    // Capital entièrement versé → soldé sans intérêts
+    const repaidCap = Math.round((Number(loan.totalRepaid) || 0) * 100) / 100;
+    const amountCap = Math.round((Number(loan.amount) || 0) * 100) / 100;
+    if (repaidCap >= amountCap && amountCap > 0) {
+      loan.interestAmount = 0;
+      loan.interestApplied = false;
+      loan.status = "completed";
+      loan.updatedAt = new Date().toISOString();
+      changed = true;
+      return;
+    }
+
     const balance = getLoanBalance(loan);
     if (balance <= 0) {
       loan.status = "completed";
@@ -1301,8 +1313,10 @@ function processLoanStatusUpdates() {
       return;
     }
 
-    const ratio = Math.max(0, Number(loan.totalRepaid) || 0) / Math.max(1, Number(loan.amount) || 0);
-    if (Date.now() > dueDates.month1.getTime() && !loan.firstMonthEvaluated) {
+    const ratio = repaidCap / Math.max(1, amountCap);
+    // Retard : à partir de minuit du lendemain de l'échéance 80 %
+    const month1End = new Date(`${dueDates.month1Ymd}T23:59:59.999`);
+    if (Date.now() > month1End.getTime() && !loan.firstMonthEvaluated) {
       loan.firstMonthEvaluated = true;
       if (ratio < REPAYMENT_MONTH1_RATIO) {
         changed = applyDynamicLoanSanction(loan, ratio, now) || changed;
