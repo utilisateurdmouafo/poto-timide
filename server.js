@@ -1338,7 +1338,7 @@ function createApp() {
 const LOGIN_LOG_KEY = "poto-timide-login-log";
 const LOGIN_LOG_MAX = 5000;
 /** Si un poto était absent plus longtemps que ça, une nouvelle présence = nouvelle ligne journal */
-const PRESENCE_GAP_MS = 2 * 60 * 1000;
+const PRESENCE_GAP_MS = 30 * 60 * 1000; // nouvelle ligne seulement après 30 min d'absence
 
 function parisDay(d = new Date()) {
   try {

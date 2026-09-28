@@ -834,23 +834,34 @@ async function renderLoginLog(options = {}) {
     }
     const rawRows = (loginLog || [])
       .filter((r) => r && !r.deletedAt && (r.day || (r.at || "").slice(0, 10)) === day)
-      .sort((a, b) => new Date(b.at) - new Date(a.at));
-    // Dédupliquer : même membre + même seconde (double enreg. ancien client+serveur)
-    const seen = new Set();
-    const rows = [];
+      .sort((a, b) => new Date(a.at) - new Date(b.at)); // chrono croissant pour sessions
+
+    // Regrouper par membre : 1 ligne = une personne ce jour-là
+    const byMember = new Map();
     for (const r of rawRows) {
-      const sec = String(r.at || "").slice(0, 19); // jusqu'à la seconde
-      const key = `${r.memberId || r.memberName}|${sec}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      rows.push(r);
+      const key = String(r.memberId || r.memberName || "—");
+      const at = r.at || "";
+      const name = r.memberName || "—";
+      if (!byMember.has(key)) {
+        byMember.set(key, { memberId: key, memberName: name, first: at, last: at, count: 1 });
+      } else {
+        const g = byMember.get(key);
+        g.count += 1;
+        if (at && (!g.first || at < g.first)) g.first = at;
+        if (at && (!g.last || at > g.last)) g.last = at;
+        if (name && name !== "—") g.memberName = name;
+      }
     }
+    const groups = [...byMember.values()].sort(
+      (a, b) => new Date(b.last || 0) - new Date(a.last || 0)
+    );
+
     if (meta) {
-      meta.textContent = rows.length
-        ? `${rows.length} connexion${rows.length > 1 ? "s" : ""} le ${day.split("-").reverse().join("/")}`
+      meta.textContent = groups.length
+        ? `${groups.length} personne${groups.length > 1 ? "s" : ""} connectée${groups.length > 1 ? "s" : ""} le ${day.split("-").reverse().join("/")} (passages regroupés)`
         : `Aucune connexion enregistrée le ${day.split("-").reverse().join("/")}`;
     }
-    if (!rows.length) {
+    if (!groups.length) {
       list.innerHTML = `<p class="panel-desc">Aucune présence en ligne enregistrée ce jour-là. Dès qu'un poto apparaît dans « Connectés en ce moment », il sera listé ici.</p>`;
       return;
     }
@@ -859,16 +870,20 @@ async function renderLoginLog(options = {}) {
       <table class="amende-table login-log-table">
         <thead>
           <tr>
-            <th>Heure</th>
             <th>Membre</th>
+            <th>Première</th>
+            <th>Dernière</th>
+            <th>Passages</th>
           </tr>
         </thead>
         <tbody>
-          ${rows
+          ${groups
             .map(
-              (r) => `<tr>
-            <td>${escapeHtml(formatLoginTime(r.at))}</td>
-            <td>${escapeHtml(r.memberName || "—")}</td>
+              (g) => `<tr>
+            <td>${escapeHtml(g.memberName || "—")}</td>
+            <td>${escapeHtml(formatLoginTime(g.first))}</td>
+            <td>${escapeHtml(formatLoginTime(g.last))}</td>
+            <td>${g.count}</td>
           </tr>`
             )
             .join("")}
