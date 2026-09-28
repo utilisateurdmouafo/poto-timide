@@ -585,12 +585,13 @@ function buildReunionDashboardHtml() {
     const showAdmin =
       typeof canAccessAdminTab === "function" ? canAccessAdminTab() : false;
 
+    // go = onglet cible (comme les anciens KPI cliquables)
     const strip = [
-      { label: "Empruntable", value: formatEuro(maxEmpruntable) },
-      { label: "Disponible", value: formatEuro(caisseDispo) },
-      { label: "Totale", value: formatEuro(caisseTotal) },
-      { label: "Prêts", value: String(activeLoans.length) },
-      { label: "À verser", value: formatEuro(totalAVerser) },
+      { label: "Empruntable", value: formatEuro(maxEmpruntable), go: "prets" },
+      { label: "Disponible", value: formatEuro(caisseDispo), go: "finance" },
+      { label: "Totale", value: formatEuro(caisseTotal), go: "finance" },
+      { label: "Prêts", value: String(activeLoans.length), go: "finance", financeSub: "archives" },
+      { label: "À verser", value: formatEuro(totalAVerser), go: "amendes" },
     ];
 
     const menus = [
@@ -608,9 +609,13 @@ function buildReunionDashboardHtml() {
     }
 
     const stripHtml = `<div class="reunion-strip">${strip
-      .map(
-        (s) => `<div class="reunion-strip-item"><span class="reunion-strip-label">${escapeHtml(s.label)}</span><span class="reunion-strip-value">${escapeHtml(s.value)}</span></div>`
-      )
+      .map((s) => {
+        const sub = s.financeSub ? ` data-finance-sub="${escapeHtml(s.financeSub)}"` : "";
+        return `<button type="button" class="reunion-strip-item" data-reunion-go="${escapeHtml(s.go || "")}"${sub} title="Ouvrir ${escapeHtml(s.label)}">
+          <span class="reunion-strip-label">${escapeHtml(s.label)}</span>
+          <span class="reunion-strip-value">${escapeHtml(s.value)}</span>
+        </button>`;
+      })
       .join("")}</div>`;
 
     const menuHtml = `<div class="admin-hub-grid reunion-menu-hub">${menus
@@ -629,23 +634,59 @@ function buildReunionDashboardHtml() {
   }
 }
 
-document.getElementById("reunionDashboard")?.addEventListener("click", (e) => {
+function handleReunionGoClick(e) {
   const go = e.target.closest("[data-reunion-go]");
-  if (!go) return;
+  if (!go || !go.closest("#reunionDashboard, #tab-reunion")) return;
   e.preventDefault();
+  e.stopPropagation();
   const tab = go.getAttribute("data-reunion-go");
   if (!tab) return;
-  showTab(tab);
-});
 
-// Délégation globale (au cas où le HTML est reconstruit)
-document.addEventListener("click", (e) => {
-  const go = e.target.closest("#reunionDashboard [data-reunion-go], .reunion-menu-hub [data-reunion-go]");
-  if (!go) return;
-  e.preventDefault();
-  const tab = go.getAttribute("data-reunion-go");
-  if (tab && typeof showTab === "function") showTab(tab);
-});
+  // Prêts (chiffre) → Finance → historique des prêts (comme avant)
+  const financeSub = go.getAttribute("data-finance-sub");
+  if (tab === "finance" && financeSub === "archives") {
+    if (typeof FINANCE_ARCHIVES_SUB !== "undefined") {
+      activeFinanceSub = FINANCE_ARCHIVES_SUB;
+      try {
+        localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_ARCHIVES_SUB);
+      } catch {
+        /* ignore */
+      }
+    }
+    showTab("finance");
+    const scrollToPretsList = () => {
+      const el =
+        document.querySelector(".finance-caisse-historique") ||
+        document.querySelector(".finance-ledger-title") ||
+        document.getElementById("financeSubcontent");
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    requestAnimationFrame(() => {
+      scrollToPretsList();
+      setTimeout(scrollToPretsList, 120);
+    });
+    return;
+  }
+
+  // Disponible / Totale → Finance (vue caisse si possible)
+  if (tab === "finance") {
+    if (typeof FINANCE_CAISSE_SUB !== "undefined" && typeof canAccessCaisse === "function" && canAccessCaisse()) {
+      activeFinanceSub = FINANCE_CAISSE_SUB;
+      try {
+        localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_CAISSE_SUB);
+      } catch {
+        /* ignore */
+      }
+    }
+    showTab("finance");
+    return;
+  }
+
+  showTab(tab);
+}
+
+document.getElementById("reunionDashboard")?.addEventListener("click", handleReunionGoClick);
+document.addEventListener("click", handleReunionGoClick);
 
 document.getElementById("loginLogDate")?.addEventListener("change", () => {
   if (typeof renderLoginLog === "function") renderLoginLog({ pull: false });

@@ -9685,3 +9685,22 @@ html, body {
 @media (min-width: 640px) {
   .reunion-strip { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 }
+
+button.reunion-strip-item {
+  cursor: pointer;
+  border: none;
+  font: inherit;
+  appearance: none;
+  -webkit-appearance: none;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+button.reunion-strip-item:hover,
+button.reunion-strip-item:focus-visible {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.25);
+  outline: 2px solid rgba(34, 211, 238, 0.5);
+  outline-offset: 1px;
+}
+button.reunion-strip-item:active {
+  transform: scale(0.98);
+}
