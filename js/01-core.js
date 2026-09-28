@@ -1624,8 +1624,9 @@ function setTourneeOrderDraft(kind, monthIndex, memberIds) {
   const yearRecord = ensureTourneeYearDraft(tourneeYear);
   if (!yearRecord[key] || typeof yearRecord[key] !== "object") yearRecord[key] = {};
   const normalized = normalizeTourneeMonthIds(memberIds);
-  // Une liste vide explicite masque l'ancien planning par défaut pour ce mois.
-  yearRecord[key][String(monthIndex)] = normalized;
+  if (normalized.length === 0) delete yearRecord[key][String(monthIndex)];
+  else yearRecord[key][String(monthIndex)] = normalized;
+  if (typeof commitTourneeDraftToData === "function") commitTourneeDraftToData();
 }
 
 function addTourneeOrderMember(kind, monthIndex, memberId) {
