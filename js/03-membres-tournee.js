@@ -586,6 +586,7 @@ function buildReunionDashboardHtml() {
       typeof canAccessAdminTab === "function" ? canAccessAdminTab() : false;
 
     const strip = [
+      { label: "Empruntable", value: formatEuro(maxEmpruntable) },
       { label: "Disponible", value: formatEuro(caisseDispo) },
       { label: "Totale", value: formatEuro(caisseTotal) },
       { label: "Prêts", value: String(activeLoans.length) },
@@ -594,13 +595,13 @@ function buildReunionDashboardHtml() {
 
     const menus = [
       { go: "communication", label: "Communication", tone: "navy" },
-      { go: "membres", label: "Membres & Bureau", tone: "navy" },
+      { go: "membres", label: "Membres & Bureau", tone: "teal" },
       { go: "tournee", label: "Tournée", tone: "green" },
       { go: "prets", label: "Prêts", tone: "orange" },
-      { go: "evenements", label: "Événements", tone: "orange" },
+      { go: "evenements", label: "Événements", tone: "warn" },
       { go: "amendes", label: "Dettes & amendes", tone: "danger" },
-      { go: "finance", label: "Finance", tone: "teal" },
-      { go: "loi", label: "La loi", tone: "navy" },
+      { go: "finance", label: "Finance", tone: "blue" },
+      { go: "loi", label: "La loi", tone: "purple" },
     ];
     if (showAdmin) {
       menus.push({ go: "admin", label: "Admin", tone: "navy" });
@@ -631,33 +632,19 @@ function buildReunionDashboardHtml() {
 document.getElementById("reunionDashboard")?.addEventListener("click", (e) => {
   const go = e.target.closest("[data-reunion-go]");
   if (!go) return;
+  e.preventDefault();
   const tab = go.getAttribute("data-reunion-go");
   if (!tab) return;
-  // Prêts (KPI / graphique) → Finance → Historique (liste de tous les prêts)
-  if (tab === "finance") {
-    if (typeof FINANCE_ARCHIVES_SUB !== "undefined") {
-      activeFinanceSub = FINANCE_ARCHIVES_SUB;
-      try {
-        localStorage.setItem(FINANCE_SUBTAB_KEY, FINANCE_ARCHIVES_SUB);
-      } catch {
-        /* ignore */
-      }
-    }
-    showTab("finance");
-    const scrollToPretsList = () => {
-      const el =
-        document.querySelector(".finance-caisse-historique") ||
-        document.querySelector(".finance-ledger-title") ||
-        document.getElementById("financeSubcontent");
-      el?.scrollIntoView({ behavior: "smooth", block: "start" });
-    };
-    requestAnimationFrame(() => {
-      scrollToPretsList();
-      setTimeout(scrollToPretsList, 120);
-    });
-    return;
-  }
   showTab(tab);
+});
+
+// Délégation globale (au cas où le HTML est reconstruit)
+document.addEventListener("click", (e) => {
+  const go = e.target.closest("#reunionDashboard [data-reunion-go], .reunion-menu-hub [data-reunion-go]");
+  if (!go) return;
+  e.preventDefault();
+  const tab = go.getAttribute("data-reunion-go");
+  if (tab && typeof showTab === "function") showTab(tab);
 });
 
 document.getElementById("loginLogDate")?.addEventListener("change", () => {

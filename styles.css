@@ -9663,3 +9663,25 @@ html, body {
   text-transform: uppercase;
   letter-spacing: 0.02em;
 }
+
+.reunion-kpi-blue,
+.reunion-kpi.reunion-kpi-blue {
+  background: linear-gradient(145deg, #1d4ed8 0%, #1e3a8a 100%);
+  color: #eff6ff;
+  border: none;
+}
+.reunion-kpi-purple,
+.reunion-kpi.reunion-kpi-purple {
+  background: linear-gradient(145deg, #7c3aed 0%, #5b21b6 100%);
+  color: #f5f3ff;
+  border: none;
+}
+.reunion-kpi-orange,
+.reunion-kpi.reunion-kpi-orange {
+  background: linear-gradient(145deg, #ea580c 0%, #c2410c 100%);
+  color: #fff7ed;
+  border: none;
+}
+@media (min-width: 640px) {
+  .reunion-strip { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
