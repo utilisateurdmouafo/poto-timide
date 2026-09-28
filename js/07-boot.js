@@ -1455,6 +1455,8 @@ async function initApp() {
 
     reloadFromStorage();
     updatePretTabBadge();
+    if (typeof potoScheduleReapplySorts === "function") potoScheduleReapplySorts();
+    else if (typeof potoReapplyAllTableSorts === "function") setTimeout(potoReapplyAllTableSorts, 50);
 
     const isActive = (id) => document.getElementById(id)?.classList.contains("active");
     const tabReunion = isActive("tab-reunion");
@@ -2025,27 +2027,26 @@ window.__testDeleteButtons = function () {
 
 initApp();
 
-/* —— Tri des tableaux au clic sur l'en-tête (tous les tableaux du site) —— */
+/* —— Tri des tableaux (persistant malgré les re-renders / sync) —— */
+const potoTableSortState = new Map(); // key -> { col, dir }
+let potoSortReapplyTimer = null;
+let potoSortApplying = false;
+
 function potoParseSortValue(text) {
   const raw = String(text || "").replace(/\s+/g, " ").trim();
   if (!raw || raw === "—" || raw === "-" || raw === "–") return { type: "empty", v: "" };
 
-  // Montants € (ex: 1 710 €, 214,5 €, 150 €)
-  const euro = raw.replace(/\u00a0/g, " ").replace(/\s/g, "");
-  const euroMatch = euro.match(/^(-?\d+(?:[.,]\d+)?)\s*€?$/i) || euro.match(/^(-?\d+(?:[.,]\d+)?)€/);
-  if (euroMatch || /€/.test(raw)) {
+  if (/€/.test(raw) || /^\s*-?\d+[\s\u00a0]*[,.]?\d*\s*€/.test(raw)) {
     const numStr = raw.replace(/[^\d,.\-]/g, "").replace(",", ".");
     const n = parseFloat(numStr);
     if (!Number.isNaN(n)) return { type: "num", v: n };
   }
 
-  // Pourcentages
   if (/%/.test(raw)) {
     const n = parseFloat(raw.replace(",", ".").replace(/[^\d.\-]/g, ""));
     if (!Number.isNaN(n)) return { type: "num", v: n };
   }
 
-  // Dates FR jj/mm/aaaa ou jj/mm
   const dm = raw.match(/^(\d{1,2})[\/.\-](\d{1,2})(?:[\/.\-](\d{2,4}))?/);
   if (dm) {
     const d = parseInt(dm[1], 10);
@@ -2056,55 +2057,121 @@ function potoParseSortValue(text) {
     if (!Number.isNaN(t)) return { type: "num", v: t };
   }
 
-  // ISO date
   const iso = Date.parse(raw);
   if (!Number.isNaN(iso) && /^\d{4}-\d{2}/.test(raw)) return { type: "num", v: iso };
 
-  // Nombre pur
   const pure = raw.replace(/\s/g, "").replace(",", ".");
   if (/^-?\d+(\.\d+)?$/.test(pure)) return { type: "num", v: parseFloat(pure) };
 
   return { type: "str", v: raw.toLocaleLowerCase("fr") };
 }
 
+function potoTableKey(table) {
+  if (!table) return "";
+  if (table.dataset.potoSortKey) return table.dataset.potoSortKey;
+  if (table.id) {
+    table.dataset.potoSortKey = "id:" + table.id;
+    return table.dataset.potoSortKey;
+  }
+  const parts = [];
+  let el = table;
+  for (let i = 0; i < 5 && el; i++) {
+    parts.push(el.id || (el.className && String(el.className).split(/\s+/).slice(0, 2).join(".")) || el.tagName);
+    el = el.parentElement;
+  }
+  const key = "path:" + parts.join(">");
+  table.dataset.potoSortKey = key;
+  return key;
+}
+
 function potoSortTableByColumn(table, colIndex, dir) {
-  const tbody = table.tBodies[0];
+  const tbody = table.tBodies && table.tBodies[0];
   if (!tbody) return;
-  const rows = Array.from(tbody.rows).filter((tr) => {
-    if (tr.classList.contains("amende-empty-row")) return false;
-    if (tr.classList.contains("is-total-row") || tr.classList.contains("amende-total-row")) return false;
-    if (tr.querySelector("td[colspan]")) return false;
-    return true;
-  });
-  const footRows = Array.from(tbody.rows).filter((tr) =>
-    tr.classList.contains("is-total-row") ||
-    tr.classList.contains("amende-total-row") ||
-    (tr.querySelector("td[colspan]") && !tr.classList.contains("amende-empty-row"))
-  );
+  potoSortApplying = true;
+  try {
+    const rows = Array.from(tbody.rows).filter((tr) => {
+      if (tr.classList.contains("amende-empty-row")) return false;
+      if (tr.classList.contains("is-total-row") || tr.classList.contains("amende-total-row")) return false;
+      if (tr.classList.contains("finance-total-row")) return false;
+      if (tr.querySelector("td[colspan]")) return false;
+      return true;
+    });
+    const footRows = Array.from(tbody.rows).filter(
+      (tr) =>
+        tr.classList.contains("is-total-row") ||
+        tr.classList.contains("amende-total-row") ||
+        tr.classList.contains("finance-total-row")
+    );
 
-  rows.sort((a, b) => {
-    const ca = a.cells[colIndex];
-    const cb = b.cells[colIndex];
-    const ta = potoParseSortValue(ca ? ca.textContent : "");
-    const tb = potoParseSortValue(cb ? cb.textContent : "");
-    let cmp = 0;
-    if (ta.type === "empty" && tb.type !== "empty") cmp = 1;
-    else if (tb.type === "empty" && ta.type !== "empty") cmp = -1;
-    else if (ta.type === "num" && tb.type === "num") cmp = ta.v - tb.v;
-    else cmp = String(ta.v).localeCompare(String(tb.v), "fr", { sensitivity: "base", numeric: true });
-    return dir === "asc" ? cmp : -cmp;
-  });
+    rows.sort((a, b) => {
+      const ca = a.cells[colIndex];
+      const cb = b.cells[colIndex];
+      const ta = potoParseSortValue(ca ? ca.textContent : "");
+      const tb = potoParseSortValue(cb ? cb.textContent : "");
+      let cmp = 0;
+      if (ta.type === "empty" && tb.type !== "empty") cmp = 1;
+      else if (tb.type === "empty" && ta.type !== "empty") cmp = -1;
+      else if (ta.type === "num" && tb.type === "num") cmp = ta.v - tb.v;
+      else cmp = String(ta.v).localeCompare(String(tb.v), "fr", { sensitivity: "base", numeric: true });
+      return dir === "asc" ? cmp : -cmp;
+    });
 
-  rows.forEach((tr) => tbody.appendChild(tr));
-  footRows.forEach((tr) => tbody.appendChild(tr));
+    rows.forEach((tr) => tbody.appendChild(tr));
+    footRows.forEach((tr) => tbody.appendChild(tr));
+  } finally {
+    // laisser le cycle mutation se terminer
+    setTimeout(() => {
+      potoSortApplying = false;
+    }, 0);
+  }
+}
+
+function potoApplySortIndicators(table, colIndex, dir) {
+  const headRow = table.tHead && table.tHead.rows[0];
+  if (!headRow) return;
+  headRow.querySelectorAll("th").forEach((h, i) => {
+    h.classList.remove("is-sorted-asc", "is-sorted-desc");
+    h.removeAttribute("aria-sort");
+    if (i === colIndex) {
+      h.classList.add(dir === "asc" ? "is-sorted-asc" : "is-sorted-desc");
+      h.setAttribute("aria-sort", dir === "asc" ? "ascending" : "descending");
+    }
+  });
+}
+
+function potoReapplyTableSort(table) {
+  if (!table) return;
+  const key = potoTableKey(table);
+  const state = potoTableSortState.get(key);
+  if (!state) return;
+  table.dataset.sortCol = String(state.col);
+  table.dataset.sortDir = state.dir;
+  potoApplySortIndicators(table, state.col, state.dir);
+  potoSortTableByColumn(table, state.col, state.dir);
+}
+
+function potoReapplyAllTableSorts() {
+  if (potoSortApplying) return;
+  document.querySelectorAll("table").forEach((table) => {
+    try {
+      potoReapplyTableSort(table);
+    } catch (err) {
+      /* ignore */
+    }
+  });
+}
+
+function potoScheduleReapplySorts() {
+  if (potoSortApplying) return;
+  clearTimeout(potoSortReapplyTimer);
+  potoSortReapplyTimer = setTimeout(potoReapplyAllTableSorts, 40);
 }
 
 function potoOnTableHeaderClick(e) {
   const th = e.target.closest("thead th");
   if (!th) return;
   const table = th.closest("table");
-  if (!table || !table.tBodies[0]) return;
-  // Ignorer colonnes Actions uniquement
+  if (!table || !table.tBodies || !table.tBodies[0]) return;
   const label = (th.textContent || "").trim().toLowerCase();
   if (label === "actions" || label === "action") return;
 
@@ -2112,21 +2179,15 @@ function potoOnTableHeaderClick(e) {
   const colIndex = Array.from(headRow.children).indexOf(th);
   if (colIndex < 0) return;
 
-  const prevCol = table.dataset.sortCol;
-  const prevDir = table.dataset.sortDir || "asc";
+  const key = potoTableKey(table);
+  const prev = potoTableSortState.get(key);
   let dir = "asc";
-  if (String(prevCol) === String(colIndex) && prevDir === "asc") dir = "desc";
+  if (prev && prev.col === colIndex && prev.dir === "asc") dir = "desc";
 
+  potoTableSortState.set(key, { col: colIndex, dir });
   table.dataset.sortCol = String(colIndex);
   table.dataset.sortDir = dir;
-
-  headRow.querySelectorAll("th").forEach((h) => {
-    h.classList.remove("is-sorted-asc", "is-sorted-desc");
-    h.removeAttribute("aria-sort");
-  });
-  th.classList.add(dir === "asc" ? "is-sorted-asc" : "is-sorted-desc");
-  th.setAttribute("aria-sort", dir === "asc" ? "ascending" : "descending");
-
+  potoApplySortIndicators(table, colIndex, dir);
   potoSortTableByColumn(table, colIndex, dir);
 }
 
@@ -2134,7 +2195,29 @@ function initSortableTables() {
   if (window.__potoSortableTablesInit) return;
   window.__potoSortableTablesInit = true;
   document.addEventListener("click", potoOnTableHeaderClick);
-  // Style curseur sur tous les en-têtes existants / futurs via CSS
+
+  // Après chaque re-render (sync live, renderPrets, etc.) on re-applique le tri
+  try {
+    const obs = new MutationObserver((mutations) => {
+      if (potoSortApplying) return;
+      let need = false;
+      for (const m of mutations) {
+        if (m.type === "childList") {
+          const t = m.target;
+          if (t && (t.tagName === "TBODY" || t.tagName === "TABLE" || (t.closest && t.closest("table")))) {
+            need = true;
+            break;
+          }
+        }
+      }
+      if (need) potoScheduleReapplySorts();
+    });
+    obs.observe(document.body, { childList: true, subtree: true });
+  } catch (err) {
+    console.warn("sort observer:", err);
+  }
+
+  window.potoReapplyAllTableSorts = potoReapplyAllTableSorts;
 }
 
 if (document.readyState === "loading") {
