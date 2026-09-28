@@ -1569,7 +1569,7 @@ async function publishCommunication() {
   const now = new Date().toISOString();
   const wasEdit = Boolean(editingCommunicationId);
   if (editingCommunicationId) {
-    const post = communicationPosts.find((item) => item.id === editingCommunicationId);
+    const post = communicationPosts.find((item) => item && String(item.id) === String(editingCommunicationId));
     if (!canManageCommunicationPost(post) || post.deletedAt) return;
     post.title = title;
     post.body = body;
@@ -1603,7 +1603,7 @@ async function publishCommunication() {
 
 function startEditCommunication(id) {
   if (!requireTabAccess("communication", "modifier une publication")) return;
-  const post = communicationPosts.find((item) => item.id === id);
+  const post = communicationPosts.find((item) => item && String(item.id) === String(id));
   if (!canManageCommunicationPost(post)) return;
   activeCommunicationSub = post.kind;
   editingCommunicationId = id;
@@ -1616,18 +1616,56 @@ function startEditCommunication(id) {
 }
 
 async function deleteCommunication(id) {
-  if (!canDo("communication")) {
-    alert("Pas l'accès pour supprimer.");
+  if (!id) return;
+  if (!isLoggedIn()) {
+    alert("Connecte-toi d'abord.");
+    if (typeof openLoginModal === "function") openLoginModal();
     return;
   }
-  const post = communicationPosts.find((item) => item.id === id);
-  if (!canManageCommunicationPost(post) || post.deletedAt) return;
-  if (!(await appConfirm(`Supprimer « ${post.title} » ?`))) return;
+  // Accès souple : admin / droit communication
+  const allowed =
+    (typeof canDo === "function" && canDo("communication")) ||
+    (typeof isGroupAdmin === "function" && isGroupAdmin()) ||
+    (typeof canPublishCommunication === "function" && canPublishCommunication());
+  if (!allowed) {
+    alert("Pas l'accès pour supprimer cette annonce.");
+    return;
+  }
+  const sid = String(id);
+  const post = communicationPosts.find((item) => item && String(item.id) === sid);
+  if (!post) {
+    console.warn("deleteCommunication: post introuvable", id);
+    alert("Annonce introuvable (déjà supprimée ?).");
+    renderCommunication();
+    return;
+  }
+  if (post.deletedAt) {
+    renderCommunication();
+    return;
+  }
+  if (!(await appConfirm(`Supprimer « ${post.title || "cette annonce"} » ?`))) return;
   const now = new Date().toISOString();
   post.deletedAt = now;
   post.updatedAt = now;
-  if (editingCommunicationId === id) cancelEditCommunication();
-  await saveCommunicationPosts();
+  if (String(editingCommunicationId) === sid) cancelEditCommunication();
+  // Optimistic UI
+  renderCommunication();
+  try {
+    localStorage.setItem(COMMUNICATION_KEY, JSON.stringify(communicationPosts));
+    if (typeof bumpLiveDataRevision === "function") bumpLiveDataRevision();
+    if (typeof queueServerSync === "function") {
+      queueServerSync(COMMUNICATION_KEY, JSON.stringify(communicationPosts));
+    }
+    if (typeof potoFlushSync === "function") {
+      await potoFlushSync();
+    }
+  } catch (err) {
+    console.warn("deleteCommunication sync:", err);
+  }
+  // Recharger pour confirmer (merge conserve deletedAt)
+  try {
+    communicationPosts = loadCommunicationPosts();
+  } catch { /* ignore */ }
   renderCommunication();
 }
 
