@@ -9511,3 +9511,10 @@ html, body {
 .login-log-times[hidden] {
   display: none !important;
 }
+.login-log-times:not([hidden]) {
+  display: grid !important;
+}
+.login-log-toggle.is-open .login-log-chevron {
+  transform: rotate(90deg);
+}
+

@@ -796,6 +796,9 @@ function formatLoginTime(iso) {
 }
 
 let _loginLogRenderBusy = false;
+/** Membres dont la liste d'heures est ouverte (persiste entre re-renders) */
+const _loginLogOpenMembers = new Set();
+let _loginLogLastFingerprint = "";
 
 async function renderLoginLog(options = {}) {
   const list = document.getElementById("loginLogList");
@@ -809,7 +812,6 @@ async function renderLoginLog(options = {}) {
   if (_loginLogRenderBusy) return;
   _loginLogRenderBusy = true;
   try {
-    // Pull léger une seule fois (pas de loadDataFromServer = boucle)
     if (options.pull !== false && typeof apiFetch === "function") {
       try {
         const data = await apiFetch("/api/admin/login-log");
@@ -834,9 +836,8 @@ async function renderLoginLog(options = {}) {
     }
     const rawRows = (loginLog || [])
       .filter((r) => r && !r.deletedAt && (r.day || (r.at || "").slice(0, 10)) === day)
-      .sort((a, b) => new Date(b.at) - new Date(a.at)); // plus récent d'abord
+      .sort((a, b) => new Date(b.at) - new Date(a.at));
 
-    // Regrouper par membre + garder toutes les heures
     const byMember = new Map();
     for (const r of rawRows) {
       const key = String(r.memberId || r.memberName || "—");
@@ -850,7 +851,6 @@ async function renderLoginLog(options = {}) {
         if (name && name !== "—") g.memberName = name;
       }
     }
-    // Dédupliquer heures à la seconde près, trier décroissant
     const groups = [...byMember.values()].map((g) => {
       const seen = new Set();
       const times = [];
@@ -863,11 +863,14 @@ async function renderLoginLog(options = {}) {
       times.sort((a, b) => new Date(b) - new Date(a));
       return { ...g, times, count: times.length };
     });
-    groups.sort((a, b) => {
-      const la = a.times[0] || "";
-      const lb = b.times[0] || "";
-      return new Date(lb) - new Date(la);
-    });
+    groups.sort((a, b) => new Date(b.times[0] || 0) - new Date(a.times[0] || 0));
+
+    // Éviter de reconstruire le DOM si rien n'a changé (garde les panneaux ouverts)
+    const fingerprint = day + "|" + groups.map((g) => g.memberId + ":" + g.count + ":" + (g.times[0] || "")).join(";");
+    if (options.force !== true && fingerprint === _loginLogLastFingerprint && list.querySelector(".login-log-accordion")) {
+      return;
+    }
+    _loginLogLastFingerprint = fingerprint;
 
     if (meta) {
       meta.textContent = groups.length
@@ -875,24 +878,25 @@ async function renderLoginLog(options = {}) {
         : `Aucune connexion enregistrée le ${day.split("-").reverse().join("/")}`;
     }
     if (!groups.length) {
-      list.innerHTML = `<p class="panel-desc">Aucune présence en ligne enregistrée ce jour-là. Dès qu'un poto apparaît dans « Connectés en ce moment », il sera listé ici.</p>`;
+      list.innerHTML = `<p class="panel-desc">Aucune présence en ligne enregistrée ce jour-là.</p>`;
       return;
     }
     list.innerHTML = `
     <ul class="login-log-accordion" role="list">
       ${groups
-        .map((g, i) => {
-          const uid = `login-acc-${i}`;
+        .map((g) => {
+          const uid = `login-acc-${escapeHtml(g.memberId).replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+          const isOpen = _loginLogOpenMembers.has(String(g.memberId));
           const timesHtml = g.times
             .map((at) => `<li>${escapeHtml(formatLoginTime(at))}</li>`)
             .join("");
-          return `<li class="login-log-item">
-            <button type="button" class="login-log-toggle" aria-expanded="false" aria-controls="${uid}" data-login-toggle="${uid}">
+          return `<li class="login-log-item" data-member-key="${escapeHtml(String(g.memberId))}">
+            <button type="button" class="login-log-toggle${isOpen ? " is-open" : ""}" aria-expanded="${isOpen ? "true" : "false"}" aria-controls="${uid}" data-login-member="${escapeHtml(String(g.memberId))}" data-login-toggle="${uid}">
               <span class="login-log-chevron" aria-hidden="true">▸</span>
               <span class="login-log-name">${escapeHtml(g.memberName || "—")}</span>
               <span class="login-log-count">${g.count}×</span>
             </button>
-            <ul id="${uid}" class="login-log-times" hidden>${timesHtml}</ul>
+            <ul id="${uid}" class="login-log-times"${isOpen ? "" : " hidden"}>${timesHtml}</ul>
           </li>`;
         })
         .join("")}
@@ -902,26 +906,30 @@ async function renderLoginLog(options = {}) {
   }
 }
 
-
-
 document.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-login-toggle]");
-  if (!btn) return;
+  const btn = e.target.closest(".login-log-toggle, [data-login-toggle]");
+  if (!btn || !btn.closest("#loginLogList, #loginLogPanel")) return;
   e.preventDefault();
+  e.stopPropagation();
+  const memberKey = btn.getAttribute("data-login-member") || "";
   const id = btn.getAttribute("data-login-toggle");
-  const panel = id ? document.getElementById(id) : null;
+  const panel = id ? document.getElementById(id) : btn.parentElement?.querySelector(".login-log-times");
   if (!panel) return;
-  const open = panel.hasAttribute("hidden");
-  if (open) {
+  const willOpen = panel.hasAttribute("hidden") || panel.hidden === true;
+  if (willOpen) {
+    panel.hidden = false;
     panel.removeAttribute("hidden");
     btn.setAttribute("aria-expanded", "true");
     btn.classList.add("is-open");
+    if (memberKey) _loginLogOpenMembers.add(memberKey);
   } else {
+    panel.hidden = true;
     panel.setAttribute("hidden", "");
     btn.setAttribute("aria-expanded", "false");
     btn.classList.remove("is-open");
+    if (memberKey) _loginLogOpenMembers.delete(memberKey);
   }
-});
+}, true);
 
 function renderAuditLog() {
   const list = document.getElementById("auditLogList");
