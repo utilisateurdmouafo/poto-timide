@@ -9442,3 +9442,72 @@ html, body {
   min-height: 2rem;
 }
 
+
+/* Journal connexions — accordéon nom + heures */
+.login-log-accordion {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.login-log-item {
+  border: 1px solid rgba(14, 116, 144, 0.18);
+  border-radius: 0.75rem;
+  background: #fff;
+  overflow: hidden;
+}
+.login-log-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.85rem;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+}
+.login-log-toggle:hover {
+  background: rgba(14, 116, 144, 0.06);
+}
+.login-log-chevron {
+  display: inline-block;
+  width: 1rem;
+  color: #0e7490;
+  transition: transform 0.15s ease;
+  font-size: 0.85rem;
+}
+.login-log-toggle.is-open .login-log-chevron {
+  transform: rotate(90deg);
+}
+.login-log-name {
+  flex: 1;
+  font-weight: 600;
+  color: #0f172a;
+}
+.login-log-count {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #0e7490;
+  background: rgba(14, 116, 144, 0.1);
+  padding: 0.15rem 0.55rem;
+  border-radius: 999px;
+}
+.login-log-times {
+  list-style: none;
+  margin: 0;
+  padding: 0 0.85rem 0.65rem 2rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+  gap: 0.25rem 0.75rem;
+  color: #334155;
+  font-size: 0.9rem;
+  font-variant-numeric: tabular-nums;
+}
+.login-log-times[hidden] {
+  display: none !important;
+}

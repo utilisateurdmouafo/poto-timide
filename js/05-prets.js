@@ -834,31 +834,44 @@ async function renderLoginLog(options = {}) {
     }
     const rawRows = (loginLog || [])
       .filter((r) => r && !r.deletedAt && (r.day || (r.at || "").slice(0, 10)) === day)
-      .sort((a, b) => new Date(a.at) - new Date(b.at)); // chrono croissant pour sessions
+      .sort((a, b) => new Date(b.at) - new Date(a.at)); // plus récent d'abord
 
-    // Regrouper par membre : 1 ligne = une personne ce jour-là
+    // Regrouper par membre + garder toutes les heures
     const byMember = new Map();
     for (const r of rawRows) {
       const key = String(r.memberId || r.memberName || "—");
       const at = r.at || "";
       const name = r.memberName || "—";
       if (!byMember.has(key)) {
-        byMember.set(key, { memberId: key, memberName: name, first: at, last: at, count: 1 });
+        byMember.set(key, { memberId: key, memberName: name, times: at ? [at] : [] });
       } else {
         const g = byMember.get(key);
-        g.count += 1;
-        if (at && (!g.first || at < g.first)) g.first = at;
-        if (at && (!g.last || at > g.last)) g.last = at;
+        if (at) g.times.push(at);
         if (name && name !== "—") g.memberName = name;
       }
     }
-    const groups = [...byMember.values()].sort(
-      (a, b) => new Date(b.last || 0) - new Date(a.last || 0)
-    );
+    // Dédupliquer heures à la seconde près, trier décroissant
+    const groups = [...byMember.values()].map((g) => {
+      const seen = new Set();
+      const times = [];
+      for (const at of g.times) {
+        const sec = String(at).slice(0, 19);
+        if (seen.has(sec)) continue;
+        seen.add(sec);
+        times.push(at);
+      }
+      times.sort((a, b) => new Date(b) - new Date(a));
+      return { ...g, times, count: times.length };
+    });
+    groups.sort((a, b) => {
+      const la = a.times[0] || "";
+      const lb = b.times[0] || "";
+      return new Date(lb) - new Date(la);
+    });
 
     if (meta) {
       meta.textContent = groups.length
-        ? `${groups.length} personne${groups.length > 1 ? "s" : ""} connectée${groups.length > 1 ? "s" : ""} le ${day.split("-").reverse().join("/")} (passages regroupés)`
+        ? `${groups.length} personne${groups.length > 1 ? "s" : ""} · clique la flèche pour voir les heures`
         : `Aucune connexion enregistrée le ${day.split("-").reverse().join("/")}`;
     }
     if (!groups.length) {
@@ -866,35 +879,49 @@ async function renderLoginLog(options = {}) {
       return;
     }
     list.innerHTML = `
-    <div class="amende-table-wrap login-log-wrap">
-      <table class="amende-table login-log-table">
-        <thead>
-          <tr>
-            <th>Membre</th>
-            <th>Première</th>
-            <th>Dernière</th>
-            <th>Passages</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${groups
-            .map(
-              (g) => `<tr>
-            <td>${escapeHtml(g.memberName || "—")}</td>
-            <td>${escapeHtml(formatLoginTime(g.first))}</td>
-            <td>${escapeHtml(formatLoginTime(g.last))}</td>
-            <td>${g.count}</td>
-          </tr>`
-            )
-            .join("")}
-        </tbody>
-      </table>
-    </div>`;
+    <ul class="login-log-accordion" role="list">
+      ${groups
+        .map((g, i) => {
+          const uid = `login-acc-${i}`;
+          const timesHtml = g.times
+            .map((at) => `<li>${escapeHtml(formatLoginTime(at))}</li>`)
+            .join("");
+          return `<li class="login-log-item">
+            <button type="button" class="login-log-toggle" aria-expanded="false" aria-controls="${uid}" data-login-toggle="${uid}">
+              <span class="login-log-chevron" aria-hidden="true">▸</span>
+              <span class="login-log-name">${escapeHtml(g.memberName || "—")}</span>
+              <span class="login-log-count">${g.count}×</span>
+            </button>
+            <ul id="${uid}" class="login-log-times" hidden>${timesHtml}</ul>
+          </li>`;
+        })
+        .join("")}
+    </ul>`;
   } finally {
     _loginLogRenderBusy = false;
   }
 }
 
+
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-login-toggle]");
+  if (!btn) return;
+  e.preventDefault();
+  const id = btn.getAttribute("data-login-toggle");
+  const panel = id ? document.getElementById(id) : null;
+  if (!panel) return;
+  const open = panel.hasAttribute("hidden");
+  if (open) {
+    panel.removeAttribute("hidden");
+    btn.setAttribute("aria-expanded", "true");
+    btn.classList.add("is-open");
+  } else {
+    panel.setAttribute("hidden", "");
+    btn.setAttribute("aria-expanded", "false");
+    btn.classList.remove("is-open");
+  }
+});
 
 function renderAuditLog() {
   const list = document.getElementById("auditLogList");
