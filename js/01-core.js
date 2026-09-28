@@ -1443,29 +1443,42 @@ function normalizeTourneeData(raw) {
 /** Financier / admin / accès Tournée : peut cocher OK réception ou ristourne */
 function canMarkTourneeBouffeOk() {
   if (!isLoggedIn()) return false;
-  if (isGroupAdmin() && isAdminWorkspace()) return true;
+  if (isGroupAdmin()) return true;
+  if (typeof isFinancierPoste === "function" && isFinancierPoste()) return true;
   if (getMemberRole(getCurrentMember()?.id) === "tresorier") return true;
-  return hasRoleTabAccess("tournee") && isAdminWorkspace();
+  return hasRoleTabAccess("tournee");
 }
 
 function getTourneeOkStorageKey(kind) {
   return kind === "ristourne" ? TOURNEE_RISTOURNE_OK_KEY : TOURNEE_RECEPTION_OK_KEY;
 }
 
+/** true legacy → {ok, at} pour permettre Retirer OK sans résurrection à la sync */
+function normalizeTourneeOkEntry(v) {
+  if (v === true || v === 1 || v === "true") {
+    return { ok: true, at: "1970-01-01T00:00:00.000Z" };
+  }
+  if (v && typeof v === "object" && ("ok" in v || "at" in v)) {
+    return { ok: Boolean(v.ok), at: String(v.at || "1970-01-01T00:00:00.000Z") };
+  }
+  return null;
+}
+
 function getTourneeOkMap(kind, year = tourneeYear, useDraft = false) {
   const source = useDraft && canEditTourneePlanning() ? tourneeDraft : tourneeData;
   const yearRecord = source.years?.[year] || {};
   const key = getTourneeOkStorageKey(kind);
-  const map = yearRecord[key] || {};
-  // Compat legacy bouffeOk → réception
+  let map = yearRecord[key] || {};
   if (kind === "reception" && Object.keys(map).length === 0) {
-    return yearRecord[TOURNEE_BOUFFE_OK_KEY] || {};
+    map = yearRecord[TOURNEE_BOUFFE_OK_KEY] || {};
   }
-  return map;
+  return map && typeof map === "object" ? map : {};
 }
 
 function isTourneeMarkOk(kind, memberId, year = tourneeYear, useDraft = false) {
-  return Boolean(getTourneeOkMap(kind, year, useDraft)[memberId]);
+  if (!memberId) return false;
+  const entry = normalizeTourneeOkEntry(getTourneeOkMap(kind, year, useDraft)[memberId]);
+  return Boolean(entry && entry.ok);
 }
 
 function isTourneeBouffeOk(memberId, year = tourneeYear, useDraft = false) {
@@ -1476,7 +1489,7 @@ function setTourneeMarkOk(kind, memberId, isOk) {
   if (!canMarkTourneeBouffeOk()) {
     if (!isLoggedIn()) {
       alert("Veuillez vous connecter.");
-      openLoginModal();
+      if (typeof openLoginModal === "function") openLoginModal();
       return false;
     }
     alert("Seul le Financier ou un administrateur (accès Tournée) peut valider un OK.");
@@ -1487,43 +1500,55 @@ function setTourneeMarkOk(kind, memberId, isOk) {
 
   const year = tourneeYear;
   const key = getTourneeOkStorageKey(kind);
+  const stamp = new Date().toISOString();
+  const entry = { ok: Boolean(isOk), at: stamp };
+
+  if (!tourneeData.years) tourneeData.years = {};
   if (!tourneeData.years[year]) tourneeData.years[year] = {};
-  if (!tourneeData.years[year][key]) tourneeData.years[year][key] = {};
-  const map = tourneeData.years[year][key];
-  if (isOk) map[memberId] = true;
-  else delete map[memberId];
-  if (Object.keys(map).length === 0) delete tourneeData.years[year][key];
+  if (!tourneeData.years[year][key] || typeof tourneeData.years[year][key] !== "object") {
+    tourneeData.years[year][key] = {};
+  }
+  tourneeData.years[year][key][memberId] = entry;
 
   if (tourneeDraft?.years) {
     if (!tourneeDraft.years[year]) tourneeDraft.years[year] = {};
-    if (!tourneeDraft.years[year][key]) tourneeDraft.years[year][key] = {};
-    const draftMap = tourneeDraft.years[year][key];
-    if (isOk) draftMap[memberId] = true;
-    else delete draftMap[memberId];
-    if (Object.keys(draftMap).length === 0) delete tourneeDraft.years[year][key];
+    if (!tourneeDraft.years[year][key] || typeof tourneeDraft.years[year][key] !== "object") {
+      tourneeDraft.years[year][key] = {};
+    }
+    tourneeDraft.years[year][key][memberId] = entry;
   }
 
-  tourneeData.updatedAt = new Date().toISOString();
+  tourneeData.updatedAt = stamp;
+  if (tourneeDraft) tourneeDraft.updatedAt = stamp;
   saveTourneeData();
-  renderTourneeTable();
+  if (typeof renderTourneeTable === "function") renderTourneeTable();
   const flush = window.potoFlushSync || window.flushPotoServerSync;
-  if (typeof flush === "function") {
-    Promise.resolve(flush())
-      .then((ok) => {
-        if (!ok) return flush();
-      })
-      .then(() => {
-        // Après envoi serveur, recharger pour confirmer l'OK
-        if (typeof reloadFromStorage === "function") reloadFromStorage();
-        renderTourneeTable();
-      })
-      .catch(() => {});
-  }
+  if (typeof flush === "function") Promise.resolve(flush()).catch(() => {});
   return true;
 }
 
 function toggleTourneeMarkOk(kind, memberId) {
-  setTourneeMarkOk(kind, memberId, !isTourneeMarkOk(kind, memberId));
+  const currentlyOk =
+    isTourneeMarkOk(kind, memberId, tourneeYear, true) ||
+    isTourneeMarkOk(kind, memberId, tourneeYear, false);
+  setTourneeMarkOk(kind, memberId, !currentlyOk);
+}
+
+/** Persiste le planning (ordre) depuis le brouillon vers données + serveur */
+function commitTourneeDraftToData() {
+  if (typeof cloneTourneeData === "function") {
+    tourneeData = cloneTourneeData(tourneeDraft);
+  } else {
+    try {
+      tourneeData = JSON.parse(JSON.stringify(tourneeDraft));
+    } catch {
+      tourneeData = tourneeDraft;
+    }
+  }
+  tourneeData.updatedAt = new Date().toISOString();
+  saveTourneeData();
+  const flush = window.potoFlushSync || window.flushPotoServerSync;
+  if (typeof flush === "function") Promise.resolve(flush()).catch(() => {});
 }
 
 function toggleTourneeBouffeOk(memberId) {

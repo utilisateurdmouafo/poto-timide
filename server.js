@@ -546,16 +546,27 @@ function broadcastLive(eventName, payload = {}) {
 
 /** Fusion profonde tournée : ne pas perdre receptionOk / ristourneOk */
 function mergeTourneeOkMaps(a, b) {
-  // Union des OK entre appareils (ne jamais perdre un OK validé)
-  const out = {};
-  const add = (src) => {
-    if (!src || typeof src !== "object") return;
-    Object.entries(src).forEach(([id, flag]) => {
-      if (flag) out[id] = true;
-    });
+  const norm = (v) => {
+    if (v === true || v === 1 || v === "true") return { ok: true, at: "1970-01-01T00:00:00.000Z" };
+    if (v && typeof v === "object" && ("ok" in v || "at" in v))
+      return { ok: Boolean(v.ok), at: String(v.at || "1970-01-01T00:00:00.000Z") };
+    return null;
   };
-  add(a);
-  add(b);
+  const out = {};
+  const ids = new Set([
+    ...Object.keys(a && typeof a === "object" ? a : {}),
+    ...Object.keys(b && typeof b === "object" ? b : {}),
+  ]);
+  for (const id of ids) {
+    const ea = norm(a?.[id]);
+    const eb = norm(b?.[id]);
+    if (!ea && !eb) continue;
+    if (!ea) { out[id] = eb; continue; }
+    if (!eb) { out[id] = ea; continue; }
+    const ta = new Date(ea.at).getTime() || 0;
+    const tb = new Date(eb.at).getTime() || 0;
+    out[id] = ta >= tb ? ea : eb;
+  }
   return out;
 }
 
