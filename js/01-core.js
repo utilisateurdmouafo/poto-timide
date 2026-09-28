@@ -1618,17 +1618,6 @@ function removeTourneeOrderMember(kind, monthIndex, memberId) {
   );
 }
 
-function moveTourneeOrderMember(kind, monthIndex, memberId, direction) {
-  const current = getTourneeOrderIds(kind, monthIndex, true);
-  const index = current.indexOf(memberId);
-  if (index < 0) return;
-  const nextIndex = index + direction;
-  if (nextIndex < 0 || nextIndex >= current.length) return;
-  const next = [...current];
-  [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
-  setTourneeOrderDraft(kind, monthIndex, next);
-}
-
 function getTourneePartnersMap(year, useDraft = canEditTourneePlanning()) {
   const yearRecord = getTourneeYearRecord(year, useDraft);
   return yearRecord[TOURNEE_PARTNERS_KEY] || {};

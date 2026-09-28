@@ -277,9 +277,7 @@ function buildTourneeOrderEditor(kind, monthIndex, memberIds) {
             ? `<button type="button" class="btn-bouffe-ok${markedOk ? " is-done" : ""}" data-kind="${escapeHtml(kind)}" data-member-id="${escapeHtml(id)}" title="${markedOk ? `Retirer OK (${okLabel})` : `Valider : ${okLabel}`}">${markedOk ? "Retirer OK" : "OK"}</button>`
             : ""
         }
-        <button type="button" class="tournee-order-move" data-direction="-1" data-kind="${escapeHtml(kind)}" data-month="${monthIndex}" data-member="${escapeHtml(id)}" aria-label="Monter ${escapeHtml(member.name)}" title="Monter">↑</button>
-        <button type="button" class="tournee-order-move" data-direction="1" data-kind="${escapeHtml(kind)}" data-month="${monthIndex}" data-member="${escapeHtml(id)}" aria-label="Descendre ${escapeHtml(member.name)}" title="Descendre">↓</button>
-        <button type="button" class="tournee-order-remove" data-kind="${escapeHtml(kind)}" data-month="${monthIndex}" data-member="${escapeHtml(id)}" aria-label="Retirer ${escapeHtml(member.name)}" title="Retirer">×</button>
+        <button type="button" class="tournee-order-remove" data-kind="${escapeHtml(kind)}" data-month="${monthIndex}" data-member="${escapeHtml(id)}" aria-label="Retirer ${escapeHtml(member.name)}">×</button>
       </span>`;
     })
     .join("");
