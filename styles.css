@@ -9518,3 +9518,110 @@ html, body {
   transform: rotate(90deg);
 }
 
+
+/* Réunion — menus comme le tiroir de navigation */
+.reunion-strip {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+@media (min-width: 640px) {
+  .reunion-strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.reunion-strip-item {
+  background: linear-gradient(145deg, #0f172a 0%, #1e293b 100%);
+  color: #f8fafc;
+  border-radius: 0.85rem;
+  padding: 0.65rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+.reunion-strip-label {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.75;
+}
+.reunion-strip-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.reunion-menu-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.reunion-menu-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(14, 116, 144, 0.18);
+  background: #fff;
+  border-radius: 1rem;
+  padding: 0.85rem 0.95rem;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.reunion-menu-btn:hover,
+.reunion-menu-btn:focus-visible {
+  background: rgba(14, 116, 144, 0.06);
+  border-color: rgba(14, 116, 144, 0.35);
+  outline: none;
+}
+.reunion-menu-btn:active {
+  transform: scale(0.99);
+}
+.reunion-menu-icon {
+  flex-shrink: 0;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(145deg, #0e7490, #155e75);
+  color: #ecfeff;
+  display: grid;
+  place-items: center;
+}
+.reunion-menu-icon svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+.reunion-menu-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+}
+.reunion-menu-label {
+  font-weight: 700;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+.reunion-menu-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(14, 116, 144, 0.12);
+  color: #0e7490;
+  padding: 0.1rem 0.45rem;
+  border-radius: 999px;
+}
+.reunion-menu-hint {
+  font-size: 0.8rem;
+  color: #64748b;
+}
+.reunion-menu-arrow {
+  font-size: 1.35rem;
+  color: #94a3b8;
+  line-height: 1;
+}

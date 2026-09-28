@@ -567,10 +567,7 @@ function buildReunionDashboardHtml() {
   try {
     const caisseDispo = typeof getCaisseDisponible === "function" ? getCaisseDisponible() : 0;
     const caisseTotal = typeof getCaisseTotal === "function" ? getCaisseTotal() : 0;
-    const caisseBrute = typeof getCaisseBrute === "function" ? getCaisseBrute() : caisseDispo;
     const maxEmpruntable = typeof getBorrowableAmount === "function" ? getBorrowableAmount() : 0;
-    const eventsIn = typeof getTotalEvenementsInCaisse === "function" ? getTotalEvenementsInCaisse() : 0;
-
     const votingLoans = (Array.isArray(prets) ? prets : []).filter(
       (l) => l && !isLoanDeleted(l) && l.status === "voting"
     );
@@ -580,152 +577,130 @@ function buildReunionDashboardHtml() {
     const openEvents = getReunionEventsOpen();
     const openAmendes = getReunionAmendesOpen();
     const openEx = getReunionExTourneeOpen();
-    const totalsDA =
-      typeof getTotalsDettesAmendes === "function"
-        ? getTotalsDettesAmendes()
-        : { amendesDue: 0, dettesDue: 0, exDue: 0, totalDue: 0 };
-    const eventsUnpaidPeople = openEvents.reduce((s, evt) => {
-      const unpaid = getSortedMembers().filter(
-        (m) => !isEvenementBeneficiary(evt, m.id) && !isEvenementPaid(evt, m.id)
-      );
-      return s + unpaid.length;
-    }, 0);
-    const loansCapital = activeLoans.reduce(
-      (s, l) =>
-        s +
-        (typeof getLoanBalance === "function"
-          ? getLoanBalance(l)
-          : Math.max(0, (Number(l.amount) || 0) - (Number(l.totalRepaid) || 0))),
-      0
-    );
-
-    // Total à verser = ce que TOI tu dois encore (événement + amende + ex tournée)
     const me = typeof getCurrentMember === "function" ? getCurrentMember() : null;
     const totalAVerser =
       me && typeof getMemberPersonalDue === "function" ? getMemberPersonalDue(me.id) : 0;
+    const memberCount =
+      typeof getSortedMembers === "function" ? getSortedMembers().length : 0;
+    const showAdmin =
+      typeof canAccessAdminTab === "function" ? canAccessAdminTab() : false;
 
-    const countAmendes = openAmendes.length;
-    const countEx = openEx.length;
-    const kpis = [
-      { go: "finance", label: "Disponible", value: formatEuro(caisseDispo), tone: "teal" },
-      { go: "prets", label: "Max empruntable", value: formatEuro(maxEmpruntable), tone: "green" },
-      { go: "finance", label: "Totale", value: formatEuro(caisseTotal), tone: "navy" },
-      { go: "prets", label: "Votes", value: String(votingLoans.length), tone: votingLoans.length ? "warn" : "navy" },
-      { go: "finance", label: "Prêts", value: String(activeLoans.length), tone: activeLoans.length ? "warn" : "navy" },
+    const strip = [
+      { label: "Disponible", value: formatEuro(caisseDispo) },
+      { label: "Totale", value: formatEuro(caisseTotal) },
+      { label: "Prêts", value: String(activeLoans.length) },
+      { label: "À verser", value: formatEuro(totalAVerser) },
+    ];
+
+    const menus = [
+      {
+        go: "communication",
+        label: "Communication",
+        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 8.5h9.5a3 3 0 0 1 3 3V16a3 3 0 0 1-3 3H11l-3.2 2.2A.8.8 0 0 1 6.5 20.6V19H5a3 3 0 0 1-3-3v-4.5A3 3 0 0 1 5 8.5Z" stroke="currentColor" stroke-width="1.7"/></svg>`,
+        hint: "Communiqués, ordre du jour, rapports",
+        badge: "",
+      },
+      {
+        go: "membres",
+        label: "Membres & Bureau",
+        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="9" cy="8" r="3" stroke="currentColor" stroke-width="1.7"/><path d="M3.6 19c.4-3 2.7-5 5.4-5s5 2 5.4 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+        hint: `${memberCount} membre${memberCount > 1 ? "s" : ""}`,
+        badge: memberCount ? String(memberCount) : "",
+      },
+      {
+        go: "tournee",
+        label: "Tournée",
+        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="6.5" width="18" height="9.5" rx="2.2" stroke="currentColor" stroke-width="1.7"/><path d="M3 12h18" stroke="currentColor" stroke-width="1.7"/></svg>`,
+        hint: "Planning réception & ristourne",
+        badge: "",
+      },
+      {
+        go: "prets",
+        label: "Prêts",
+        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3v18M7 8h7a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+        hint: votingLoans.length
+          ? `${votingLoans.length} vote${votingLoans.length > 1 ? "s" : ""} · ${activeLoans.length} en cours`
+          : `${activeLoans.length} en cours · max ${formatEuro(maxEmpruntable)}`,
+        badge: activeLoans.length || votingLoans.length
+          ? String(activeLoans.length + votingLoans.length)
+          : "",
+      },
       {
         go: "evenements",
         label: "Événements",
-        value: String(openEvents.length),
-        tone: openEvents.length ? "warn" : "navy",
+        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2" stroke="currentColor" stroke-width="1.7"/><path d="M8 3v4M16 3v4M3.5 10h17" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+        hint: openEvents.length
+          ? `${openEvents.length} ouvert${openEvents.length > 1 ? "s" : ""}`
+          : "Aucun ouvert",
+        badge: openEvents.length ? String(openEvents.length) : "",
       },
       {
         go: "amendes",
-        label: "Amendes",
-        value: String(countAmendes),
-        tone: countAmendes > 0 ? "danger" : "navy",
+        label: "Dettes & amendes",
+        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7"/><path d="M12 8v5M12 16.2h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+        hint:
+          openAmendes.length || openEx.length
+            ? `${openAmendes.length} amende${openAmendes.length > 1 ? "s" : ""} · ${openEx.length} ex tournée`
+            : "Rien à régler",
+        badge:
+          openAmendes.length + openEx.length
+            ? String(openAmendes.length + openEx.length)
+            : "",
       },
       {
-        go: "amendes",
-        label: "Ex tournée",
-        value: String(countEx),
-        tone: countEx > 0 ? "danger" : "navy",
+        go: "finance",
+        label: "Finance",
+        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+        hint: `Dispo ${formatEuro(caisseDispo)}`,
+        badge: "",
       },
       {
-        go: "amendes",
-        label: "Total à verser",
-        value: formatEuro(totalAVerser),
-        tone: totalAVerser > 0 ? "danger" : "navy",
+        go: "loi",
+        label: "La loi",
+        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 4h9l3 3v13H6V4Z" stroke="currentColor" stroke-width="1.7"/><path d="M14 4v4h4M9 12h6M9 16h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`,
+        hint: "Règles du groupe",
+        badge: "",
       },
     ];
 
-    const kpiHtml = `<div class="reunion-kpi-grid">${kpis
+    if (showAdmin) {
+      menus.push({
+        go: "admin",
+        label: "Admin",
+        icon: `<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-2.8 7.8-7 9-4.2-1.2-7-4.5-7-9V6l7-3Z" stroke="currentColor" stroke-width="1.7"/><path d="M9.5 12.2l1.7 1.7 3.5-3.8" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+        hint: "Gestion du site",
+        badge: "",
+      });
+    }
+
+    const stripHtml = `<div class="reunion-strip">${strip
       .map(
-        (k) => `<button type="button" class="reunion-kpi reunion-kpi-${k.tone}" data-reunion-go="${k.go}">
-        <span>${escapeHtml(k.label)}</span><strong>${escapeHtml(k.value)}</strong>
-      </button>`
+        (s) => `<div class="reunion-strip-item"><span class="reunion-strip-label">${escapeHtml(s.label)}</span><span class="reunion-strip-value">${escapeHtml(s.value)}</span></div>`
       )
       .join("")}</div>`;
 
-    // Votes
-    let voteHtml = "";
-    if (votingLoans.length) {
-      voteHtml = votingLoans
-        .map((loan) => {
-          const borrower = getMemberById(loan.borrowerId);
-          const stats =
-            typeof getVoteStats === "function"
-              ? getVoteStats(loan)
-              : { yesCount: 0, noCount: 0, pendingCount: 0, voters: [] };
-          const totalVoters =
-            (stats.voters && stats.voters.length) ||
-            stats.yesCount + stats.noCount + stats.pendingCount ||
-            1;
-          const pctDone = Math.round(((stats.yesCount + stats.noCount) / totalVoters) * 100);
-          return `<button type="button" class="reunion-block reunion-link" data-reunion-go="prets">
-            <h3>Vote · ${escapeHtml(borrower?.name || "?")} · ${formatEuro(loan.amount)}</h3>
-            ${buildReunionProgressBar([
-              { value: stats.yesCount, color: "#059669", label: "Oui" },
-              { value: stats.noCount, color: "#dc2626", label: "Non" },
-              { value: stats.pendingCount, color: "#cbd5e1", label: "Attente" },
-            ])}
-            <p class="reunion-pct">${pctDone}% · O ${stats.yesCount} · N ${stats.noCount} · A ${stats.pendingCount}</p>
-          </button>`;
-        })
-        .join("");
-    }
+    const menuHtml = `<div class="reunion-menu-grid">${menus
+      .map((m) => {
+        const badge = m.badge
+          ? `<span class="reunion-menu-badge">${escapeHtml(m.badge)}</span>`
+          : "";
+        return `<button type="button" class="reunion-menu-btn" data-reunion-go="${escapeHtml(m.go)}">
+          <span class="reunion-menu-icon">${m.icon}</span>
+          <span class="reunion-menu-text">
+            <span class="reunion-menu-label">${escapeHtml(m.label)}${badge}</span>
+            <span class="reunion-menu-hint">${escapeHtml(m.hint || "")}</span>
+          </span>
+          <span class="reunion-menu-arrow" aria-hidden="true">›</span>
+        </button>`;
+      })
+      .join("")}</div>`;
 
-    // Prêts — montant prêté seulement
-    const loansChart = buildReunionHBarChart(
-      activeLoans.map((loan) => {
-        const remaining =
-          typeof getLoanBalance === "function"
-            ? getLoanBalance(loan)
-            : Math.max(0, (Number(loan.amount) || 0) - (Number(loan.totalRepaid) || 0));
-        return {
-          label: getMemberById(loan.borrowerId)?.name || "?",
-          value: remaining,
-        };
-      }),
-      "#d97706"
-    );
-
-    // Événements
-    let eventsHtml = "";
-    if (openEvents.length) {
-      eventsHtml = openEvents
-        .map((evt) => {
-          const paidCount = getEvenementPaidCount(evt);
-          const cotisantCount = getEvenementCotisantCount(evt) || 1;
-          const collected = getEvenementCollectedAmount(evt);
-          const beneficiary = getMemberById(getEvenementBeneficiaryId(evt));
-          return `<button type="button" class="reunion-block reunion-link" data-reunion-go="evenements">
-            <h3>${escapeHtml(evt.title)}${beneficiary ? ` · ${escapeHtml(beneficiary.name)}` : ""}</h3>
-            ${buildReunionProgressBar([
-              { value: paidCount, color: "#2563eb", label: "Payé" },
-              { value: Math.max(0, cotisantCount - paidCount), color: "#e2e8f0", label: "Reste" },
-            ])}
-            <p class="reunion-pct">${paidCount}/${cotisantCount} · ${formatEuro(collected)}</p>
-          </button>`;
-        })
-        .join("");
-    }
-
-    // Pas de blocs Caisse / Amendes / Ex tournée en bas : déjà dans les KPI (évite les doublons)
-    return `
-    ${kpiHtml}
-    ${voteHtml}
-    <button type="button" class="reunion-block reunion-link reunion-chart-only" data-reunion-go="finance">
-      <h3>Prêts en cours — reste dû (${activeLoans.length}) · ${formatEuro(loansCapital)}</h3>
-      <div class="reunion-chart-wrap">${loansChart}</div>
-    </button>
-    ${eventsHtml || `<button type="button" class="reunion-block reunion-link reunion-muted" data-reunion-go="evenements"><h3>Événements</h3><p class="reunion-pct">Aucun ouvert · ${eventsUnpaidPeople} impayé(s) suivi</p></button>`}
-  `;
+    return `${stripHtml}${menuHtml}`;
   } catch (err) {
     console.warn("Mode réunion:", err);
     return `<div class="reunion-block"><p class="reunion-list">Impossible d'afficher le mode réunion. Recharge (Ctrl+F5).</p></div>`;
   }
 }
-
 
 document.getElementById("reunionDashboard")?.addEventListener("click", (e) => {
   const go = e.target.closest("[data-reunion-go]");
