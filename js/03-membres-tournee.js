@@ -50,6 +50,7 @@ async function refreshOnlineMembers() {
     if (document.getElementById("tab-membres")?.classList.contains("active")) {
       fillMemberList(memberList, { withAdminActions: false });
     }
+    if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
   } catch {
     /* ignore */
   }
@@ -585,6 +586,10 @@ function buildReunionDashboardHtml() {
     const showAdmin =
       typeof canAccessAdminTab === "function" ? canAccessAdminTab() : false;
 
+    const onlineCount =
+      typeof onlineMembers !== "undefined" && Array.isArray(onlineMembers)
+        ? onlineMembers.length
+        : 0;
     // go = onglet cible (comme les anciens KPI cliquables)
     const strip = [
       { label: "Empruntable", value: formatEuro(maxEmpruntable), go: "prets" },
@@ -592,6 +597,11 @@ function buildReunionDashboardHtml() {
       { label: "Totale", value: formatEuro(caisseTotal), go: "finance" },
       { label: "Prêts", value: String(activeLoans.length), go: "finance", financeSub: "archives" },
       { label: "À verser", value: formatEuro(totalAVerser), go: "amendes" },
+      {
+        label: "En ligne",
+        value: `${onlineCount} / ${memberCount}`,
+        go: "membres",
+      },
     ];
 
     const menus = [
