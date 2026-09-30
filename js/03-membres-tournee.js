@@ -236,18 +236,22 @@ function formatTourneePersonLabel(memberId, withAmount) {
 
 function buildTourneeOrderReadout(kind, memberIds) {
   const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
-  if (!ids.length) return `<span class="tournee-empty">—</span>`;
+  if (!ids.length) return `<span class="tournee-order-empty">—</span>`;
   const canToggle = typeof canMarkTourneeBouffeOk === "function" && canMarkTourneeBouffeOk();
   const okLabel = kind === "ristourne" ? "Ristourne reçue" : "Tournée reçue";
-  return ids
+  const withAmount = kind === "ristourne";
+  return `<div class="tournee-order-readout">${ids
     .map((id) => {
       const member = getMemberById(id);
-      const name = member?.name || "—";
+      if (!member) return "";
+      const label = withAmount
+        ? formatTourneePersonLabel(id, true)
+        : escapeHtml(member.name || "—");
       const isYou = getCurrentMember()?.id === id;
       const markedOk = isTourneeMarkOk(kind, id, tourneeYear, false);
       return `<span class="tournee-person${markedOk ? " is-ok" : ""}${isYou ? " is-you" : ""}">
           ${markedOk ? `<span class="tag-bouffe-ok" title="${okLabel}">OK</span>` : ""}
-          <span class="tournee-person-name">${escapeHtml(name)}</span>
+          <span class="tournee-person-name">${label}</span>
           ${isYou ? '<span class="tag-you">Vous</span>' : ""}
           ${
             canToggle
@@ -256,7 +260,7 @@ function buildTourneeOrderReadout(kind, memberIds) {
           }
         </span>`;
     })
-    .join(" ");
+    .join("")}</div>`;
 }
 
 
