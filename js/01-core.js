@@ -1392,15 +1392,21 @@ function normalizeTourneeData(raw) {
 
     // OK réception / ristourne (memberId → true)
     // Ne pas jeter les OK si la liste membres n'est pas encore chargée
-    const validIds = new Set((members || []).map((m) => m.id));
+    // Préserver { ok, at } — ne jamais forcer true (sinon "Retirer OK" revient)
     const normalizeOkMap = (raw) => {
       if (!raw || typeof raw !== "object") return {};
       const out = {};
       Object.entries(raw).forEach(([memberId, flag]) => {
-        if (!flag) return;
-        // Garder l'OK même si le membre n'est pas encore dans la liste (évite perte au reload)
-        if (validIds.size === 0 || validIds.has(memberId)) out[memberId] = true;
-        else out[memberId] = true;
+        const entry =
+          typeof normalizeTourneeOkEntry === "function"
+            ? normalizeTourneeOkEntry(flag)
+            : flag === true || flag === 1 || flag === "true"
+              ? { ok: true, at: "1970-01-01T00:00:00.000Z" }
+              : flag && typeof flag === "object"
+                ? { ok: Boolean(flag.ok), at: String(flag.at || "1970-01-01T00:00:00.000Z") }
+                : null;
+        if (!entry) return;
+        out[memberId] = entry;
       });
       return out;
     };

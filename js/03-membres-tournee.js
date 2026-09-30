@@ -235,30 +235,30 @@ function formatTourneePersonLabel(memberId, withAmount) {
 }
 
 function buildTourneeOrderReadout(kind, memberIds) {
-  const currentMember = getCurrentMember();
-  const withAmount = kind === "ristourne";
+  const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
+  if (!ids.length) return `<span class="tournee-empty">—</span>`;
+  const canToggle = typeof canMarkTourneeBouffeOk === "function" && canMarkTourneeBouffeOk();
   const okLabel = kind === "ristourne" ? "Ristourne reçue" : "Tournée reçue";
-  // Lecture seule publique : badge OK seulement (pas de bouton)
-  if (!memberIds.length) {
-    return `<span class="tournee-order-empty">—</span>`;
-  }
-
-  return `<div class="tournee-order-readout">
-    ${memberIds
-      .map((id) => {
-        const member = getMemberById(id);
-        if (!member) return "";
-        const markedOk = isTourneeMarkOk(kind, id, tourneeYear, false);
-        const isYou = currentMember?.id === id;
-        return `<span class="tournee-person${markedOk ? " is-ok" : ""}${isYou ? " is-you" : ""}">
+  return ids
+    .map((id) => {
+      const member = getMemberById(id);
+      const name = member?.name || "—";
+      const isYou = getCurrentMember()?.id === id;
+      const markedOk = isTourneeMarkOk(kind, id, tourneeYear, false);
+      return `<span class="tournee-person${markedOk ? " is-ok" : ""}${isYou ? " is-you" : ""}">
           ${markedOk ? `<span class="tag-bouffe-ok" title="${okLabel}">OK</span>` : ""}
-          ${escapeHtml(formatTourneePersonLabel(id, withAmount))}
+          <span class="tournee-person-name">${escapeHtml(name)}</span>
           ${isYou ? '<span class="tag-you">Vous</span>' : ""}
+          ${
+            canToggle
+              ? `<button type="button" class="btn-bouffe-ok${markedOk ? " is-done" : ""}" data-kind="${escapeHtml(kind)}" data-member-id="${escapeHtml(id)}" title="${markedOk ? `Retirer OK (${okLabel})` : `Valider : ${okLabel}`}">${markedOk ? "Retirer" : "OK"}</button>`
+              : ""
+          }
         </span>`;
-      })
-      .join("")}
-  </div>`;
+    })
+    .join(" ");
 }
+
 
 function buildTourneeOrderEditor(kind, monthIndex, memberIds) {
   const withAmount = kind === "ristourne";
