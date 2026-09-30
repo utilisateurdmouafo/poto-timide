@@ -234,11 +234,16 @@ function formatTourneePersonLabel(memberId, withAmount) {
   return `${member.name} (${formatEuro(getRistournePayout(memberId))})`;
 }
 
+function tourneeMarkLabel(kind) {
+  // réception = déjà reçu | ristourne = déjà bouffé
+  return kind === "ristourne" ? "Déjà bouffé" : "Déjà reçu";
+}
+
 function buildTourneeOrderReadout(kind, memberIds) {
+  // Vue publique : badge lecture seule (modification uniquement dans Admin → Tournée)
   const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
   if (!ids.length) return `<span class="tournee-order-empty">—</span>`;
-  const canToggle = typeof canMarkTourneeBouffeOk === "function" && canMarkTourneeBouffeOk();
-  const okLabel = kind === "ristourne" ? "Ristourne reçue" : "Tournée reçue";
+  const markLabel = tourneeMarkLabel(kind);
   const withAmount = kind === "ristourne";
   return `<div class="tournee-order-readout">${ids
     .map((id) => {
@@ -250,14 +255,9 @@ function buildTourneeOrderReadout(kind, memberIds) {
       const isYou = getCurrentMember()?.id === id;
       const markedOk = isTourneeMarkOk(kind, id, tourneeYear, false);
       return `<span class="tournee-person${markedOk ? " is-ok" : ""}${isYou ? " is-you" : ""}">
-          ${markedOk ? `<span class="tag-bouffe-ok" title="${okLabel}">OK</span>` : ""}
+          ${markedOk ? `<span class="tag-bouffe-ok" title="${escapeHtml(markLabel)}">${escapeHtml(markLabel)}</span>` : ""}
           <span class="tournee-person-name">${label}</span>
           ${isYou ? '<span class="tag-you">Vous</span>' : ""}
-          ${
-            canToggle
-              ? `<button type="button" class="btn-bouffe-ok${markedOk ? " is-done" : ""}" data-kind="${escapeHtml(kind)}" data-member-id="${escapeHtml(id)}" title="${markedOk ? `Retirer OK (${okLabel})` : `Valider : ${okLabel}`}">${markedOk ? "Retirer" : "OK"}</button>`
-              : ""
-          }
         </span>`;
     })
     .join("")}</div>`;
@@ -268,18 +268,18 @@ function buildTourneeOrderEditor(kind, monthIndex, memberIds) {
   const withAmount = kind === "ristourne";
   const selected = new Set(memberIds);
   const canMarkOk = canMarkTourneeBouffeOk();
-  const okLabel = kind === "ristourne" ? "ristourne reçue" : "tournée reçue";
+  const markLabel = typeof tourneeMarkLabel === "function" ? tourneeMarkLabel(kind) : (kind === "ristourne" ? "Déjà bouffé" : "Déjà reçu");
   const chips = memberIds
     .map((id) => {
       const member = getMemberById(id);
       if (!member) return "";
       const markedOk = isTourneeMarkOk(kind, id, tourneeYear, true);
       return `<span class="tournee-order-chip${markedOk ? " is-ok" : ""}">
-        ${markedOk ? `<span class="tag-bouffe-ok" title="${okLabel}">OK</span>` : ""}
+        ${markedOk ? `<span class="tag-bouffe-ok" title="${escapeHtml(markLabel)}">${escapeHtml(markLabel)}</span>` : ""}
         ${escapeHtml(formatTourneePersonLabel(id, withAmount))}
         ${
           canMarkOk
-            ? `<button type="button" class="btn-bouffe-ok${markedOk ? " is-done" : ""}" data-kind="${escapeHtml(kind)}" data-member-id="${escapeHtml(id)}" title="${markedOk ? `Retirer OK (${okLabel})` : `Valider : ${okLabel}`}">${markedOk ? "Retirer OK" : "OK"}</button>`
+            ? `<button type="button" class="btn-bouffe-ok${markedOk ? " is-done" : ""}" data-kind="${escapeHtml(kind)}" data-member-id="${escapeHtml(id)}" title="${markedOk ? `Retirer : ${markLabel}` : `Marquer : ${markLabel}`}">${markedOk ? "Retirer" : escapeHtml(markLabel)}</button>`
             : ""
         }
         <button type="button" class="tournee-order-remove" data-kind="${escapeHtml(kind)}" data-month="${monthIndex}" data-member="${escapeHtml(id)}" aria-label="Retirer ${escapeHtml(member.name)}">×</button>
