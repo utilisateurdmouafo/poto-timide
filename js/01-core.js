@@ -1139,9 +1139,40 @@ function buildFinanceHistoryRows() {
     };
   });
 
-  return [...caisseRows, ...pretRows].sort(
-    (a, b) => new Date(b.sortAt || 0) - new Date(a.sortAt || 0)
-  );
+  // Ordre fixe : 1) dettes (prêts ouverts)  2) sorties  3) soldés / le reste
+  const rankRow = (row) => {
+    const status = String(row.statusLabel || "").toLowerCase();
+    const type = String(row.typeLabel || "").toLowerCase();
+    const isSortie =
+      status.includes("sortie") ||
+      type.includes("sortie") ||
+      type.includes("retrait") ||
+      (row.chipClass === "is-rejected" && (row.repaid == null || row.remaining == null));
+    const isSolde =
+      row.settled === true ||
+      status.includes("sold") ||
+      status.includes("rembours") ||
+      row.chipClass === "is-paid";
+    const isDette =
+      !isSortie &&
+      !isSolde &&
+      (type.includes("prêt") ||
+        type.includes("pret") ||
+        status.includes("cours") ||
+        status.includes("retard") ||
+        (Number(row.remaining) || 0) > 0);
+    if (isDette) return 1;
+    if (isSortie) return 2;
+    if (isSolde) return 3;
+    return 4;
+  };
+
+  return [...caisseRows, ...pretRows].sort((a, b) => {
+    const ra = rankRow(a);
+    const rb = rankRow(b);
+    if (ra !== rb) return ra - rb;
+    return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+  });
 }
 
 function getLoanRepaymentCountdown(loan) {
