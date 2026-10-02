@@ -1074,7 +1074,14 @@ function updateSessionUI() {
     const roleLabel = roleId ? getRoleLabel(roleId) : null;
 
     if (isAdmin) {
-      userStatus.innerHTML = `<span class="badge-crown" aria-hidden="true">👑</span> Administrateur : ${escapeHtml(current.name)}`;
+      const devTag =
+        typeof isDeveloperAccount === "function" &&
+        isDeveloperAccount() &&
+        typeof isDevModeEnabled === "function" &&
+        isDevModeEnabled()
+          ? ' <span class="dev-mode-pill">Dev</span>'
+          : "";
+      userStatus.innerHTML = `<span class="badge-crown" aria-hidden="true">👑</span> Administrateur : ${escapeHtml(current.name)}${devTag}`;
     } else if (roleLabel) {
       userStatus.textContent = `Connecté : ${current.name} (${roleLabel})`;
     } else {
@@ -1098,6 +1105,7 @@ function updateSessionUI() {
   }
   document.body.classList.toggle("is-logged-in", loggedIn);
   if (loggedIn) updatePretTabBadge();
+  if (typeof updateDevModeToggleUI === "function") updateDevModeToggleUI();
 
   // Pas de bannière / messages « vue simple » pour les membres
   if (simpleViewBanner) simpleViewBanner.hidden = true;

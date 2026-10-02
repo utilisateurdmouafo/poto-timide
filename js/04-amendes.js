@@ -1106,14 +1106,71 @@ function getActorLabel() {
   return getCurrentMember()?.name || "Le Financier";
 }
 
-/** Dario (développeur / owner) : aucune notif in-app ni push quand c'est lui qui agit */
-function shouldSuppressDevNotifications() {
+/** Vrai si le compte connecté est le développeur (Dario / owner) */
+function isDeveloperAccount() {
   const current = getCurrentMember();
   if (!current) return false;
   if (typeof isOwnerMember === "function" && isOwnerMember(current)) return true;
   const name = String(current.name || "").trim().toLowerCase();
-  if (name === String(ADMIN_NAME || "Dario").toLowerCase()) return true;
-  return false;
+  return name === String(ADMIN_NAME || "Dario").toLowerCase();
+}
+
+/**
+ * Mode développeur (défaut ON pour Dario) :
+ * - ON  → tes actions n’envoient PAS de notifications
+ * - OFF → mode normal : tes actions notifient les potos comme n’importe qui
+ */
+function isDevModeEnabled() {
+  if (!isDeveloperAccount()) return false;
+  try {
+    const v = localStorage.getItem(DEV_MODE_KEY);
+    if (v === null || v === undefined || v === "") return true; // défaut : dev
+    return v === "1" || v === "true";
+  } catch {
+    return true;
+  }
+}
+
+function setDevModeEnabled(on) {
+  try {
+    localStorage.setItem(DEV_MODE_KEY, on ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+  if (typeof updateDevModeToggleUI === "function") updateDevModeToggleUI();
+  if (typeof updateSessionUI === "function") updateSessionUI();
+}
+
+function toggleDevMode() {
+  if (!isDeveloperAccount()) return;
+  setDevModeEnabled(!isDevModeEnabled());
+  const on = isDevModeEnabled();
+  alert(
+    on
+      ? "Mode développeur activé.\nTes actions n’envoient plus de notifications."
+      : "Mode normal activé.\nTes actions enverront des notifications aux potos."
+  );
+}
+
+function updateDevModeToggleUI() {
+  const btn = document.getElementById("devModeToggleBtn");
+  const label = document.getElementById("devModeToggleLabel");
+  if (!btn) return;
+  const show = isLoggedIn() && isDeveloperAccount();
+  btn.hidden = !show;
+  if (!show) return;
+  const on = isDevModeEnabled();
+  btn.classList.toggle("is-dev-on", on);
+  btn.classList.toggle("is-dev-off", !on);
+  btn.title = on
+    ? "Mode développeur ON — tes actions n’envoient pas de notifications (clique pour mode normal)"
+    : "Mode normal — tes actions envoient des notifications (clique pour mode développeur)";
+  if (label) label.textContent = on ? "Dev ON" : "Normal";
+}
+
+/** Suppress notifs uniquement si développeur ET mode Dev activé */
+function shouldSuppressDevNotifications() {
+  return isDeveloperAccount() && isDevModeEnabled();
 }
 
 

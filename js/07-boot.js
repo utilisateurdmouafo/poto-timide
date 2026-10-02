@@ -2058,7 +2058,12 @@ window.addEventListener("hashchange", () => {
   }
 });
 
+document.getElementById("devModeToggleBtn")?.addEventListener("click", () => {
+  if (typeof toggleDevMode === "function") toggleDevMode();
+});
+
 initApp();
+
 
 /* —— Tri des tableaux (persistant malgré les re-renders / sync) —— */
 const potoTableSortState = new Map(); // key -> { col, dir }

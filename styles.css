@@ -10054,3 +10054,32 @@ button.reunion-kpi-fond,
   border-left: 3px solid #4f46e5;
   background: #eef2ff;
 }
+
+.btn-dev-mode {
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+  padding: 0.35rem 0.55rem !important;
+  border-radius: 999px !important;
+  border: 1px solid transparent;
+}
+.btn-dev-mode.is-dev-on {
+  background: #312e81 !important;
+  color: #e0e7ff !important;
+  border-color: #6366f1 !important;
+}
+.btn-dev-mode.is-dev-off {
+  background: #065f46 !important;
+  color: #d1fae5 !important;
+  border-color: #34d399 !important;
+}
+.dev-mode-pill {
+  display: inline-block;
+  margin-left: 0.35rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: #312e81;
+  color: #e0e7ff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  vertical-align: middle;
+}
