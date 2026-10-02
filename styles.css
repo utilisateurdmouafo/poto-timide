@@ -9820,35 +9820,3 @@ button.reunion-kpi-fond,
 .btn-fond-to-dette:hover {
   background: #fecaca;
 }
-
-.fond-caisse-readonly-cards {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 0.55rem;
-}
-@media (min-width: 560px) {
-  .fond-caisse-readonly-cards {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-.fond-caisse-readonly .finance-stat {
-  margin: 0;
-}
-/* Admin hub densifié — tout visible sans swipe horizontal */
-.admin-hub-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-}
-@media (min-width: 520px) {
-  .admin-hub-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }
-}
-@media (min-width: 800px) {
-  .admin-hub-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
-  }
-}
-.admin-hub-btn .admin-hub-label {
-  font-size: 0.82rem !important;
-  line-height: 1.15 !important;
-}

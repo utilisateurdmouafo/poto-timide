@@ -681,7 +681,7 @@ function buildReunionDashboardHtml() {
           }
           return due > 0 ? formatEuro(due) : "OK";
         })(),
-        go: "fond-caisse",
+        go: "finance",
         title: me && typeof getFondCaisseAnnuelDue === "function"
           ? (() => {
               const year =
@@ -709,7 +709,7 @@ function buildReunionDashboardHtml() {
       { go: "membres", label: "Membres & Bureau", tone: "teal" },
       { go: "tournee", label: "Tournée", tone: "green" },
       { go: "prets", label: "Prêts", tone: "orange" },
-      { go: "fond-caisse", label: "Fond de caisse", tone: "fond" },
+      { go: "finance", label: "Fond de caisse", tone: "fond" },
       { go: "evenements", label: "Événements", tone: "warn" },
       { go: "amendes", label: "Dettes & amendes", tone: "danger" },
       { go: "finance", label: "Finance", tone: "blue" },
@@ -750,105 +750,6 @@ function buildReunionDashboardHtml() {
   }
 }
 
-
-function showFondCaisseReadonlyView() {
-  // Activer le contenu sans créer d'onglet de menu
-  document.querySelectorAll(".tab").forEach((tab) => tab.classList.remove("active"));
-  document.querySelectorAll(".tab-content").forEach((content) => {
-    content.classList.toggle("active", content.id === "tab-fond-caisse");
-  });
-  closeAppMenu?.();
-  closeAdminMenu?.();
-  renderFondCaisseReadonly();
-}
-
-function renderFondCaisseReadonly() {
-  const el = document.getElementById("fondCaisseReadonlyContent");
-  if (!el) return;
-  const year =
-    typeof getFondCaisseAnnuelYear === "function"
-      ? getFondCaisseAnnuelYear()
-      : String(new Date().getFullYear());
-  const fondDepart = typeof getFondCaisse === "function" ? getFondCaisse() : 0;
-  const totals =
-    typeof getFondCaisseAnnuelYearTotals === "function"
-      ? getFondCaisseAnnuelYearTotals(year)
-      : { amountPerMember: 0, memberCount: 0, expected: 0, paid: 0, remaining: 0 };
-  const me = getCurrentMember();
-  const myPaid =
-    me && typeof getFondCaisseAnnuelPaid === "function"
-      ? getFondCaisseAnnuelPaid(year, me.id)
-      : 0;
-  const myDue =
-    me && typeof getFondCaisseAnnuelDue === "function"
-      ? getFondCaisseAnnuelDue(year, me.id)
-      : 0;
-
-  let membersHtml = "";
-  if (totals.amountPerMember > 0 && typeof getSortedMembers === "function") {
-    const rows = getSortedMembers()
-      .map((member) => {
-        const paid = getFondCaisseAnnuelPaid(year, member.id);
-        const due = getFondCaisseAnnuelDue(year, member.id);
-        const converted = Boolean(
-          fondCaisseAnnuel?.years?.[String(year)]?.payments?.[member.id]?.convertedToDebt
-        );
-        const status = converted
-          ? "Passé en dette"
-          : due <= 0
-            ? "Soldé"
-            : `Reste ${formatEuro(due)}`;
-        const statusClass = converted ? "is-open" : due <= 0 ? "is-paid" : "is-open";
-        return `<tr>
-          <td>${escapeHtml(member.name)}</td>
-          <td class="num">${formatEuro(paid)}</td>
-          <td class="num">${formatEuro(due)}</td>
-          <td><span class="amende-chip ${statusClass}">${escapeHtml(status)}</span></td>
-        </tr>`;
-      })
-      .join("");
-    membersHtml = `
-      <div class="amende-table-wrap" style="margin-top:0.75rem">
-        <table class="amende-table">
-          <thead>
-            <tr>
-              <th>Poto</th>
-              <th class="num">Versé</th>
-              <th class="num">Reste</th>
-              <th>Statut</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
-  }
-
-  el.innerHTML = `
-    <div class="fond-caisse-readonly-cards">
-      <div class="finance-stat">
-        <span class="finance-stat-label">Fond de départ</span>
-        <strong>${formatEuro(fondDepart)}</strong>
-      </div>
-      <div class="finance-stat">
-        <span class="finance-stat-label">Fond annuel ${escapeHtml(year)}</span>
-        <strong>${formatEuro(totals.amountPerMember)} / poto</strong>
-        <span class="finance-stat-note">Attendu ${formatEuro(totals.expected)} · Versé ${formatEuro(totals.paid)} · Reste ${formatEuro(totals.remaining)}</span>
-      </div>
-      ${
-        me
-          ? `<div class="finance-stat finance-stat--balance">
-        <span class="finance-stat-label">Mon fond ${escapeHtml(year)}</span>
-        <strong>${myDue <= 0 ? "OK" : formatEuro(myDue)}</strong>
-        <span class="finance-stat-note">Versé ${formatEuro(myPaid)}${myDue > 0 ? " · reste à verser " + formatEuro(myDue) : ""}</span>
-      </div>`
-          : ""
-      }
-    </div>
-    ${membersHtml}
-  `;
-}
-
-
 function handleReunionGoClick(e) {
   const go = e.target.closest("[data-reunion-go]");
   if (!go || !go.closest("#reunionDashboard, #tab-reunion")) return;
@@ -880,12 +781,6 @@ function handleReunionGoClick(e) {
       scrollToPretsList();
       setTimeout(scrollToPretsList, 120);
     });
-    return;
-  }
-
-  // Fond de caisse → page lecture seule (pas un onglet menu)
-  if (tab === "fond-caisse") {
-    if (typeof showFondCaisseReadonlyView === "function") showFondCaisseReadonlyView();
     return;
   }
 

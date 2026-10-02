@@ -55,7 +55,7 @@ function canAccessAdminSub(subId) {
   }
   if (isGroupAdmin()) return true;
   if (subId === "admins" || subId === "acces" || subId === "sauvegarde") return false;
-  if (subId === "membres") return hasRoleTabAccess("membres") || hasRoleTabAccess("bureau") || hasRoleTabAccess("tournee");
+  if (subId === "membres") return hasRoleTabAccess("membres") || hasRoleTabAccess("bureau");
   if (subId === "caisse") return isFinancierPoste() || hasRoleTabAccess("caisse");
   if (subId === "amendes") {
     return (
@@ -290,7 +290,6 @@ function showAdminSub(subId) {
   }
   if (subId === "acces" && typeof renderTabPermissionsPanel === "function") renderTabPermissionsPanel();
   if (subId === "tournee" && typeof renderTourneeTable === "function") renderTourneeTable();
-  if (subId === "membres" && typeof renderTourneeTable === "function") renderTourneeTable();
   if (subId === "caisse") {
     if (typeof renderFondCaissePanel === "function") renderFondCaissePanel();
     if (typeof renderAutreArgent === "function") renderAutreArgent();
