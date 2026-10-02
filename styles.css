@@ -9834,3 +9834,13 @@ button.reunion-kpi-fond,
 .fond-caisse-readonly .finance-stat {
   margin: 0;
 }
+
+.fond-caisse-readonly-head {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+.fond-caisse-readonly .amende-table tr.is-you-row {
+  background: #eff6ff;
+}

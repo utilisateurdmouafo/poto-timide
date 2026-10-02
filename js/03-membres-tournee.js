@@ -861,92 +861,144 @@ function renderReunion() {
 }
 
 
+function getFondCaisseReadonlyYearOptions() {
+  if (typeof getFondCaisseAnnuelYearOptions === "function") {
+    return getFondCaisseAnnuelYearOptions();
+  }
+  const y = new Date().getFullYear();
+  return [String(y - 1), String(y), String(y + 1)];
+}
+
 function renderFondCaisseReadonly() {
   const el = document.getElementById("fondCaisseReadonlyContent");
   if (!el) return;
-  const year =
-    typeof getFondCaisseAnnuelYear === "function"
-      ? getFondCaisseAnnuelYear()
-      : String(new Date().getFullYear());
+
+  const yearOptions = getFondCaisseReadonlyYearOptions();
+  const selectEl = document.getElementById("fondCaisseReadonlyYear");
+  let year = selectEl?.value || "";
+  if (!year || !yearOptions.includes(year)) {
+    year =
+      typeof getFondCaisseAnnuelYear === "function"
+        ? getFondCaisseAnnuelYear()
+        : String(new Date().getFullYear());
+    if (!yearOptions.includes(year)) year = yearOptions[0] || String(new Date().getFullYear());
+  }
+
   const fondDepart = typeof getFondCaisse === "function" ? getFondCaisse() : 0;
   const totals =
     typeof getFondCaisseAnnuelYearTotals === "function"
       ? getFondCaisseAnnuelYearTotals(year)
       : { amountPerMember: 0, memberCount: 0, expected: 0, paid: 0, remaining: 0 };
+  const amountPer = Number(totals.amountPerMember) || 0;
   const me = getCurrentMember();
-  const myPaid =
-    me && typeof getFondCaisseAnnuelPaid === "function"
-      ? getFondCaisseAnnuelPaid(year, me.id)
-      : 0;
-  const myDue =
-    me && typeof getFondCaisseAnnuelDue === "function"
-      ? getFondCaisseAnnuelDue(year, me.id)
-      : 0;
+  const members = typeof getSortedMembers === "function" ? getSortedMembers() : [];
 
-  let membersHtml = "";
-  if (totals.amountPerMember > 0 && typeof getSortedMembers === "function") {
-    const rows = getSortedMembers()
-      .map((member) => {
-        const paid = getFondCaisseAnnuelPaid(year, member.id);
-        const due = getFondCaisseAnnuelDue(year, member.id);
-        const converted = Boolean(
-          fondCaisseAnnuel?.years?.[String(year)]?.payments?.[member.id]?.convertedToDebt
-        );
-        const status = converted
-          ? "Passé en dette"
-          : due <= 0
-            ? "Soldé"
-            : `Reste ${formatEuro(due)}`;
-        const statusClass = converted ? "is-open" : due <= 0 ? "is-paid" : "is-open";
-        return `<tr>
-          <td>${escapeHtml(member.name)}</td>
-          <td class="num">${formatEuro(paid)}</td>
-          <td class="num">${formatEuro(due)}</td>
-          <td><span class="amende-chip ${statusClass}">${escapeHtml(status)}</span></td>
-        </tr>`;
-      })
-      .join("");
-    membersHtml = `
-      <div class="amende-table-wrap" style="margin-top:0.75rem">
-        <table class="amende-table">
-          <thead>
-            <tr>
-              <th>Poto</th>
-              <th class="num">Versé</th>
-              <th class="num">Reste</th>
-              <th>Statut</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
-      </div>`;
-  } else {
-    membersHtml = `<p class="panel-desc" style="margin-top:0.75rem">Aucun fond annuel défini pour ${escapeHtml(year)} pour le moment.</p>`;
-  }
+  const rows = members
+    .map((member) => {
+      const paid =
+        typeof getFondCaisseAnnuelPaid === "function"
+          ? getFondCaisseAnnuelPaid(year, member.id)
+          : 0;
+      const due =
+        typeof getFondCaisseAnnuelDue === "function"
+          ? getFondCaisseAnnuelDue(year, member.id)
+          : 0;
+      const converted = Boolean(
+        fondCaisseAnnuel?.years?.[String(year)]?.payments?.[member.id]?.convertedToDebt
+      );
+      let status;
+      let statusClass;
+      if (!amountPer) {
+        status = "—";
+        statusClass = "";
+      } else if (converted) {
+        status = "Passé en dette";
+        statusClass = "is-open";
+      } else if (due <= 0) {
+        status = "Soldé";
+        statusClass = "is-paid";
+      } else {
+        status = "En cours";
+        statusClass = "is-open";
+      }
+      const isYou = me?.id === member.id;
+      return `<tr class="${isYou ? "is-you-row" : ""}">
+        <td>${escapeHtml(member.name)}${isYou ? ' <span class="tag-you">Vous</span>' : ""}</td>
+        <td class="num">${formatEuro(amountPer || 0)}</td>
+        <td class="num num-paid">${formatEuro(paid)}</td>
+        <td class="num num-remain ${due <= 0 ? "is-zero" : ""}">${formatEuro(due)}</td>
+        <td>${statusClass ? `<span class="amende-chip ${statusClass}">${escapeHtml(status)}</span>` : escapeHtml(status)}</td>
+      </tr>`;
+    })
+    .join("");
+
+  const yearSelectHtml = `
+    <label class="tournee-year-label fond-caisse-readonly-year">
+      Année
+      <select id="fondCaisseReadonlyYear" class="tournee-year-select">
+        ${yearOptions
+          .map(
+            (y) =>
+              `<option value="${escapeHtml(y)}" ${y === year ? "selected" : ""}>${escapeHtml(y)}</option>`
+          )
+          .join("")}
+      </select>
+    </label>`;
 
   el.innerHTML = `
+    <div class="fond-caisse-readonly-head">
+      ${yearSelectHtml}
+    </div>
     <div class="fond-caisse-readonly-cards">
       <div class="finance-stat">
-        <span class="finance-stat-label">Fond de départ</span>
+        <span class="finance-stat-label">Fond de départ (groupe)</span>
         <strong>${formatEuro(fondDepart)}</strong>
       </div>
       <div class="finance-stat">
-        <span class="finance-stat-label">Fond annuel ${escapeHtml(year)}</span>
-        <strong>${formatEuro(totals.amountPerMember)} / poto</strong>
+        <span class="finance-stat-label">Par poto (${escapeHtml(year)})</span>
+        <strong>${amountPer > 0 ? formatEuro(amountPer) : "—"}</strong>
         <span class="finance-stat-note">Attendu ${formatEuro(totals.expected)} · Versé ${formatEuro(totals.paid)} · Reste ${formatEuro(totals.remaining)}</span>
       </div>
-      ${
-        me
-          ? `<div class="finance-stat finance-stat--balance">
-        <span class="finance-stat-label">Mon fond ${escapeHtml(year)}</span>
-        <strong>${myDue <= 0 && totals.amountPerMember > 0 ? "OK" : myDue > 0 ? formatEuro(myDue) : "—"}</strong>
-        <span class="finance-stat-note">Versé ${formatEuro(myPaid)}${myDue > 0 ? " · reste " + formatEuro(myDue) : ""}</span>
-      </div>`
-          : ""
-      }
     </div>
-    ${membersHtml}
+    <h3 class="finance-ledger-title" style="margin-top:1rem">Fond de caisse de chacun</h3>
+    <p class="panel-desc">Versé / reste pour chaque poto — année ${escapeHtml(year)}.</p>
+    <div class="amende-table-wrap">
+      <table class="amende-table">
+        <thead>
+          <tr>
+            <th>Poto</th>
+            <th class="num">Dû</th>
+            <th class="num">Versé</th>
+            <th class="num">Reste</th>
+            <th>Statut</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${
+            rows ||
+            `<tr class="amende-empty-row"><td colspan="5">Aucun membre.</td></tr>`
+          }
+        </tbody>
+        ${
+          members.length
+            ? `<tfoot>
+          <tr>
+            <td colspan="2"><strong>Total</strong></td>
+            <td class="num num-paid"><strong>${formatEuro(totals.paid)}</strong></td>
+            <td class="num num-remain"><strong>${formatEuro(totals.remaining)}</strong></td>
+            <td></td>
+          </tr>
+        </tfoot>`
+            : ""
+        }
+      </table>
+    </div>
   `;
+
+  const sel = document.getElementById("fondCaisseReadonlyYear");
+  if (sel) {
+    sel.onchange = () => renderFondCaisseReadonly();
+  }
 }
 
 
