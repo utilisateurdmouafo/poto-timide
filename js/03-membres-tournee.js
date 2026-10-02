@@ -699,7 +699,7 @@ function buildReunionDashboardHtml() {
           : "Dettes & amendes",
       },
       {
-        label: "Fond caisse",
+        label: "Fond à verser",
         tone: "fond",
         go: "fond-caisse",
         value: (() => {
@@ -755,7 +755,7 @@ function buildReunionDashboardHtml() {
       { go: "membres", label: "Membres & Bureau", tone: "teal" },
       { go: "tournee", label: "Tournée", tone: "green" },
       { go: "prets", label: "Prêts", tone: "orange" },
-      { go: "fond-caisse", label: "Fond de caisse", tone: "fond" },
+      { go: "fond-caisse", label: "Fond caisse à verser", tone: "fond" },
       { go: "evenements", label: "Événements", tone: "warn" },
       { go: "amendes", label: "Dettes & amendes", tone: "danger" },
       { go: "finance", label: "Finance", tone: "blue" },
@@ -776,7 +776,7 @@ function buildReunionDashboardHtml() {
         const sub = s.financeSub ? ` data-finance-sub="${escapeHtml(s.financeSub)}"` : "";
         const tip = s.title || `Ouvrir ${s.label}`;
         const extraClass =
-          s.label === "Fond caisse" || s.tone === "fond"
+          s.label === "Fond à verser" || s.label === "Fond caisse" || s.tone === "fond"
             ? " reunion-strip-item-fond"
             : "";
         return `<button type="button" class="reunion-strip-item${extraClass}" data-reunion-go="${escapeHtml(s.go || "")}"${sub} title="${escapeHtml(tip)}">
