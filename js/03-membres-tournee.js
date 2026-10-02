@@ -505,15 +505,14 @@ function getOpenExTourneeRemaining(entry) {
 }
 
 
-/** Détail du total personnel à verser (amendes + événements + ex tournée, hors prêts) */
+/** Détail du total personnel à verser (amendes + événements + ex tournée + fond annuel, hors prêts) */
 function getMemberDueBreakdown(memberId) {
   if (!memberId) {
-    return { amendes: 0, evenements: 0, exTournee: 0, total: 0 };
+    return { amendes: 0, evenements: 0, exTournee: 0, fondAnnuel: 0, total: 0 };
   }
   let amendesDue = 0;
   (typeof getAmendesForMember === "function" ? getAmendesForMember(memberId) : []).forEach((a) => {
     if (typeof isDetteAmende === "function" && isDetteAmende(a)) {
-      // dettes événement converties en amende type dette
       amendesDue += getOpenDetteEventRemaining(a);
     } else {
       amendesDue += getOpenAmendeRemaining(a);
@@ -534,14 +533,25 @@ function getMemberDueBreakdown(memberId) {
     });
   }
 
+  let fondDue = 0;
+  if (typeof getFondCaisseAnnuelDue === "function") {
+    const year =
+      typeof getFondCaisseAnnuelYear === "function"
+        ? getFondCaisseAnnuelYear()
+        : String(new Date().getFullYear());
+    fondDue = getFondCaisseAnnuelDue(year, memberId);
+  }
+
   const amendes = Math.round(amendesDue * 100) / 100;
   const evenements = Math.round(eventsDue * 100) / 100;
   const exTournee = Math.round(exDue * 100) / 100;
+  const fondAnnuel = Math.round(fondDue * 100) / 100;
   return {
     amendes,
     evenements,
     exTournee,
-    total: Math.round((amendes + evenements + exTournee) * 100) / 100,
+    fondAnnuel,
+    total: Math.round((amendes + evenements + exTournee + fondAnnuel) * 100) / 100,
   };
 }
 
@@ -652,9 +662,48 @@ function buildReunionDashboardHtml() {
         title: me && typeof getMemberDueBreakdown === "function"
           ? (() => {
               const b = getMemberDueBreakdown(me.id);
-              return `Amendes ${formatEuro(b.amendes)} · Événements ${formatEuro(b.evenements)} · Ex tournée ${formatEuro(b.exTournee)}`;
+              return `Amendes ${formatEuro(b.amendes)} · Événements ${formatEuro(b.evenements)} · Ex tournée ${formatEuro(b.exTournee)} · Fond ${formatEuro(b.fondAnnuel || 0)}`;
             })()
           : "Dettes & amendes",
+      },
+      {
+        label: "Fond caisse",
+        value: (() => {
+          if (!me || typeof getFondCaisseAnnuelDue !== "function") return "—";
+          const year =
+            typeof getFondCaisseAnnuelYear === "function"
+              ? getFondCaisseAnnuelYear()
+              : String(new Date().getFullYear());
+          const due = getFondCaisseAnnuelDue(year, me.id);
+          const paid =
+            typeof getFondCaisseAnnuelPaid === "function"
+              ? getFondCaisseAnnuelPaid(year, me.id)
+              : 0;
+          if (due <= 0 && paid <= 0) {
+            const totals =
+              typeof getFondCaisseAnnuelYearTotals === "function"
+                ? getFondCaisseAnnuelYearTotals(year)
+                : null;
+            if (totals && totals.amountPerMember > 0) return "OK";
+            return "—";
+          }
+          return due > 0 ? formatEuro(due) : "OK";
+        })(),
+        go: "finance",
+        title: me && typeof getFondCaisseAnnuelDue === "function"
+          ? (() => {
+              const year =
+                typeof getFondCaisseAnnuelYear === "function"
+                  ? getFondCaisseAnnuelYear()
+                  : String(new Date().getFullYear());
+              const due = getFondCaisseAnnuelDue(year, me.id);
+              const paid =
+                typeof getFondCaisseAnnuelPaid === "function"
+                  ? getFondCaisseAnnuelPaid(year, me.id)
+                  : 0;
+              return `Fond annuel ${year} : versé ${formatEuro(paid)} · reste ${formatEuro(due)}`;
+            })()
+          : "Fond de caisse",
       },
       {
         label: "En ligne",
@@ -668,6 +717,7 @@ function buildReunionDashboardHtml() {
       { go: "membres", label: "Membres & Bureau", tone: "teal" },
       { go: "tournee", label: "Tournée", tone: "green" },
       { go: "prets", label: "Prêts", tone: "orange" },
+      { go: "finance", label: "Fond de caisse", tone: "orange" },
       { go: "evenements", label: "Événements", tone: "warn" },
       { go: "amendes", label: "Dettes & amendes", tone: "danger" },
       { go: "finance", label: "Finance", tone: "blue" },
@@ -1694,11 +1744,43 @@ function buildMesEvenementDebtRows(memberId) {
   });
 }
 
+function buildMesFondCaisseRows(memberId) {
+  if (!memberId || typeof getFondCaisseAnnuelDue !== "function") return [];
+  const year =
+    typeof getFondCaisseAnnuelYear === "function"
+      ? getFondCaisseAnnuelYear()
+      : String(new Date().getFullYear());
+  const due = getFondCaisseAnnuelDue(year, memberId);
+  if (due <= 0) return [];
+  const paid =
+    typeof getFondCaisseAnnuelPaid === "function"
+      ? getFondCaisseAnnuelPaid(year, memberId)
+      : 0;
+  const amountPer =
+    Number(fondCaisseAnnuel?.years?.[String(year)]?.amountPerMember) || due + paid;
+  return [
+    {
+      id: `fond-annuel-${year}`,
+      date: `${year}-01-01`,
+      type: "fond-caisse",
+      typeLabel: "Fond caisse",
+      detail: `Fond annuel ${year}`,
+      original: Math.round(amountPer * 100) / 100,
+      repaid: Math.round(paid * 100) / 100,
+      remaining: due,
+      settled: false,
+      sortAt: `${year}-01-01`,
+      readOnly: true,
+    },
+  ];
+}
+
 function buildMesDettesAmendesRows(memberId) {
   const rows = [
     ...buildMesAmendesRows(memberId),
     ...buildMesDettesRows(memberId),
     ...buildMesEvenementDebtRows(memberId),
+    ...buildMesFondCaisseRows(memberId),
   ];
   rows.sort((a, b) => {
     if (a.settled !== b.settled) return a.settled ? 1 : -1;
@@ -1739,7 +1821,8 @@ function renderMesAmendes() {
     detail.innerHTML =
       `<span>Amendes <strong>${formatEuro(breakdown.amendes)}</strong></span>` +
       `<span>Événements <strong>${formatEuro(breakdown.evenements)}</strong></span>` +
-      `<span>Ex tournée <strong>${formatEuro(breakdown.exTournee)}</strong></span>`;
+      `<span>Ex tournée <strong>${formatEuro(breakdown.exTournee)}</strong></span>` +
+      `<span>Fond caisse <strong>${formatEuro(breakdown.fondAnnuel || 0)}</strong></span>`;
     // éviter doublon si re-render
     const existing = amendeSummary.parentElement?.querySelector(".amende-hero-breakdown");
     if (existing) existing.remove();
