@@ -1589,6 +1589,24 @@ async function publishCommunication() {
   const synced = await saveCommunicationPosts();
   cancelEditCommunication();
   renderCommunication();
+
+  // Notification à tous les membres (sauf si mode Dev)
+  if (typeof notifyAllMembers === "function") {
+    const actor = typeof getActorLabel === "function" ? getActorLabel() : "Un membre";
+    const kindLabel = kind.singular || "message";
+    const notifTitle = wasEdit
+      ? `${kindLabel[0].toUpperCase()}${kindLabel.slice(1)} modifié`
+      : `Nouveau ${kindLabel}`;
+    const notifBody = wasEdit
+      ? `${actor} a modifié un ${kindLabel} : « ${title} ».`
+      : `${actor} a publié un ${kindLabel} : « ${title} ».`;
+    notifyAllMembers("communication", notifBody, {
+      tab: "communication",
+      title: notifTitle,
+      item: "",
+    });
+  }
+
   if (communicationSaveMsg) {
     const label = `${kind.singular[0].toUpperCase()}${kind.singular.slice(1)}`;
     communicationSaveMsg.textContent = synced
