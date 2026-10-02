@@ -2195,6 +2195,17 @@ if (typeof initDetteCollectiveForm === "function") {
   try { initDetteCollectiveForm(); } catch (e) { console.warn(e); }
 }
 
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".btn-fond-to-dette");
+  if (!btn) return;
+  e.preventDefault();
+  const year = btn.dataset.year;
+  if (typeof convertFondCaisseAnnuelResteToDettes === "function") {
+    convertFondCaisseAnnuelResteToDettes(year);
+  }
+});
+
+
 function initSortableTables() {
   if (window.__potoSortableTablesInit) return;
   window.__potoSortableTablesInit = true;

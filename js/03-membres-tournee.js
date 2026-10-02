@@ -533,25 +533,16 @@ function getMemberDueBreakdown(memberId) {
     });
   }
 
-  let fondDue = 0;
-  if (typeof getFondCaisseAnnuelDue === "function") {
-    const year =
-      typeof getFondCaisseAnnuelYear === "function"
-        ? getFondCaisseAnnuelYear()
-        : String(new Date().getFullYear());
-    fondDue = getFondCaisseAnnuelDue(year, memberId);
-  }
-
+  // Fond de caisse annuel : PAS une dette tant qu'il n'a pas été passé en dette (fin de tournée)
   const amendes = Math.round(amendesDue * 100) / 100;
   const evenements = Math.round(eventsDue * 100) / 100;
   const exTournee = Math.round(exDue * 100) / 100;
-  const fondAnnuel = Math.round(fondDue * 100) / 100;
   return {
     amendes,
     evenements,
     exTournee,
-    fondAnnuel,
-    total: Math.round((amendes + evenements + exTournee + fondAnnuel) * 100) / 100,
+    fondAnnuel: 0,
+    total: Math.round((amendes + evenements + exTournee) * 100) / 100,
   };
 }
 
@@ -662,7 +653,7 @@ function buildReunionDashboardHtml() {
         title: me && typeof getMemberDueBreakdown === "function"
           ? (() => {
               const b = getMemberDueBreakdown(me.id);
-              return `Amendes ${formatEuro(b.amendes)} · Événements ${formatEuro(b.evenements)} · Ex tournée ${formatEuro(b.exTournee)} · Fond ${formatEuro(b.fondAnnuel || 0)}`;
+              return `Amendes ${formatEuro(b.amendes)} · Événements ${formatEuro(b.evenements)} · Ex tournée ${formatEuro(b.exTournee)}`;
             })()
           : "Dettes & amendes",
       },
@@ -1749,43 +1740,11 @@ function buildMesEvenementDebtRows(memberId) {
   });
 }
 
-function buildMesFondCaisseRows(memberId) {
-  if (!memberId || typeof getFondCaisseAnnuelDue !== "function") return [];
-  const year =
-    typeof getFondCaisseAnnuelYear === "function"
-      ? getFondCaisseAnnuelYear()
-      : String(new Date().getFullYear());
-  const due = getFondCaisseAnnuelDue(year, memberId);
-  if (due <= 0) return [];
-  const paid =
-    typeof getFondCaisseAnnuelPaid === "function"
-      ? getFondCaisseAnnuelPaid(year, memberId)
-      : 0;
-  const amountPer =
-    Number(fondCaisseAnnuel?.years?.[String(year)]?.amountPerMember) || due + paid;
-  return [
-    {
-      id: `fond-annuel-${year}`,
-      date: `${year}-01-01`,
-      type: "fond-caisse",
-      typeLabel: "Fond caisse",
-      detail: `Fond annuel ${year}`,
-      original: Math.round(amountPer * 100) / 100,
-      repaid: Math.round(paid * 100) / 100,
-      remaining: due,
-      settled: false,
-      sortAt: `${year}-01-01`,
-      readOnly: true,
-    },
-  ];
-}
-
 function buildMesDettesAmendesRows(memberId) {
   const rows = [
     ...buildMesAmendesRows(memberId),
     ...buildMesDettesRows(memberId),
     ...buildMesEvenementDebtRows(memberId),
-    ...buildMesFondCaisseRows(memberId),
   ];
   rows.sort((a, b) => {
     if (a.settled !== b.settled) return a.settled ? 1 : -1;
@@ -1826,8 +1785,7 @@ function renderMesAmendes() {
     detail.innerHTML =
       `<span>Amendes <strong>${formatEuro(breakdown.amendes)}</strong></span>` +
       `<span>Événements <strong>${formatEuro(breakdown.evenements)}</strong></span>` +
-      `<span>Ex tournée <strong>${formatEuro(breakdown.exTournee)}</strong></span>` +
-      `<span>Fond caisse <strong>${formatEuro(breakdown.fondAnnuel || 0)}</strong></span>`;
+      `<span>Ex tournée <strong>${formatEuro(breakdown.exTournee)}</strong></span>`;
     // éviter doublon si re-render
     const existing = amendeSummary.parentElement?.querySelector(".amende-hero-breakdown");
     if (existing) existing.remove();

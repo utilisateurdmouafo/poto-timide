@@ -2241,7 +2241,9 @@ function getFondCaisseAnnuelPaid(year, memberId) {
 }
 
 function getFondCaisseAnnuelDue(year, memberId) {
-  const amount = Number(fondCaisseAnnuel.years?.[String(year)]?.amountPerMember) || 0;
+  const yearData = fondCaisseAnnuel.years?.[String(year)];
+  if (yearData?.payments?.[memberId]?.convertedToDebt) return 0;
+  const amount = Number(yearData?.amountPerMember) || 0;
   return Math.max(0, Math.round((amount - getFondCaisseAnnuelPaid(year, memberId)) * 100) / 100);
 }
 
@@ -2468,6 +2470,111 @@ async function cancelFondCaisseAnnuelPayment(year, memberId, paymentId) {
   );
 }
 
+
+/**
+ * Fin de tournée / clôture : passe le reste de fond annuel non versé en dette (contribution)
+ * pour chaque poto qui n'a pas soldé. Le fond n'est plus « dû » côté fond, mais en Dettes & amendes.
+ */
+async function convertFondCaisseAnnuelResteToDettes(year) {
+  if (!canManageCaisseArgent() && !canEditFondCaisse()) {
+    alert("Seul le Financier ou un administrateur peut passer le fond en dette.");
+    return false;
+  }
+  const y = String(year || getFondCaisseAnnuelYear());
+  const yearData = ensureFondCaisseAnnuelYear(y);
+  const amountPerMember = Number(yearData.amountPerMember) || 0;
+  if (amountPerMember <= 0) {
+    alert("Aucun fond de caisse défini pour cette année.");
+    return false;
+  }
+
+  const debtors = getSortedMembers()
+    .map((m) => ({ member: m, due: getFondCaisseAnnuelDue(y, m.id) }))
+    .filter((x) => x.due > 0.001);
+
+  if (!debtors.length) {
+    alert("Tout le monde a déjà versé (ou le reste est déjà passé en dette).");
+    return false;
+  }
+
+  const totalReste = debtors.reduce((s, x) => s + x.due, 0);
+  if (
+    !(await appConfirm(
+      `Passer en dette le reste de fond ${y} ?\n` +
+        `${debtors.length} poto${debtors.length > 1 ? "s" : ""} · total ${formatEuro(totalReste)}.\n` +
+        `Ils verront cette somme dans Dettes & amendes / À verser.`
+    ))
+  ) {
+    return false;
+  }
+
+  const now = new Date().toISOString();
+  const actor = getCurrentMember()?.id || null;
+  let count = 0;
+
+  debtors.forEach(({ member, due }) => {
+    const amount = Math.round(due * 100) / 100;
+    if (!yearData.payments[member.id]) {
+      yearData.payments[member.id] = { paidAmount: 0, history: [] };
+    }
+    // évite double conversion
+    if (yearData.payments[member.id].convertedToDebt) return;
+    yearData.payments[member.id].convertedToDebt = true;
+    yearData.payments[member.id].convertedAt = now;
+    yearData.payments[member.id].convertedAmount = amount;
+    yearData.payments[member.id].updatedAt = now;
+
+    amendes.unshift({
+      id: generateId(),
+      memberId: member.id,
+      type: "contribution",
+      amount,
+      originalAmount: amount,
+      repaidAmount: 0,
+      note: `Fond de caisse ${y} — reste non versé`,
+      date: now,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: actor,
+      fromFondCaisseYear: y,
+      collective: true,
+    });
+    count += 1;
+  });
+
+  if (!count) {
+    alert("Rien à convertir.");
+    return false;
+  }
+
+  saveFondCaisseAnnuel();
+  if (typeof saveAmendes === "function") saveAmendes();
+  else {
+    try {
+      localStorage.setItem(AMENDES_KEY, JSON.stringify(amendes));
+    } catch {
+      /* ignore */
+    }
+  }
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+  if (typeof notifyAllMembers === "function") {
+    notifyAllMembers(
+      "amende",
+      `${getActorLabel()} a passé en dette le reste de fond ${y} (${count} poto${count > 1 ? "s" : ""}, ${formatEuro(totalReste)}).`,
+      { tab: "amendes", title: "Fond → dette" }
+    );
+  }
+  renderFondCaisseAnnuel();
+  if (typeof renderMesAmendes === "function") renderMesAmendes();
+  if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
+  alert(
+    `${count} dette${count > 1 ? "s" : ""} créée${count > 1 ? "s" : ""} pour le reste de fond ${y} (${formatEuro(totalReste)}).`
+  );
+  return true;
+}
+
 function renderFondCaisseAnnuel() {
   const panel = document.getElementById("fondCaisseAnnuelPanel");
   if (!panel) return;
@@ -2495,9 +2602,17 @@ function renderFondCaisseAnnuel() {
 
   const totals = getFondCaisseAnnuelYearTotals(selectedYear);
   if (fondCaisseAnnuelSummary) {
-    fondCaisseAnnuelSummary.textContent = amountPerMember > 0
-      ? `${totals.memberCount} potos × ${formatEuro(amountPerMember)} = ${formatEuro(totals.expected)} · Versé ${formatEuro(totals.paid)} · Reste ${formatEuro(totals.remaining)} · paiements en plusieurs fois`
-      : "Indique le montant que chaque poto doit verser cette année. Il pourra payer en plusieurs fois.";
+    if (amountPerMember > 0) {
+      fondCaisseAnnuelSummary.innerHTML =
+        `${totals.memberCount} potos × ${formatEuro(amountPerMember)} = ${formatEuro(totals.expected)} · Versé ${formatEuro(totals.paid)} · Reste <strong>${formatEuro(totals.remaining)}</strong>` +
+        (totals.remaining > 0.001
+          ? ` <button type="button" class="btn-secondary btn-fond-to-dette" data-year="${escapeHtml(selectedYear)}" title="Passer le reste non versé en dette pour tous">Dette</button>`
+          : "") +
+        ` · paiements en plusieurs fois`;
+    } else {
+      fondCaisseAnnuelSummary.textContent =
+        "Indique le montant que chaque poto doit verser cette année. Il pourra payer en plusieurs fois.";
+    }
   }
   if (fondCaisseAnnuelDeleteBtn) {
     fondCaisseAnnuelDeleteBtn.hidden = amountPerMember <= 0;

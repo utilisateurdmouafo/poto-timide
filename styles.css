@@ -9804,3 +9804,19 @@ button.reunion-kpi-fond,
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+.btn-fond-to-dette {
+  margin-left: 0.45rem;
+  vertical-align: middle;
+  padding: 0.2rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 999px;
+  background: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  cursor: pointer;
+}
+.btn-fond-to-dette:hover {
+  background: #fecaca;
+}
