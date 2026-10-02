@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,500;1,9..144,600&family=Outfit:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" media="(min-width: 768px)" />
-  <link rel="stylesheet" href="styles.css?v=pwa-143" />
+  <link rel="stylesheet" href="styles.css?v=pwa-145" />
 </head>
 <body>
   <div class="app" id="app">
@@ -108,6 +108,9 @@
           <button class="tab" data-tab="finance">
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19h16M7 16v-4m5 4V8m5 8v-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
             Finance
+          </button>
+          <button class="tab" data-tab="fond-caisse">
+            Fond de caisse
           </button>
           <button class="tab" data-tab="loi">
             <svg class="tab-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6.5 4.5h8.2L17.5 7.3V19.5H6.5V4.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M14.5 4.5V7.3h2.9M9 11h6M9 14.5h6M9 18h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
@@ -381,6 +384,19 @@
             </p>
           </section>
         </div>
+      </div>
+
+
+      <!-- ========== FOND DE CAISSE (lecture seule) ========== -->
+      <div class="tab-content" id="tab-fond-caisse">
+        <div class="reunion-back-bar">
+          <button type="button" class="btn-reunion-back" data-go-reunion title="Retour mode réunion">← Réunion</button>
+        </div>
+        <section class="panel">
+          <h2>Fond de caisse</h2>
+          <p class="panel-desc">Lecture seule. Les versements et réglages se font dans Admin → Caisse.</p>
+          <div id="fondCaisseReadonlyContent" class="fond-caisse-readonly"></div>
+        </section>
       </div>
 
       <!-- ========== LA LOI (lecture seule pour tous les membres) ========== -->
@@ -1152,15 +1168,15 @@
 
   <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
 
-    <script src="api-client.js?v=pwa-143"></script>
-  <script src="api-auth.js?v=pwa-143"></script>
-  <script src="api-sync.js?v=pwa-143"></script>
-  <script src="js/01-core.js?v=pwa-143"></script>
-  <script src="js/02-admin-auth.js?v=pwa-143"></script>
-  <script src="js/03-membres-tournee.js?v=pwa-143"></script>
-  <script src="js/04-amendes.js?v=pwa-143"></script>
-  <script src="js/05-prets.js?v=pwa-143"></script>
-  <script src="js/06-evenements-comm.js?v=pwa-143"></script>
-  <script src="js/07-boot.js?v=pwa-143"></script>
+    <script src="api-client.js?v=pwa-145"></script>
+  <script src="api-auth.js?v=pwa-145"></script>
+  <script src="api-sync.js?v=pwa-145"></script>
+  <script src="js/01-core.js?v=pwa-145"></script>
+  <script src="js/02-admin-auth.js?v=pwa-145"></script>
+  <script src="js/03-membres-tournee.js?v=pwa-145"></script>
+  <script src="js/04-amendes.js?v=pwa-145"></script>
+  <script src="js/05-prets.js?v=pwa-145"></script>
+  <script src="js/06-evenements-comm.js?v=pwa-145"></script>
+  <script src="js/07-boot.js?v=pwa-145"></script>
 </body>
 </html>
