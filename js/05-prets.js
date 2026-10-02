@@ -11,7 +11,7 @@ async function deleteOwnNotification(notificationId) {
   const now = new Date().toISOString();
   notif.deletedAt = now;
   notif.updatedAt = now;
-  saveNotifications(false);
+  saveNotifications(true);
   if (typeof window.flushPotoServerSync === "function") await window.flushPotoServerSync();
   renderPretNotifications();
 }
@@ -31,7 +31,7 @@ async function deleteAllOwnNotifications() {
       item.updatedAt = now;
     }
   });
-  saveNotifications(false);
+  saveNotifications(true);
   if (typeof window.flushPotoServerSync === "function") await window.flushPotoServerSync();
   renderPretNotifications();
 }
@@ -159,6 +159,85 @@ function renderPretSummary() {
 
 function getUnreadPretNotificationCount(memberId) {
   return getPretNotificationsForMember(memberId).filter((notif) => !notif.read).length;
+}
+
+
+function updateNotificationBadges() {
+  const current = getCurrentMember();
+  const count =
+    current && typeof getUnreadNotificationCount === "function"
+      ? getUnreadNotificationCount(current.id)
+      : 0;
+  document.querySelectorAll("[data-notif-badge]").forEach((el) => {
+    if (count > 0) {
+      el.hidden = false;
+      el.textContent = count > 99 ? "99+" : String(count);
+    } else {
+      el.hidden = true;
+      el.textContent = "0";
+    }
+  });
+  // Bouton Réunion
+  document.querySelectorAll(".reunion-kpi-notif .admin-hub-label, .reunion-notif-label").forEach((el) => {
+    /* label stays */
+  });
+}
+
+function renderNotificationsPage() {
+  const list = document.getElementById("notificationsList");
+  const empty = document.getElementById("notificationsEmpty");
+  const clearBtn = document.getElementById("notificationsClearAllBtn");
+  const current = getCurrentMember();
+  updateNotificationBadges();
+  if (!list) return;
+
+  if (!current) {
+    list.innerHTML = "";
+    if (empty) {
+      empty.hidden = false;
+      empty.textContent = "Connecte-toi pour voir tes notifications.";
+    }
+    if (clearBtn) clearBtn.hidden = true;
+    return;
+  }
+
+  const mine = getPretNotificationsForMember(current.id).slice(0, 100);
+  if (clearBtn) clearBtn.hidden = mine.length === 0;
+  if (empty) {
+    empty.hidden = mine.length > 0;
+    empty.textContent = "Aucune notification.";
+  }
+
+  if (!mine.length) {
+    list.innerHTML = "";
+    return;
+  }
+
+  list.innerHTML = mine
+    .map((notif) => {
+      const when = notif.createdAt
+        ? formatFriendlyDate
+          ? formatFriendlyDate(notif.createdAt)
+          : formatDate(String(notif.createdAt).split("T")[0])
+        : "";
+      const tab = notif.tab || (notif.loanId ? "prets" : "reunion");
+      return `
+      <li class="pret-notif-item${notif.read ? "" : " pret-notif-unread"}"
+          data-notif-id="${escapeHtml(notif.id)}"
+          data-loan-id="${escapeHtml(notif.loanId || "")}"
+          data-type="${escapeHtml(notif.type || "")}"
+          data-tab="${escapeHtml(tab)}"
+          data-admin="${escapeHtml(notif.admin || "")}"
+          data-item="${escapeHtml(notif.item || "")}">
+        <div class="pret-notif-body">
+          ${notif.title ? `<strong class="pret-notif-title">${escapeHtml(notif.title)}</strong>` : ""}
+          <p>${escapeHtml(notif.message)}</p>
+          <span class="pret-notif-date">${escapeHtml(when)}</span>
+        </div>
+        <button type="button" class="btn-secondary pret-notif-delete" data-id="${escapeHtml(notif.id)}" title="Supprimer">Supprimer</button>
+      </li>`;
+    })
+    .join("");
 }
 
 function updatePretTabBadge() {

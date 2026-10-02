@@ -829,6 +829,29 @@ pretNotificationsList?.addEventListener("click", (e) => {
 
 document.getElementById("pretNotificationsClearBtn")?.addEventListener("click", deleteAllOwnNotifications);
 
+document.getElementById("notificationsList")?.addEventListener("click", (e) => {
+  const deleteBtn = e.target.closest(".pret-notif-delete");
+  if (deleteBtn) {
+    if (typeof deleteOwnNotification === "function") deleteOwnNotification(deleteBtn.dataset.id);
+    return;
+  }
+  const item = e.target.closest(".pret-notif-item");
+  if (!item) return;
+  const tab = item.dataset.tab || "reunion";
+  const loanId = item.dataset.loanId || "";
+  const admin = item.dataset.admin || "";
+  const notifItem = item.dataset.item || "";
+  if (typeof openFromNotification === "function") {
+    openFromNotification({ tab, admin, loanId, item: notifItem });
+  } else if (typeof showTab === "function") {
+    showTab(tab);
+  }
+});
+document.getElementById("notificationsClearAllBtn")?.addEventListener("click", () => {
+  if (typeof deleteAllOwnNotifications === "function") deleteAllOwnNotifications();
+});
+
+
 pretForm?.addEventListener("submit", (e) => {
   e.preventDefault();
   initiatePret(pretAmountInput.value, pretNoteInput.value);

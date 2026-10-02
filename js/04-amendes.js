@@ -473,8 +473,20 @@ function savePrets(shouldRender = true) {
 
 function saveNotifications(shouldRender = true) {
   localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
-  if (shouldRender) renderPrets();
-  flushPushMessages();
+  try {
+    if (typeof queueServerSync === "function") {
+      queueServerSync(NOTIFICATIONS_KEY, JSON.stringify(notifications));
+    }
+  } catch {
+    /* ignore */
+  }
+  if (shouldRender) {
+    if (typeof renderPrets === "function") renderPrets();
+    if (typeof renderNotificationsPage === "function") renderNotificationsPage();
+    if (typeof updateNotificationBadges === "function") updateNotificationBadges();
+    if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
+  }
+  if (typeof flushPushMessages === "function") flushPushMessages();
 }
 
 function getTotalAmendesInCaisse() {
@@ -1072,14 +1084,18 @@ async function flushPushMessages() {
   }
 }
 
-function addNotification(memberId, type, loanId, message) {
+function addNotification(memberId, type, loanId, message, extras = {}) {
   const now = new Date().toISOString();
   notifications.unshift({
     id: generateId(),
     memberId,
-    type,
-    loanId: loanId || "",
-    message,
+    type: type || "info",
+    loanId: loanId || extras.loanId || "",
+    message: String(message || "").trim(),
+    tab: extras.tab || "",
+    admin: extras.admin || "",
+    item: extras.item || "",
+    title: extras.title || "",
     read: false,
     createdAt: now,
     updatedAt: now,
@@ -1103,20 +1119,27 @@ function shouldSuppressDevNotifications() {
 
 function notifyAllMembers(type, message, extras = {}) {
   if (shouldSuppressDevNotifications()) return;
-  const { loanId = "", tab = "prets", title = "Poto Timide" } = extras;
-  getSortedMembers().forEach((member) => {
-    addNotification(member.id, type, loanId, message);
-    queuePushMessage(member.id, {
-      title,
-      body: message,
-      tab,
-      loanId,
-      tag: `${type}-${loanId || generateId()}`,
-    });
+  const { loanId = "", tab = "reunion", title = "Poto Timide", admin = "", item = "" } = extras;
+  const members = typeof getSortedMembers === "function" ? getSortedMembers() : [];
+  members.forEach((member) => {
+    addNotification(member.id, type, loanId, message, { tab, title, admin, item, loanId });
+    if (typeof queuePushMessage === "function") {
+      queuePushMessage(member.id, {
+        title,
+        body: message,
+        tab,
+        admin,
+        loanId,
+        item,
+        tag: `${type}-${loanId || item || generateId()}`,
+      });
+    }
   });
-  saveNotifications(false);
+  saveNotifications(true);
   if (typeof window.flushPotoServerSync === "function") {
     window.flushPotoServerSync();
+  } else if (typeof window.potoFlushSync === "function") {
+    Promise.resolve(window.potoFlushSync()).catch(() => {});
   }
 }
 
@@ -1869,6 +1892,27 @@ function markPretNotificationsRead() {
   });
 
   if (changed) saveNotifications();
+}
+
+function markAllMyNotificationsRead() {
+  const current = getCurrentMember();
+  if (!current) return;
+  let changed = false;
+  notifications.forEach((notif) => {
+    if (isPersonalNotificationFor(notif, current.id) && !notif.read) {
+      notif.read = true;
+      notif.updatedAt = new Date().toISOString();
+      changed = true;
+    }
+  });
+  if (changed) saveNotifications(true);
+}
+
+function getUnreadNotificationCount(memberId) {
+  if (!memberId) return 0;
+  return notifications.filter(
+    (n) => isPersonalNotificationFor(n, memberId) && !n.read
+  ).length;
 }
 
 

@@ -746,6 +746,10 @@ function buildReunionDashboardHtml() {
       },
     ];
 
+    const notifCount =
+      me && typeof getUnreadNotificationCount === "function"
+        ? getUnreadNotificationCount(me.id)
+        : 0;
     const menus = [
       { go: "communication", label: "Communication", tone: "navy" },
       { go: "membres", label: "Membres & Bureau", tone: "teal" },
@@ -756,6 +760,12 @@ function buildReunionDashboardHtml() {
       { go: "amendes", label: "Dettes & amendes", tone: "danger" },
       { go: "finance", label: "Finance", tone: "blue" },
       { go: "loi", label: "La loi", tone: "purple" },
+      {
+        go: "notifications",
+        label: "Notifications",
+        tone: "notif",
+        badge: notifCount,
+      },
     ];
     if (showAdmin) {
       menus.push({ go: "admin", label: "Admin", tone: "navy" });
@@ -777,12 +787,18 @@ function buildReunionDashboardHtml() {
       .join("")}</div>`;
 
     const menuHtml = `<div class="admin-hub-grid reunion-menu-hub">${menus
-      .map(
-        (item) =>
-          `<button type="button" class="reunion-kpi reunion-kpi-${escapeHtml(item.tone || "navy")} admin-hub-btn" data-reunion-go="${escapeHtml(item.go)}">
+      .map((item) => {
+        const badge =
+          item.badge && Number(item.badge) > 0
+            ? `<span class="reunion-notif-badge" data-notif-badge>${Number(item.badge) > 99 ? "99+" : item.badge}</span>`
+            : item.go === "notifications"
+              ? `<span class="reunion-notif-badge" data-notif-badge hidden>0</span>`
+              : "";
+        return `<button type="button" class="reunion-kpi reunion-kpi-${escapeHtml(item.tone || "navy")} admin-hub-btn${item.go === "notifications" ? " reunion-kpi-notif" : ""}" data-reunion-go="${escapeHtml(item.go)}">
             <span class="admin-hub-label">${escapeHtml(item.label)}</span>
-          </button>`
-      )
+            ${badge}
+          </button>`;
+      })
       .join("")}</div>`;
 
     return `${stripHtml}${menuHtml}`;
@@ -828,6 +844,11 @@ function handleReunionGoClick(e) {
 
   if (tab === "fond-caisse") {
     showTab("fond-caisse");
+    return;
+  }
+
+  if (tab === "notifications") {
+    showTab("notifications");
     return;
   }
 
@@ -1131,6 +1152,12 @@ function showTab(tabId) {
   if (tabId === "fond-caisse") {
     reloadFromStorage();
     renderFondCaisseReadonly();
+  }
+
+  if (tabId === "notifications") {
+    reloadFromStorage();
+    if (typeof markAllMyNotificationsRead === "function") markAllMyNotificationsRead();
+    if (typeof renderNotificationsPage === "function") renderNotificationsPage();
   }
 
   if (tabId === "loi") {

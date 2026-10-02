@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,500;1,9..144,600&family=Outfit:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" media="(min-width: 768px)" />
-  <link rel="stylesheet" href="styles.css?v=pwa-150" />
+  <link rel="stylesheet" href="styles.css?v=pwa-151" />
 </head>
 <body>
   <div class="app" id="app">
@@ -400,7 +400,26 @@
       </div>
 
       <!-- ========== LA LOI (lecture seule pour tous les membres) ========== -->
-      <div class="tab-content" id="tab-loi">
+      
+      <!-- ========== NOTIFICATIONS (masqué du menu haut, via Réunion) ========== -->
+      <div class="tab-content" id="tab-notifications">
+        <div class="reunion-back-bar">
+          <button type="button" class="btn-reunion-back" data-go-reunion title="Retour mode réunion">← Réunion</button>
+        </div>
+        <section class="panel">
+          <div class="panel-head" style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;flex-wrap:wrap">
+            <div>
+              <h2>Notifications</h2>
+              <p class="panel-desc">Toutes les alertes qui te concernent. Clique pour ouvrir l’endroit concerné.</p>
+            </div>
+            <button type="button" class="btn-secondary" id="notificationsClearAllBtn" hidden>Tout supprimer</button>
+          </div>
+          <ul class="pret-notif-list" id="notificationsList"></ul>
+          <p class="panel-desc" id="notificationsEmpty" hidden>Aucune notification.</p>
+        </section>
+      </div>
+
+<div class="tab-content" id="tab-loi">
         <div class="reunion-back-bar"><button type="button" class="btn-reunion-back" data-go-reunion title="Retour mode réunion">← Réunion</button></div>
         <section class="panel loi-panel">
           <div class="amende-head">
@@ -1168,15 +1187,15 @@
 
   <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
 
-    <script src="api-client.js?v=pwa-150"></script>
-  <script src="api-auth.js?v=pwa-150"></script>
-  <script src="api-sync.js?v=pwa-150"></script>
-  <script src="js/01-core.js?v=pwa-150"></script>
-  <script src="js/02-admin-auth.js?v=pwa-150"></script>
-  <script src="js/03-membres-tournee.js?v=pwa-150"></script>
-  <script src="js/04-amendes.js?v=pwa-150"></script>
-  <script src="js/05-prets.js?v=pwa-150"></script>
-  <script src="js/06-evenements-comm.js?v=pwa-150"></script>
-  <script src="js/07-boot.js?v=pwa-150"></script>
+    <script src="api-client.js?v=pwa-151"></script>
+  <script src="api-auth.js?v=pwa-151"></script>
+  <script src="api-sync.js?v=pwa-151"></script>
+  <script src="js/01-core.js?v=pwa-151"></script>
+  <script src="js/02-admin-auth.js?v=pwa-151"></script>
+  <script src="js/03-membres-tournee.js?v=pwa-151"></script>
+  <script src="js/04-amendes.js?v=pwa-151"></script>
+  <script src="js/05-prets.js?v=pwa-151"></script>
+  <script src="js/06-evenements-comm.js?v=pwa-151"></script>
+  <script src="js/07-boot.js?v=pwa-151"></script>
 </body>
 </html>

@@ -10019,3 +10019,38 @@ button.reunion-kpi-fond,
 .panel {
   overflow-x: visible;
 }
+
+.reunion-kpi-notif,
+.reunion-kpi.reunion-kpi-notif {
+  background: linear-gradient(145deg, #4f46e5 0%, #3730a3 100%) !important;
+  color: #eef2ff !important;
+  position: relative;
+}
+.reunion-notif-badge,
+[data-notif-badge] {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.4rem;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+.pret-notif-title {
+  display: block;
+  font-size: 0.82rem;
+  margin-bottom: 0.15rem;
+  color: #312e81;
+}
+.pret-notif-unread {
+  border-left: 3px solid #4f46e5;
+  background: #eef2ff;
+}
