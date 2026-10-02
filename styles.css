@@ -9738,3 +9738,20 @@ table thead th.is-sorted-desc::after {
   border-top: 5px solid currentColor;
   opacity: 0.85;
 }
+
+.amende-hero-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem 1rem;
+  margin: 0.35rem 0 0.75rem;
+  padding: 0.45rem 0.65rem;
+  background: #f8fafc;
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  font-size: 0.82rem;
+  color: #475569;
+}
+.amende-hero-breakdown strong {
+  color: #0f172a;
+  font-weight: 700;
+}

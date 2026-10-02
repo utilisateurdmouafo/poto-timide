@@ -504,6 +504,51 @@ function getOpenExTourneeRemaining(entry) {
   return Math.max(0, Math.round((Number(entry.amount) || 0) * 100) / 100);
 }
 
+
+/** Détail du total personnel à verser (amendes + événements + ex tournée, hors prêts) */
+function getMemberDueBreakdown(memberId) {
+  if (!memberId) {
+    return { amendes: 0, evenements: 0, exTournee: 0, total: 0 };
+  }
+  let amendesDue = 0;
+  (typeof getAmendesForMember === "function" ? getAmendesForMember(memberId) : []).forEach((a) => {
+    if (typeof isDetteAmende === "function" && isDetteAmende(a)) {
+      // dettes événement converties en amende type dette
+      amendesDue += getOpenDetteEventRemaining(a);
+    } else {
+      amendesDue += getOpenAmendeRemaining(a);
+    }
+  });
+
+  let eventsDue = 0;
+  if (typeof getOpenEvenementDebtsForMember === "function") {
+    getOpenEvenementDebtsForMember(memberId).forEach((item) => {
+      eventsDue += Math.max(0, Number(item.amount) || 0);
+    });
+  }
+
+  let exDue = 0;
+  if (typeof getAncienneTourneeEntriesFor === "function") {
+    getAncienneTourneeEntriesFor(memberId).forEach((e) => {
+      exDue += getOpenExTourneeRemaining(e);
+    });
+  }
+
+  const amendes = Math.round(amendesDue * 100) / 100;
+  const evenements = Math.round(eventsDue * 100) / 100;
+  const exTournee = Math.round(exDue * 100) / 100;
+  return {
+    amendes,
+    evenements,
+    exTournee,
+    total: Math.round((amendes + evenements + exTournee) * 100) / 100,
+  };
+}
+
+function getMemberPersonalDue(memberId) {
+  return getMemberDueBreakdown(memberId).total;
+}
+
 /** Totaux synchronisés pour Réunion / tableaux */
 function getTotalsDettesAmendes() {
   const list = Array.isArray(amendes) ? amendes : [];
@@ -600,7 +645,17 @@ function buildReunionDashboardHtml() {
       { label: "Disponible", value: formatEuro(caisseDispo), go: "finance" },
       { label: "Totale", value: formatEuro(caisseTotal), go: "finance" },
       { label: "Prêts", value: String(activeLoans.length), go: "finance", financeSub: "archives" },
-      { label: "À verser", value: formatEuro(totalAVerser), go: "amendes" },
+      {
+        label: "À verser",
+        value: formatEuro(totalAVerser),
+        go: "amendes",
+        title: me && typeof getMemberDueBreakdown === "function"
+          ? (() => {
+              const b = getMemberDueBreakdown(me.id);
+              return `Amendes ${formatEuro(b.amendes)} · Événements ${formatEuro(b.evenements)} · Ex tournée ${formatEuro(b.exTournee)}`;
+            })()
+          : "Dettes & amendes",
+      },
       {
         label: "En ligne",
         value: `${onlineCount} / ${memberCount}`,
@@ -625,7 +680,8 @@ function buildReunionDashboardHtml() {
     const stripHtml = `<div class="reunion-strip">${strip
       .map((s) => {
         const sub = s.financeSub ? ` data-finance-sub="${escapeHtml(s.financeSub)}"` : "";
-        return `<button type="button" class="reunion-strip-item" data-reunion-go="${escapeHtml(s.go || "")}"${sub} title="Ouvrir ${escapeHtml(s.label)}">
+        const tip = s.title || `Ouvrir ${s.label}`;
+        return `<button type="button" class="reunion-strip-item" data-reunion-go="${escapeHtml(s.go || "")}"${sub} title="${escapeHtml(tip)}">
           <span class="reunion-strip-label">${escapeHtml(s.label)}</span>
           <span class="reunion-strip-value">${escapeHtml(s.value)}</span>
         </button>`;
@@ -1617,10 +1673,32 @@ function renderDetteTable(rows) {
   });
 }
 
+function buildMesEvenementDebtRows(memberId) {
+  // Lecture seule : cotisations d'événements non payées
+  if (!memberId || typeof getOpenEvenementDebtsForMember !== "function") return [];
+  return getOpenEvenementDebtsForMember(memberId).map((item) => {
+    const amount = Math.round((Number(item.amount) || 0) * 100) / 100;
+    return {
+      id: `evt-${item.id}`,
+      date: item.createdAt,
+      type: "evenement",
+      typeLabel: "Événement",
+      detail: item.title || "Événement",
+      original: amount,
+      repaid: 0,
+      remaining: amount,
+      settled: amount <= 0,
+      sortAt: item.createdAt,
+      readOnly: true,
+    };
+  });
+}
+
 function buildMesDettesAmendesRows(memberId) {
   const rows = [
     ...buildMesAmendesRows(memberId),
     ...buildMesDettesRows(memberId),
+    ...buildMesEvenementDebtRows(memberId),
   ];
   rows.sort((a, b) => {
     if (a.settled !== b.settled) return a.settled ? 1 : -1;
@@ -1638,12 +1716,15 @@ function renderMesAmendes() {
   const current = getCurrentMember();
   if (!current) return;
   const rows = buildMesDettesAmendesRows(current.id);
-  const total = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
-  const openCount = rows.filter((row) => !row.settled).length;
+  const breakdown = getMemberDueBreakdown(current.id);
+  const total = breakdown.total;
+  const openCount = rows.filter((row) => !row.settled && (Number(row.remaining) || 0) > 0).length;
   if (amendeTitle) amendeTitle.textContent = "Dettes & amendes";
   if (amendeSubtitle) {
     amendeSubtitle.hidden = false;
-    amendeSubtitle.textContent = `Pour ${current.name} — amendes, dettes d’événements et dettes d’ex tournée (hors prêts).`;
+    amendeSubtitle.textContent =
+      `Pour ${current.name} — amendes, événements et ex tournée (hors prêts). ` +
+      `Amendes ${formatEuro(breakdown.amendes)} · Événements ${formatEuro(breakdown.evenements)} · Ex tournée ${formatEuro(breakdown.exTournee)}.`;
   }
   renderLedgerHero(amendeSummary, {
     total,
@@ -1651,8 +1732,23 @@ function renderMesAmendes() {
     noun: "ligne",
     emptyMeta: "Rien à régler pour le moment",
   });
+  // Détail sous le hero
+  if (amendeSummary && total > 0) {
+    const detail = document.createElement("p");
+    detail.className = "amende-hero-breakdown";
+    detail.innerHTML =
+      `<span>Amendes <strong>${formatEuro(breakdown.amendes)}</strong></span>` +
+      `<span>Événements <strong>${formatEuro(breakdown.evenements)}</strong></span>` +
+      `<span>Ex tournée <strong>${formatEuro(breakdown.exTournee)}</strong></span>`;
+    // éviter doublon si re-render
+    const existing = amendeSummary.parentElement?.querySelector(".amende-hero-breakdown");
+    if (existing) existing.remove();
+    amendeSummary.insertAdjacentElement("afterend", detail);
+  } else {
+    const existing = document.querySelector("#tab-amendes .amende-hero-breakdown");
+    if (existing) existing.remove();
+  }
   renderAmendeTable(rows);
-  // Ancien bloc dettes retiré du HTML : ne rien rendre ailleurs
   if (detteBody) detteBody.innerHTML = "";
   const detteFoot = document.getElementById("detteTableFoot");
   if (detteFoot) detteFoot.innerHTML = "";
