@@ -10025,41 +10025,47 @@ button.reunion-kpi-fond,
 .admin-hub-btn.reunion-kpi-notif {
   background: linear-gradient(145deg, #4f46e5 0%, #3730a3 100%) !important;
   color: #eef2ff !important;
-  position: relative !important;
-  overflow: visible !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 0.45rem !important;
+  text-align: left !important;
+  padding-left: 0.7rem !important;
+  padding-right: 0.55rem !important;
 }
-/* Badge compact — ne pas hériter de .admin-hub-btn span { width:100%; display:block } */
+.admin-hub-btn.reunion-kpi-notif .admin-hub-label {
+  display: block !important;
+  width: auto !important;
+  flex: 1 1 auto !important;
+  text-align: left !important;
+}
+/* Nombre à droite sur le même bouton */
 .admin-hub-btn .reunion-notif-badge,
 .reunion-kpi-notif .reunion-notif-badge,
 .reunion-notif-badge,
 span.reunion-notif-badge[data-notif-badge] {
-  position: absolute !important;
-  top: 0.25rem !important;
-  right: 0.25rem !important;
-  left: auto !important;
-  bottom: auto !important;
+  position: static !important;
+  flex: 0 0 auto !important;
   width: auto !important;
-  min-width: 1.35rem !important;
-  max-width: 2.5rem !important;
-  height: 1.35rem !important;
-  padding: 0 0.4rem !important;
+  min-width: 1.5rem !important;
+  height: 1.5rem !important;
+  padding: 0 0.45rem !important;
   margin: 0 !important;
   border-radius: 999px !important;
   background: #ef4444 !important;
   color: #fff !important;
-  font-size: 0.72rem !important;
+  font-size: 0.8rem !important;
   font-weight: 800 !important;
   letter-spacing: 0 !important;
   text-transform: none !important;
-  line-height: 1.35rem !important;
+  line-height: 1.5rem !important;
   display: inline-flex !important;
   align-items: center !important;
   justify-content: center !important;
   box-sizing: border-box !important;
   white-space: nowrap !important;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
-  z-index: 2;
-  pointer-events: none;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 .admin-hub-btn .reunion-notif-badge[hidden],
 .reunion-notif-badge[hidden] {

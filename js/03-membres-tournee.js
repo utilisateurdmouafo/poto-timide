@@ -788,15 +788,13 @@ function buildReunionDashboardHtml() {
 
     const menuHtml = `<div class="admin-hub-grid reunion-menu-hub">${menus
       .map((item) => {
-        const badge =
-          item.badge && Number(item.badge) > 0
-            ? `<span class="reunion-notif-badge" data-notif-badge>${Number(item.badge) > 99 ? "99+" : item.badge}</span>`
-            : item.go === "notifications"
-              ? `<span class="reunion-notif-badge" data-notif-badge hidden>0</span>`
-              : "";
-        return `<button type="button" class="reunion-kpi reunion-kpi-${escapeHtml(item.tone || "navy")} admin-hub-btn${item.go === "notifications" ? " reunion-kpi-notif" : ""}" data-reunion-go="${escapeHtml(item.go)}">
-            <span class="admin-hub-label">${escapeHtml(item.label)}</span>
-            ${badge}
+        const isNotif = item.go === "notifications";
+        const count = Number(item.badge) || 0;
+        const badge = isNotif
+          ? `<span class="reunion-notif-badge" data-notif-badge${count > 0 ? "" : " hidden"}>${count > 99 ? "99+" : count}</span>`
+          : "";
+        return `<button type="button" class="reunion-kpi reunion-kpi-${escapeHtml(item.tone || "navy")} admin-hub-btn${isNotif ? " reunion-kpi-notif" : ""}" data-reunion-go="${escapeHtml(item.go)}">
+            <span class="admin-hub-label">${escapeHtml(item.label)}</span>${badge}
           </button>`;
       })
       .join("")}</div>`;
