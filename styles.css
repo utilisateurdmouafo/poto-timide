@@ -9755,3 +9755,26 @@ table thead th.is-sorted-desc::after {
   color: #0f172a;
   font-weight: 700;
 }
+
+/* Fond de caisse — orange forcé */
+.reunion-kpi-fond,
+.reunion-kpi.reunion-kpi-fond,
+button.reunion-kpi-fond,
+.reunion-menu-hub .reunion-kpi-fond.admin-hub-btn {
+  background: linear-gradient(145deg, #f97316 0%, #ea580c 55%, #c2410c 100%) !important;
+  color: #fff7ed !important;
+  border: none !important;
+  box-shadow: 0 4px 14px rgba(234, 88, 12, 0.35);
+}
+.reunion-kpi-fond .admin-hub-label,
+.reunion-kpi-fond span {
+  color: #fff7ed !important;
+}
+.reunion-strip-item-fond {
+  background: linear-gradient(145deg, #f97316 0%, #c2410c 100%) !important;
+  color: #fff7ed !important;
+}
+.reunion-strip-item-fond .reunion-strip-label,
+.reunion-strip-item-fond .reunion-strip-value {
+  color: #fff7ed !important;
+}

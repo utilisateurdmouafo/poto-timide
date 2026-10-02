@@ -668,6 +668,7 @@ function buildReunionDashboardHtml() {
       },
       {
         label: "Fond caisse",
+        tone: "fond",
         value: (() => {
           if (!me || typeof getFondCaisseAnnuelDue !== "function") return "—";
           const year =
@@ -717,7 +718,7 @@ function buildReunionDashboardHtml() {
       { go: "membres", label: "Membres & Bureau", tone: "teal" },
       { go: "tournee", label: "Tournée", tone: "green" },
       { go: "prets", label: "Prêts", tone: "orange" },
-      { go: "finance", label: "Fond de caisse", tone: "orange" },
+      { go: "finance", label: "Fond de caisse", tone: "fond" },
       { go: "evenements", label: "Événements", tone: "warn" },
       { go: "amendes", label: "Dettes & amendes", tone: "danger" },
       { go: "finance", label: "Finance", tone: "blue" },
@@ -731,7 +732,11 @@ function buildReunionDashboardHtml() {
       .map((s) => {
         const sub = s.financeSub ? ` data-finance-sub="${escapeHtml(s.financeSub)}"` : "";
         const tip = s.title || `Ouvrir ${s.label}`;
-        return `<button type="button" class="reunion-strip-item" data-reunion-go="${escapeHtml(s.go || "")}"${sub} title="${escapeHtml(tip)}">
+        const extraClass =
+          s.label === "Fond caisse" || s.tone === "fond"
+            ? " reunion-strip-item-fond"
+            : "";
+        return `<button type="button" class="reunion-strip-item${extraClass}" data-reunion-go="${escapeHtml(s.go || "")}"${sub} title="${escapeHtml(tip)}">
           <span class="reunion-strip-label">${escapeHtml(s.label)}</span>
           <span class="reunion-strip-value">${escapeHtml(s.value)}</span>
         </button>`;
