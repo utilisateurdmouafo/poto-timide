@@ -864,7 +864,12 @@ body::after {
   border-radius: var(--radius);
   padding: 1.25rem 1.35rem;
   box-shadow: var(--shadow-card);
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   backdrop-filter: blur(18px) saturate(1.2);
   -webkit-backdrop-filter: blur(18px) saturate(1.2);
 }
@@ -4812,13 +4817,17 @@ textarea {
 .dette-table-wrap,
 .finance-table-wrap,
 .amende-table-wrap {
+  display: block;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   overflow-anchor: none;
   scroll-behavior: auto;
+  box-sizing: border-box;
 }
 
 .table-wrap table,
@@ -4827,6 +4836,8 @@ textarea {
 .amende-table-wrap table {
   width: max-content;
   min-width: 100%;
+  max-width: none;
+  box-sizing: border-box;
 }
 
 .tournee-planning-table th:nth-child(3),
@@ -9856,4 +9867,93 @@ button.reunion-kpi-fond,
 .tabs.tabs-reunion-only > .tab[data-tab="amendes"],
 .tabs.tabs-reunion-only > .tab[data-tab="admin"] {
   display: inline-flex !important;
+}
+
+/* —— Tableaux adaptatifs tous écrans —— */
+.main,
+.tab-content,
+.tab-content.active {
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+.panel table {
+  max-width: none;
+}
+
+/* Conteneurs tableau génériques */
+.table-wrap,
+.amende-table-wrap,
+.dette-table-wrap,
+.finance-table-wrap,
+.permissions-table-wrap,
+.audit-log-wrap {
+  display: block !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+/* Tables larges : scroll horizontal, pas de débordement page */
+@media (max-width: 900px) {
+  .amende-table,
+  .cotisation-table,
+  .finance-table,
+  .dette-table,
+  .permissions-table,
+  .audit-log-table,
+  .tournee-unified-table,
+  .tournee-planning-table,
+  .tournee-amounts-table {
+    font-size: clamp(0.72rem, 2.6vw, 0.88rem);
+  }
+
+  .amende-table th,
+  .amende-table td,
+  .cotisation-table th,
+  .cotisation-table td,
+  .finance-table th,
+  .finance-table td {
+    padding: 0.4rem 0.45rem;
+  }
+
+  /* Détail peut revenir à la ligne pour gagner de la place */
+  .amende-table td.amende-col-detail,
+  .amende-table td[data-label="Détail"] {
+    white-space: normal !important;
+    max-width: min(42vw, 11rem);
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .amende-table .amende-admin-actions {
+    flex-wrap: wrap;
+    max-width: 9.5rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .panel {
+    padding: 0.85rem 0.7rem;
+  }
+
+  .amende-table th,
+  .amende-table td,
+  .cotisation-table th,
+  .cotisation-table td {
+    padding: 0.32rem 0.35rem;
+    font-size: 0.78rem;
+  }
+
+  .th-full {
+    display: none;
+  }
+  .th-short {
+    display: inline;
+  }
 }

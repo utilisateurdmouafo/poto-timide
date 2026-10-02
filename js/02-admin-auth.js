@@ -1227,22 +1227,36 @@ function formatAdaptiveDate(dateStr) {
 }
 
 function fitTablesToScreen(scope) {
-  // Plus de réduction (scale) : on garde une taille lisible
-  // et on permet le défilement horizontal (swipe gauche/droite).
+  // Taille lisible + scroll horizontal dans le conteneur (tous écrans)
   if (typeof isUserEditingForm === "function" && isUserEditingForm()) return;
   if (typeof isLoanDateEditing === "function" && isLoanDateEditing()) return;
   const root = scope && scope.querySelectorAll ? scope : document;
-  root.querySelectorAll(".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap").forEach((wrap) => {
-    const table = wrap.querySelector("table");
-    if (!table) return;
+  root
+    .querySelectorAll(
+      ".amende-table-wrap, .table-wrap, .dette-table-wrap, .finance-table-wrap, .audit-log-wrap"
+    )
+    .forEach((wrap) => {
+      const table = wrap.querySelector("table");
+      if (!table) return;
 
-    // Annuler tout ancien scale / hauteur forcée
-    table.style.transform = "";
-    table.style.transformOrigin = "";
-    table.style.width = "max-content";
-    table.style.minWidth = "max-content";
-    wrap.style.height = "";
-  });
+      table.style.transform = "";
+      table.style.transformOrigin = "";
+      table.style.width = "max-content";
+      table.style.minWidth = "100%";
+      table.style.maxWidth = "none";
+      wrap.style.height = "";
+      wrap.style.width = "100%";
+      wrap.style.maxWidth = "100%";
+      wrap.style.overflowX = "auto";
+      wrap.style.webkitOverflowScrolling = "touch";
+
+      // Si la table n'est pas dans un wrap large, forcer le parent panel à ne pas déborder la fenêtre
+      const panel = wrap.closest(".panel");
+      if (panel) {
+        panel.style.maxWidth = "100%";
+        panel.style.minWidth = "0";
+      }
+    });
 }
 
 let lastFitViewportWidth = 0;
