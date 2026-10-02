@@ -2025,6 +2025,16 @@ window.__testDeleteButtons = function () {
   return report;
 };
 
+
+window.addEventListener("hashchange", () => {
+  try {
+    const tab = typeof getSavedTab === "function" ? getSavedTab() : null;
+    if (tab && typeof showTab === "function") showTab(tab);
+  } catch (err) {
+    console.warn("hashchange:", err);
+  }
+});
+
 initApp();
 
 /* —— Tri des tableaux (persistant malgré les re-renders / sync) —— */

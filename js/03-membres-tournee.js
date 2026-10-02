@@ -425,11 +425,29 @@ function getSavedTab() {
   const fromQuery = resolveLegacyTab(queryTab);
   if (fromQuery) return fromQuery;
 
-  const hashTab = location.hash.replace(/^#/, "");
-  const fromHash = resolveLegacyTab(hashTab);
-  if (fromHash) return fromHash;
+  // Hash : #finance, #admin, #admin/caisse, etc.
+  const rawHash = location.hash.replace(/^#/, "").trim();
+  if (rawHash) {
+    const parts = rawHash.split("/").filter(Boolean);
+    const base = parts[0];
+    if (base === "admin" && parts[1]) {
+      try {
+        sessionStorage.setItem("poto-restore-admin-sub", parts[1]);
+        localStorage.setItem(ADMIN_SUBTAB_KEY, parts[1]);
+      } catch {
+        /* ignore */
+      }
+    }
+    const fromHash = resolveLegacyTab(base);
+    if (fromHash) return fromHash;
+  }
 
-  const storedTab = sessionStorage.getItem(ACTIVE_TAB_KEY);
+  let storedTab = null;
+  try {
+    storedTab = sessionStorage.getItem(ACTIVE_TAB_KEY) || localStorage.getItem(ACTIVE_TAB_KEY);
+  } catch {
+    storedTab = null;
+  }
   const fromStored = resolveLegacyTab(storedTab);
   if (fromStored) return fromStored;
 
@@ -437,10 +455,33 @@ function getSavedTab() {
 }
 
 function persistActiveTab(tabId) {
-  sessionStorage.setItem(ACTIVE_TAB_KEY, tabId);
-  const hash = `#${tabId}`;
+  try {
+    sessionStorage.setItem(ACTIVE_TAB_KEY, tabId);
+    localStorage.setItem(ACTIVE_TAB_KEY, tabId);
+  } catch {
+    /* ignore */
+  }
+  let hash = `#${tabId}`;
+  if (tabId === "admin") {
+    let sub = null;
+    try {
+      sub =
+        (typeof activeAdminSub === "string" && activeAdminSub) ||
+        localStorage.getItem(ADMIN_SUBTAB_KEY) ||
+        sessionStorage.getItem("poto-restore-admin-sub");
+    } catch {
+      sub = null;
+    }
+    if (sub && sub !== "hub" && sub !== "home") {
+      hash = `#admin/${sub}`;
+    }
+  }
   if (location.hash !== hash) {
-    history.replaceState(null, "", hash);
+    try {
+      history.replaceState(null, "", hash);
+    } catch {
+      /* ignore */
+    }
   }
 }
 

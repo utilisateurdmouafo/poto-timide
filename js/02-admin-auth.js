@@ -165,6 +165,13 @@ function renderAdminHub() {
 /** Tableau de bord admin (comme Réunion) — aucune sous-page visible */
 function showAdminHub() {
   activeAdminSub = null;
+  try {
+    localStorage.removeItem(ADMIN_SUBTAB_KEY);
+  } catch {
+    /* ignore */
+  }
+  if (typeof persistActiveTab === "function") persistActiveTab("admin");
+  activeAdminSub = null;
   activeGestionSub = null;
   try {
     localStorage.removeItem(ADMIN_SUBTAB_KEY);
@@ -232,6 +239,7 @@ function showAdminSub(subId) {
   activeAdminSub = subId;
   activeGestionSub = subId;
   localStorage.setItem(ADMIN_SUBTAB_KEY, subId);
+  if (typeof persistActiveTab === "function") persistActiveTab("admin");
 
   const hub = document.getElementById("adminHub");
   const backBar = document.getElementById("adminBackBar");
@@ -323,7 +331,7 @@ function showGestionSub(subId) {
 }
 
 function renderAdmin() {
-  // Toujours le hub sauf deep-link notif (sessionStorage poto-open-admin)
+  // Restaurer la sous-page admin (refresh / deep-link)
   let deep = null;
   try {
     deep = sessionStorage.getItem("poto-open-admin");
@@ -331,12 +339,28 @@ function renderAdmin() {
   } catch {
     deep = null;
   }
-  // Ne pas relire localStorage ADMIN_SUBTAB_KEY (sinon retour auto sur Membres)
-  try {
-    localStorage.removeItem(ADMIN_SUBTAB_KEY);
-  } catch {
-    /* ignore */
+  if (!deep) {
+    try {
+      deep = sessionStorage.getItem("poto-restore-admin-sub");
+      if (deep) sessionStorage.removeItem("poto-restore-admin-sub");
+    } catch {
+      /* ignore */
+    }
   }
+  if (!deep) {
+    try {
+      deep = localStorage.getItem(ADMIN_SUBTAB_KEY);
+    } catch {
+      deep = null;
+    }
+  }
+  // Hash #admin/caisse
+  if (!deep) {
+    const raw = location.hash.replace(/^#/, "");
+    const parts = raw.split("/").filter(Boolean);
+    if (parts[0] === "admin" && parts[1]) deep = parts[1];
+  }
+
   if (deep && ADMIN_SUBTABS.includes(deep) && canAccessAdminSub(deep)) {
     showAdminSub(deep);
   } else {
