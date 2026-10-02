@@ -9844,3 +9844,11 @@ button.reunion-kpi-fond,
 .fond-caisse-readonly .amende-table tr.is-you-row {
   background: #eff6ff;
 }
+
+/* Navigation haute : uniquement Réunion (le reste se ouvre depuis les boutons Réunion) */
+.tabs.tabs-reunion-only > .tab:not([data-tab="reunion"]) {
+  display: none !important;
+}
+.tabs.tabs-reunion-only > .tab[data-tab="reunion"] {
+  display: inline-flex !important;
+}
