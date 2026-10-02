@@ -9845,10 +9845,15 @@ button.reunion-kpi-fond,
   background: #eff6ff;
 }
 
-/* Navigation haute : uniquement Réunion (le reste se ouvre depuis les boutons Réunion) */
-.tabs.tabs-reunion-only > .tab:not([data-tab="reunion"]) {
+/* Navigation haute : Réunion + Finance, Prêts, Événements, Dettes & amendes, Admin */
+.tabs.tabs-reunion-only > .tab {
   display: none !important;
 }
-.tabs.tabs-reunion-only > .tab[data-tab="reunion"] {
+.tabs.tabs-reunion-only > .tab[data-tab="reunion"],
+.tabs.tabs-reunion-only > .tab[data-tab="finance"],
+.tabs.tabs-reunion-only > .tab[data-tab="prets"],
+.tabs.tabs-reunion-only > .tab[data-tab="evenements"],
+.tabs.tabs-reunion-only > .tab[data-tab="amendes"],
+.tabs.tabs-reunion-only > .tab[data-tab="admin"] {
   display: inline-flex !important;
 }
