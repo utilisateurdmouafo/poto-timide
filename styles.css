@@ -10021,28 +10021,49 @@ button.reunion-kpi-fond,
 }
 
 .reunion-kpi-notif,
-.reunion-kpi.reunion-kpi-notif {
+.reunion-kpi.reunion-kpi-notif,
+.admin-hub-btn.reunion-kpi-notif {
   background: linear-gradient(145deg, #4f46e5 0%, #3730a3 100%) !important;
   color: #eef2ff !important;
-  position: relative;
+  position: relative !important;
+  overflow: visible !important;
 }
+/* Badge compact — ne pas hériter de .admin-hub-btn span { width:100%; display:block } */
+.admin-hub-btn .reunion-notif-badge,
+.reunion-kpi-notif .reunion-notif-badge,
 .reunion-notif-badge,
-[data-notif-badge] {
-  position: absolute;
-  top: 0.35rem;
-  right: 0.4rem;
-  min-width: 1.25rem;
-  height: 1.25rem;
-  padding: 0 0.35rem;
-  border-radius: 999px;
-  background: #ef4444;
-  color: #fff;
-  font-size: 0.7rem;
-  font-weight: 800;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  line-height: 1;
+span.reunion-notif-badge[data-notif-badge] {
+  position: absolute !important;
+  top: 0.25rem !important;
+  right: 0.25rem !important;
+  left: auto !important;
+  bottom: auto !important;
+  width: auto !important;
+  min-width: 1.35rem !important;
+  max-width: 2.5rem !important;
+  height: 1.35rem !important;
+  padding: 0 0.4rem !important;
+  margin: 0 !important;
+  border-radius: 999px !important;
+  background: #ef4444 !important;
+  color: #fff !important;
+  font-size: 0.72rem !important;
+  font-weight: 800 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+  line-height: 1.35rem !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-sizing: border-box !important;
+  white-space: nowrap !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  z-index: 2;
+  pointer-events: none;
+}
+.admin-hub-btn .reunion-notif-badge[hidden],
+.reunion-notif-badge[hidden] {
+  display: none !important;
 }
 .pret-notif-title {
   display: block;
