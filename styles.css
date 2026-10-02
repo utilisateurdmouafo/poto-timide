@@ -9778,3 +9778,29 @@ button.reunion-kpi-fond,
 .reunion-strip-item-fond .reunion-strip-value {
   color: #fff7ed !important;
 }
+
+.dette-collective-member-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem 0.6rem;
+  max-height: 12rem;
+  overflow: auto;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background: #f8fafc;
+  margin-bottom: 0.6rem;
+}
+.dette-collective-check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #334155;
+}
+@media (min-width: 640px) {
+  .dette-collective-member-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}

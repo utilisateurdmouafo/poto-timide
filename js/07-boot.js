@@ -2191,6 +2191,10 @@ function potoOnTableHeaderClick(e) {
   potoSortTableByColumn(table, colIndex, dir);
 }
 
+if (typeof initDetteCollectiveForm === "function") {
+  try { initDetteCollectiveForm(); } catch (e) { console.warn(e); }
+}
+
 function initSortableTables() {
   if (window.__potoSortableTablesInit) return;
   window.__potoSortableTablesInit = true;

@@ -155,6 +155,7 @@ const AMENDE_TYPES = [
   { id: "retard", label: "Retard" },
   { id: "bavardage", label: "Bavardage" },
   { id: "sanctions", label: "Sanctions" },
+  { id: "contribution", label: "Contribution" },
 ];
 
 const EVENEMENT_TYPES = [

@@ -1871,3 +1871,135 @@ function markPretNotificationsRead() {
   if (changed) saveNotifications();
 }
 
+
+
+/** Dette / contribution groupe (Admin → Caisse) : même montant + motif pour plusieurs potos */
+function canAddDetteCollective() {
+  if (!isLoggedIn()) return false;
+  if (isGroupAdmin()) return true;
+  if (typeof canManageCaisseArgent === "function" && canManageCaisseArgent()) return true;
+  if (typeof canEditFondCaisse === "function" && canEditFondCaisse()) return true;
+  return hasRoleTabAccess("amendes") || hasRoleTabAccess("caisse");
+}
+
+function fillDetteCollectiveMemberList() {
+  const list = document.getElementById("detteCollectiveMemberList");
+  if (!list) return;
+  const members = typeof getGroupMembers === "function" ? getGroupMembers() : getSortedMembers();
+  list.innerHTML = members
+    .map(
+      (m) =>
+        `<label class="dette-collective-check">
+          <input type="checkbox" name="detteCollectiveMember" value="${escapeHtml(m.id)}" checked />
+          <span>${escapeHtml(m.name)}</span>
+        </label>`
+    )
+    .join("");
+}
+
+function showDetteCollectiveMsg(text, type = "success") {
+  const el = document.getElementById("detteCollectiveSaveMsg");
+  if (!el) return;
+  el.textContent = text;
+  el.className = `save-msg save-msg-${type}`;
+  el.hidden = false;
+}
+
+function addDetteCollective(amount, note, memberIds) {
+  if (!canAddDetteCollective()) {
+    alert("Tu n'as pas l'accès pour ajouter une dette de groupe.");
+    return false;
+  }
+  const motif = String(note || "").trim();
+  if (!motif) {
+    alert("La justification est obligatoire.");
+    return false;
+  }
+  const parsed = Math.round(parseFloat(String(amount).replace(",", ".")) * 100) / 100;
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    alert("Montant invalide.");
+    return false;
+  }
+  const ids = Array.isArray(memberIds) ? memberIds.filter(Boolean) : [];
+  if (!ids.length) {
+    alert("Choisis au moins un poto.");
+    return false;
+  }
+  const now = new Date().toISOString();
+  const actor = getCurrentMember()?.id || null;
+  let count = 0;
+  ids.forEach((memberId) => {
+    const member = getMemberById(memberId);
+    if (!member || member.id === "groupe" || isNouveauMember?.(member)) return;
+    amendes.unshift({
+      id: generateId(),
+      memberId: member.id,
+      type: "contribution",
+      amount: parsed,
+      originalAmount: parsed,
+      repaidAmount: 0,
+      note: motif,
+      date: now,
+      createdAt: now,
+      updatedAt: now,
+      createdBy: actor,
+      collective: true,
+    });
+    count += 1;
+  });
+  if (!count) {
+    alert("Aucun membre valide sélectionné.");
+    return false;
+  }
+  saveAmendes();
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+  if (typeof notifyAllMembers === "function") {
+    notifyAllMembers(
+      "amende",
+      `${getActorLabel()} a ajouté une contribution de ${formatEuro(parsed)} pour ${count} poto${count > 1 ? "s" : ""} : ${motif}.`,
+      { tab: "amendes", title: "Contribution groupe" }
+    );
+  }
+  showDetteCollectiveMsg(
+    `${count} dette${count > 1 ? "s" : ""} de ${formatEuro(parsed)} ajoutée${count > 1 ? "s" : ""} (${motif}).`,
+    "success"
+  );
+  return true;
+}
+
+function initDetteCollectiveForm() {
+  const form = document.getElementById("detteCollectiveForm");
+  const scope = document.getElementById("detteCollectiveScope");
+  const pickWrap = document.getElementById("detteCollectivePickWrap");
+  if (!form || form.dataset.bound === "1") return;
+  form.dataset.bound = "1";
+  fillDetteCollectiveMemberList();
+  scope?.addEventListener("change", () => {
+    if (!pickWrap) return;
+    pickWrap.hidden = scope.value !== "pick";
+    if (scope.value === "pick") fillDetteCollectiveMemberList();
+  });
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    const amount = document.getElementById("detteCollectiveAmount")?.value;
+    const note = document.getElementById("detteCollectiveNote")?.value;
+    let memberIds = [];
+    if (scope?.value === "pick") {
+      memberIds = Array.from(
+        document.querySelectorAll('#detteCollectiveMemberList input[name="detteCollectiveMember"]:checked')
+      ).map((el) => el.value);
+    } else {
+      const members = typeof getGroupMembers === "function" ? getGroupMembers() : getSortedMembers();
+      memberIds = members.map((m) => m.id);
+    }
+    if (addDetteCollective(amount, note, memberIds)) {
+      form.reset();
+      if (scope) scope.value = "all";
+      if (pickWrap) pickWrap.hidden = true;
+      fillDetteCollectiveMemberList();
+    }
+  });
+}
+

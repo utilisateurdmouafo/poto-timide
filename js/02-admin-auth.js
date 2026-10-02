@@ -372,6 +372,7 @@ function getAmendeTypeLabel(typeId) {
   if (typeId === "evenement") return "Événement";
   if (typeId === "ancienne-tournee" || typeId === "ex-tournee") return "Ex tournée";
   if (typeId === "cotisation") return "Cotisation";
+  if (typeId === "contribution") return "Contribution";
   if (typeId === "pret") return "Prêt";
   return AMENDE_TYPES.find((t) => t.id === typeId)?.label || typeId;
 }
