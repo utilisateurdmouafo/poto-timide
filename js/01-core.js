@@ -114,18 +114,17 @@ const FINANCE_CAISSE_SUB = "caisse";
 const FINANCE_ARCHIVES_SUB = "archives";
 const ADMIN_SUBTABS = ["membres", "admins", "acces", "tournee", "caisse", "prets", "amendes", "evenements", "communication", "loi", "sauvegarde", "connexions"];
 const ADMIN_HUB_ITEMS = [
-  { id: "membres", label: "Membres & Bureau", tone: "navy" },
+  { id: "membres", label: "Memb. & Bur.", tone: "navy" },
   { id: "admins", label: "Admins", tone: "navy" },
   { id: "acces", label: "Accès", tone: "teal" },
-  { id: "tournee", label: "Tournée", tone: "green" },
   { id: "caisse", label: "Caisse", tone: "teal" },
   { id: "prets", label: "Prêts", tone: "warn" },
-  { id: "amendes", label: "Dettes & amendes", tone: "danger" },
+  { id: "amendes", label: "Dettes", tone: "danger" },
   { id: "evenements", label: "Événements", tone: "warn" },
-  { id: "communication", label: "Communication", tone: "navy" },
+  { id: "communication", label: "Com.", tone: "navy" },
   { id: "loi", label: "La loi", tone: "navy" },
-  { id: "sauvegarde", label: "Sauvegarde", tone: "navy" },
-  { id: "connexions", label: "Connexions", tone: "teal" },
+  { id: "sauvegarde", label: "Sauv.", tone: "navy" },
+  { id: "connexions", label: "Connex.", tone: "teal" },
 ];
 const ADMIN_SUBTAB_KEY = "poto-timide-admin-subtab";
 // Compat anciens noms de stockage
