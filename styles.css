@@ -10110,3 +10110,25 @@ span.reunion-notif-badge[data-notif-badge] {
   font-weight: 800;
   vertical-align: middle;
 }
+
+.mes-section-ledger {
+  margin-top: 1.1rem;
+  padding-top: 0.35rem;
+}
+.mes-section-ledger .finance-ledger-title {
+  margin: 0 0 0.55rem;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+#amendeSummary {
+  margin-bottom: 0.35rem;
+}
+.amende-hero-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  margin: 0.25rem 0 0.85rem;
+  font-size: 0.88rem;
+  color: #475569;
+}

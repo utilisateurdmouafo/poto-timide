@@ -1868,12 +1868,8 @@ function renderLedgerTable(rows, { body, foot, wrap, emptyText, rowIdPrefix }) {
 }
 
 function buildMesDettesRows(memberId) {
-  // Cohérence des onglets :
-  // - prêts → onglet Prêts
-  // - cotisations d'événements ouvertes → onglet Événements
-  // - ici : dettes converties + ancienne tournée
+  // Dettes converties (hors événements ouverts, hors ex tournée)
   const rows = [];
-
   getAmendesForMember(memberId)
     .filter((amende) => isDetteAmende(amende))
     .forEach((amende) => {
@@ -1894,8 +1890,18 @@ function buildMesDettesRows(memberId) {
         sortAt: amende.settledAt || amende.date,
       });
     });
+  rows.sort((a, b) => {
+    if (a.settled !== b.settled) return a.settled ? 1 : -1;
+    return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
+  });
+  return rows;
+}
 
+function buildMesExTourneeRows(memberId) {
+  const rows = [];
+  if (typeof getAncienneTourneeEntriesFor !== "function") return rows;
   getAncienneTourneeEntriesFor(memberId).forEach((entry) => {
+    if (!entry || entry.deletedAt) return;
     const remaining = Math.round((Number(entry.amount) || 0) * 100) / 100;
     const repaid = Math.round((Number(entry.repaidAmount) || 0) * 100) / 100;
     const original = Math.round(
@@ -1913,7 +1919,6 @@ function buildMesDettesRows(memberId) {
       sortAt: entry.createdAt,
     });
   });
-
   rows.sort((a, b) => {
     if (a.settled !== b.settled) return a.settled ? 1 : -1;
     return new Date(b.sortAt || 0) - new Date(a.sortAt || 0);
@@ -1966,6 +1971,7 @@ function buildMesDettesAmendesRows(memberId) {
   const rows = [
     ...buildMesAmendesRows(memberId),
     ...buildMesDettesRows(memberId),
+    ...buildMesExTourneeRows(memberId),
     ...buildMesEvenementDebtRows(memberId),
   ];
   rows.sort((a, b) => {
@@ -1983,24 +1989,42 @@ function renderMesDettes() {
 function renderMesAmendes() {
   const current = getCurrentMember();
   if (!current) return;
-  const rows = buildMesDettesAmendesRows(current.id);
+
+  const eventRows = typeof buildMesEvenementDebtRows === "function"
+    ? buildMesEvenementDebtRows(current.id)
+    : [];
+  const exRows = typeof buildMesExTourneeRows === "function"
+    ? buildMesExTourneeRows(current.id)
+    : [];
+  // Dettes converties + amendes/sanctions/contributions
+  const amendeRows = [
+    ...(typeof buildMesAmendesRows === "function" ? buildMesAmendesRows(current.id) : []),
+    ...(typeof buildMesDettesRows === "function" ? buildMesDettesRows(current.id) : []),
+  ].sort((a, b) => {
+    if (a.settled !== b.settled) return a.settled ? 1 : -1;
+    return new Date(b.sortAt || b.date || 0) - new Date(a.sortAt || a.date || 0);
+  });
+
+  const allRows = [...eventRows, ...exRows, ...amendeRows];
   const breakdown = getMemberDueBreakdown(current.id);
   const total = breakdown.total;
-  const openCount = rows.filter((row) => !row.settled && (Number(row.remaining) || 0) > 0).length;
+  const openCount = allRows.filter((row) => !row.settled && (Number(row.remaining) || 0) > 0).length;
+
   if (amendeTitle) amendeTitle.textContent = "Dettes & amendes";
   if (amendeSubtitle) {
     amendeSubtitle.hidden = false;
     amendeSubtitle.textContent =
-      `Pour ${current.name} — amendes, événements et ex tournée (hors prêts). ` +
+      `Pour ${current.name} — 3 tableaux : événements, ex tournée, dettes & amendes (hors prêts). ` +
       `Amendes ${formatEuro(breakdown.amendes)} · Événements ${formatEuro(breakdown.evenements)} · Ex tournée ${formatEuro(breakdown.exTournee)}.`;
   }
+
   renderLedgerHero(amendeSummary, {
     total,
     openCount,
     noun: "ligne",
     emptyMeta: "Rien à régler pour le moment",
   });
-  // Détail sous le hero
+
   if (amendeSummary && total > 0) {
     const detail = document.createElement("p");
     detail.className = "amende-hero-breakdown";
@@ -2008,7 +2032,6 @@ function renderMesAmendes() {
       `<span>Amendes <strong>${formatEuro(breakdown.amendes)}</strong></span>` +
       `<span>Événements <strong>${formatEuro(breakdown.evenements)}</strong></span>` +
       `<span>Ex tournée <strong>${formatEuro(breakdown.exTournee)}</strong></span>`;
-    // éviter doublon si re-render
     const existing = amendeSummary.parentElement?.querySelector(".amende-hero-breakdown");
     if (existing) existing.remove();
     amendeSummary.insertAdjacentElement("afterend", detail);
@@ -2016,7 +2039,34 @@ function renderMesAmendes() {
     const existing = document.querySelector("#tab-amendes .amende-hero-breakdown");
     if (existing) existing.remove();
   }
-  renderAmendeTable(rows);
+
+  // 1) Événements
+  renderLedgerTable(eventRows, {
+    body: document.getElementById("amendeEvenementBody"),
+    foot: document.getElementById("amendeEvenementFoot"),
+    wrap: document.getElementById("amendeEvenementWrap"),
+    emptyText: "Aucun événement à payer.",
+    rowIdPrefix: "mes-evt",
+  });
+
+  // 2) Ex tournée
+  renderLedgerTable(exRows, {
+    body: document.getElementById("amendeExTourneeBody"),
+    foot: document.getElementById("amendeExTourneeFoot"),
+    wrap: document.getElementById("amendeExTourneeWrap"),
+    emptyText: "Aucune dette d'ex tournée.",
+    rowIdPrefix: "mes-ex",
+  });
+
+  // 3) Dettes & amendes
+  renderLedgerTable(amendeRows, {
+    body: amendeBody || document.getElementById("amendeBody"),
+    foot: document.getElementById("amendeTableFoot"),
+    wrap: amendeRegularWrap || document.getElementById("amendeRegularWrap"),
+    emptyText: "Aucune amende ni dette pour le moment.",
+    rowIdPrefix: "amende",
+  });
+
   if (detteBody) detteBody.innerHTML = "";
   const detteFoot = document.getElementById("detteTableFoot");
   if (detteFoot) detteFoot.innerHTML = "";

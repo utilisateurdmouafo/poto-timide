@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,500;1,9..144,600&family=Outfit:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" media="(min-width: 768px)" />
-  <link rel="stylesheet" href="styles.css?v=pwa-160" />
+  <link rel="stylesheet" href="styles.css?v=pwa-161" />
 </head>
 <body>
   <div class="app" id="app">
@@ -326,10 +326,54 @@
         <section class="panel amende-panel">
           <div class="amende-head">
             <h2 id="amendeTitle">Dettes &amp; amendes</h2>
-            <p class="panel-desc" id="amendeSubtitle">Amendes et dettes d’ex tournée — les dettes d’événements non payés se créent automatiquement (onglet Événements).</p>
+            <p class="panel-desc" id="amendeSubtitle">Trois tableaux : événements, ex tournée, dettes &amp; amendes (hors prêts).</p>
           </div>
-          <div class="amende-ledger" id="amendeRegularWrap">
-            <div class="amende-hero" id="amendeSummary"></div>
+          <div class="amende-hero" id="amendeSummary"></div>
+
+          <div class="amende-ledger mes-section-ledger" id="amendeEvenementWrap">
+            <h3 class="finance-ledger-title">Événements</h3>
+            <div class="amende-table-wrap">
+              <table class="amende-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Détail</th>
+                    <th class="num">Montant</th>
+                    <th class="num"><span class="th-full">Déjà versé</span><span class="th-short">Versé</span></th>
+                    <th class="num">Reste</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody id="amendeEvenementBody"></tbody>
+                <tfoot id="amendeEvenementFoot"></tfoot>
+              </table>
+            </div>
+          </div>
+
+          <div class="amende-ledger mes-section-ledger" id="amendeExTourneeWrap">
+            <h3 class="finance-ledger-title">Ex tournée</h3>
+            <div class="amende-table-wrap">
+              <table class="amende-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Détail</th>
+                    <th class="num">Montant</th>
+                    <th class="num"><span class="th-full">Déjà versé</span><span class="th-short">Versé</span></th>
+                    <th class="num">Reste</th>
+                    <th>Statut</th>
+                  </tr>
+                </thead>
+                <tbody id="amendeExTourneeBody"></tbody>
+                <tfoot id="amendeExTourneeFoot"></tfoot>
+              </table>
+            </div>
+          </div>
+
+          <div class="amende-ledger mes-section-ledger" id="amendeRegularWrap">
+            <h3 class="finance-ledger-title">Dettes &amp; amendes</h3>
             <div class="amende-table-wrap">
               <table class="amende-table">
                 <thead>
@@ -1190,15 +1234,15 @@
 
   <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
 
-    <script src="api-client.js?v=pwa-160"></script>
-  <script src="api-auth.js?v=pwa-160"></script>
-  <script src="api-sync.js?v=pwa-160"></script>
-  <script src="js/01-core.js?v=pwa-160"></script>
-  <script src="js/02-admin-auth.js?v=pwa-160"></script>
-  <script src="js/03-membres-tournee.js?v=pwa-160"></script>
-  <script src="js/04-amendes.js?v=pwa-160"></script>
-  <script src="js/05-prets.js?v=pwa-160"></script>
-  <script src="js/06-evenements-comm.js?v=pwa-160"></script>
-  <script src="js/07-boot.js?v=pwa-160"></script>
+    <script src="api-client.js?v=pwa-161"></script>
+  <script src="api-auth.js?v=pwa-161"></script>
+  <script src="api-sync.js?v=pwa-161"></script>
+  <script src="js/01-core.js?v=pwa-161"></script>
+  <script src="js/02-admin-auth.js?v=pwa-161"></script>
+  <script src="js/03-membres-tournee.js?v=pwa-161"></script>
+  <script src="js/04-amendes.js?v=pwa-161"></script>
+  <script src="js/05-prets.js?v=pwa-161"></script>
+  <script src="js/06-evenements-comm.js?v=pwa-161"></script>
+  <script src="js/07-boot.js?v=pwa-161"></script>
 </body>
 </html>
