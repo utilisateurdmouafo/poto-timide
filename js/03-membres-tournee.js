@@ -2040,7 +2040,16 @@ function renderMesAmendes() {
     if (existing) existing.remove();
   }
 
-  // 1) Événements
+  // 1) Dettes & amendes
+  renderLedgerTable(amendeRows, {
+    body: amendeBody || document.getElementById("amendeBody"),
+    foot: document.getElementById("amendeTableFoot"),
+    wrap: amendeRegularWrap || document.getElementById("amendeRegularWrap"),
+    emptyText: "Aucune amende ni dette pour le moment.",
+    rowIdPrefix: "amende",
+  });
+
+  // 2) Événements
   renderLedgerTable(eventRows, {
     body: document.getElementById("amendeEvenementBody"),
     foot: document.getElementById("amendeEvenementFoot"),
@@ -2049,22 +2058,13 @@ function renderMesAmendes() {
     rowIdPrefix: "mes-evt",
   });
 
-  // 2) Ex tournée
+  // 3) Ex tournée
   renderLedgerTable(exRows, {
     body: document.getElementById("amendeExTourneeBody"),
     foot: document.getElementById("amendeExTourneeFoot"),
     wrap: document.getElementById("amendeExTourneeWrap"),
     emptyText: "Aucune dette d'ex tournée.",
     rowIdPrefix: "mes-ex",
-  });
-
-  // 3) Dettes & amendes
-  renderLedgerTable(amendeRows, {
-    body: amendeBody || document.getElementById("amendeBody"),
-    foot: document.getElementById("amendeTableFoot"),
-    wrap: amendeRegularWrap || document.getElementById("amendeRegularWrap"),
-    emptyText: "Aucune amende ni dette pour le moment.",
-    rowIdPrefix: "amende",
   });
 
   if (detteBody) detteBody.innerHTML = "";
