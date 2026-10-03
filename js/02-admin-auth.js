@@ -382,10 +382,19 @@ function canManageTab(tabId) {
 
 function saveAmendes(shouldRender = true) {
   localStorage.setItem(AMENDES_KEY, JSON.stringify(amendes));
+  try {
+    if (typeof queueServerSync === "function") {
+      queueServerSync(AMENDES_KEY, JSON.stringify(amendes));
+    }
+  } catch {
+    /* ignore */
+  }
+  if (typeof bumpLiveDataRevision === "function") bumpLiveDataRevision();
   if (shouldRender) {
-    renderAmendes();
-    renderAmendesAdminHistory();
-    renderPrets();
+    if (typeof renderAmendes === "function") renderAmendes();
+    if (typeof renderAmendesAdminHistory === "function") renderAmendesAdminHistory();
+    if (typeof renderPrets === "function") renderPrets();
+    if (typeof renderMesAmendes === "function") renderMesAmendes();
     if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
     if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
   }

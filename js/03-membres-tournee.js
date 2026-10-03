@@ -1186,7 +1186,9 @@ function getAllAmendes() {
 }
 
 function getAmendeById(id) {
-  return amendes.find((a) => a.id === id);
+  if (id == null || id === "") return null;
+  const sid = String(id);
+  return (amendes || []).find((a) => a && String(a.id) === sid) || null;
 }
 
 function updateAmendeFormMode() {

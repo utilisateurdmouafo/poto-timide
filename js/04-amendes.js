@@ -234,22 +234,34 @@ async function deleteAmendeRecord(id) {
     return;
   }
 
-  const amende = getAmendeById(id);
-  if (!amende) return;
+  const sid = String(id || "");
+  const amende = getAmendeById(sid);
+  if (!amende) {
+    alert("Amende introuvable (déjà supprimée ?).");
+    return;
+  }
+  if (amende.deletedAt) {
+    // déjà tombstonée — force sync
+    saveAmendes(true);
+    if (typeof potoFlushSync === "function") await potoFlushSync().catch(() => {});
+    return;
+  }
 
   const member = getMemberById(amende.memberId);
   const memberName = member?.name || "ce poto";
   if (
     !(await appConfirm(
       isDetteAmende(amende)
-        ? `Supprimer la dette de ${memberName} (${formatEuro(amende.amount)}) ?\nElle ne sera pas ajoutée à la caisse.`
-        : `Supprimer ${getAmendeTypeLabel(amende.type).toLowerCase()} de ${memberName} (${formatEuro(amende.amount)}) ?\nElle ne sera pas ajoutée à la caisse.`
+        ? `Supprimer la dette de ${memberName} (${formatEuro(amende.amount)}) ?
+Elle ne sera pas ajoutée à la caisse.`
+        : `Supprimer ${getAmendeTypeLabel(amende.type).toLowerCase()} de ${memberName} (${formatEuro(amende.amount)}) ?
+Elle ne sera pas ajoutée à la caisse.`
     ))
   ) {
     return;
   }
 
-  if (editingAmendeId === id) cancelEditAmende();
+  if (String(editingAmendeId) === sid) cancelEditAmende();
 
   const wasDette = isDetteAmende(amende);
   if (wasDette) {
@@ -262,34 +274,46 @@ async function deleteAmendeRecord(id) {
     localStorage.setItem(EVENEMENTS_KEY, JSON.stringify(evenements));
   }
 
-  // Soft-delete + UI immédiate + flush serveur
+  // Soft-delete sticky (updatedAt = deletedAt pour gagner le merge)
   const now = new Date().toISOString();
   amende.deletedAt = now;
   amende.updatedAt = now;
   amende.amount = 0;
-  // Retrait immédiat du DOM (avant confirm réseau)
-  document.getElementById(`amende-${id}`)?.remove();
-  document.getElementById(`admin-amende-${id}`)?.remove();
-  document.querySelectorAll(`[data-id="${CSS.escape(id)}"]`).forEach((el) => {
-    const row = el.closest("tr, .amende-history-row, .dette-card, article");
-    if (row) row.remove();
-  });
-  saveAmendes();
-  bumpLiveDataRevision();
-  renderAmendes();
-  renderAmendesAdminHistory();
-  renderEvenements();
-  renderFinanceDashboard();
-  if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
-  showToast?.(wasDette ? `Dette de ${memberName} supprimée.` : `Amende de ${memberName} supprimée.`, "success");
-  // Forcer envoi amendes + événements (dette) avant tout pull
+  amende.originalAmount = Number(amende.originalAmount) || 0;
+  amende.repaidAmount = 0;
+
+  // Retrait immédiat du DOM
   try {
-    const aRaw = localStorage.getItem(AMENDES_KEY);
+    document.getElementById(`amende-${sid}`)?.remove();
+    document.getElementById(`admin-amende-${sid}`)?.remove();
+    document.querySelectorAll(`[data-id="${CSS.escape(sid)}"]`).forEach((el) => {
+      const row = el.closest("tr, .amende-history-row, .dette-card, article, .amende-admin-row");
+      if (row) row.remove();
+    });
+  } catch {
+    /* ignore */
+  }
+
+  saveAmendes(true);
+  if (typeof renderEvenements === "function") renderEvenements();
+  if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
+  if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
+  if (typeof showToast === "function") {
+    showToast(wasDette ? `Dette de ${memberName} supprimée.` : `Amende de ${memberName} supprimée.`, "success");
+  }
+
+  try {
     const qs = window.queueServerSync || (typeof queueServerSync === "function" ? queueServerSync : null);
+    const aRaw = localStorage.getItem(AMENDES_KEY);
     if (aRaw && qs) qs(AMENDES_KEY, aRaw);
-    const eRaw = localStorage.getItem(EVENEMENTS_KEY);
-    if (eRaw && wasDette && qs) qs(EVENEMENTS_KEY, eRaw);
-  } catch { /* ignore */ }
+    if (wasDette) {
+      const eRaw = localStorage.getItem(EVENEMENTS_KEY);
+      if (eRaw && qs) qs(EVENEMENTS_KEY, eRaw);
+    }
+  } catch {
+    /* ignore */
+  }
+
   if (typeof potoFlushSync === "function") {
     try {
       await potoFlushSync();
@@ -297,10 +321,13 @@ async function deleteAmendeRecord(id) {
       /* ignore */
     }
   }
-  renderAmendes();
-  renderAmendesAdminHistory();
-  renderEvenements();
-  renderFinanceDashboard();
+
+  // Re-render après sync
+  if (typeof renderAmendes === "function") renderAmendes();
+  if (typeof renderAmendesAdminHistory === "function") renderAmendesAdminHistory();
+  if (typeof renderMesAmendes === "function") renderMesAmendes();
+  if (typeof renderEvenements === "function") renderEvenements();
+  if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
   if (typeof renderReunion === "function") renderReunion();
 }
 
@@ -367,9 +394,14 @@ function renderAmendesAdminHistory() {
   }
 
   const openRows = amendes
-    .filter((amende) => !isAmendeDeleted(amende))
+    .filter((amende) => amende && !isAmendeDeleted(amende))
     .filter((amende) => !isDetteAmende(amende))
-    .filter((amende) => (Number(amende.amount) || 0) > 0 || getAmendeRepaidAmount(amende) > 0)
+    .filter((amende) => {
+      const rem = Number(amende.amount) || 0;
+      const repaid = getAmendeRepaidAmount(amende);
+      // Ligne fantôme (montant 0, rien versé) = déjà soldée/supprimée
+      return rem > 0.001 || repaid > 0.001;
+    })
     .map((amende) => {
       const remaining = Math.round((Number(amende.amount) || 0) * 100) / 100;
       const repaid = getAmendeRepaidAmount(amende);
