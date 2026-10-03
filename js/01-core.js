@@ -857,18 +857,23 @@ function buildLedgerDataRowHtml(row, rowIdPrefix, hasActions) {
 
 function buildLedgerFootHtml(rows, hasActions) {
   if (!rows.length) return "";
-  const remainingTotal = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
+  // Total à régler = uniquement les restes encore ouverts
+  const remainingTotal = rows
+    .filter((row) => !row.settled && (Number(row.remaining) || 0) > 0)
+    .reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
   const repaidTotal = rows.reduce((sum, row) => sum + (Number(row.repaid) || 0), 0);
   const originalTotal = rows.reduce((sum, row) => sum + (Number(row.original) || 0), 0);
+  const colSpan = hasActions ? 7 : 6;
   return `
-    <tr>
-      <td colspan="3">Total</td>
+    <tr class="amende-foot-row">
+      <td colspan="3"><strong>Total à régler</strong></td>
       <td class="num">${formatEuro(originalTotal)}</td>
       <td class="num num-paid">${formatEuro(repaidTotal)}</td>
-      <td class="num num-remain">${formatEuro(remainingTotal)}</td>
-      <td${hasActions ? ' colspan="2"' : ""}></td>
+      <td class="num num-remain"><strong>${formatEuro(remainingTotal)}</strong></td>
+      ${hasActions ? "<td></td>" : ""}
     </tr>`;
 }
+
 
 function buildLedgerHeroHtml({ total, openCount, noun, emptyMeta }) {
   const plural = openCount > 1 ? "s" : "";
@@ -921,9 +926,12 @@ function buildLedgerTableHtml(rows, { emptyText, rowIdPrefix, hasActions }) {
     </div>`;
 }
 
-function buildLedgerSectionHtml({ title, noun, emptyMeta, emptyText, rows, rowIdPrefix, hideTitle }) {
-  const total = rows.reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
-  const openCount = rows.filter((row) => !row.settled).length;
+function buildLedgerSectionHtml({ title, noun, emptyMeta, emptyText, rows, rowIdPrefix, hideTitle, force }) {
+  const list = Array.isArray(rows) ? rows : [];
+  const total = list
+    .filter((row) => !row.settled && (Number(row.remaining) || 0) > 0)
+    .reduce((sum, row) => sum + (Number(row.remaining) || 0), 0);
+  const openCount = list.filter((row) => !row.settled && (Number(row.remaining) || 0) > 0).length;
   return `
     <div class="amende-ledger">
       ${title && !hideTitle ? `<h3 class="finance-ledger-title">${escapeHtml(title)}</h3>` : ""}
@@ -967,14 +975,22 @@ function setTableWrapScroll(container, left) {
 
 function renderLedgerInto(container, options) {
   if (!container) return;
-  const nextHtml = buildLedgerSectionHtml(options);
-  // Évite de recréer le DOM (et de perdre le scroll) si rien n'a changé
-  if (container.dataset.ledgerHtml === nextHtml) return;
+  const opts = options || {};
+  const nextHtml = buildLedgerSectionHtml(opts);
+  // Évite de recréer le DOM si rien n'a changé (sauf force)
+  if (!opts.force && container.dataset.ledgerHtml === nextHtml) return;
   const savedScroll = getTableWrapScroll(container);
   container.innerHTML = nextHtml;
   container.dataset.ledgerHtml = nextHtml;
   setTableWrapScroll(container, savedScroll);
-  scheduleFitTables();
+  if (typeof scheduleFitTables === "function") scheduleFitTables();
+}
+
+/** Invalide le cache HTML des ledgers (après suppression) */
+function invalidateLedgerCaches() {
+  document.querySelectorAll("[data-ledger-html]").forEach((el) => {
+    delete el.dataset.ledgerHtml;
+  });
 }
 
 function buildFinanceAncienneTourneeRows() {

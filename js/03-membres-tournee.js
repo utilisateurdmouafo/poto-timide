@@ -597,6 +597,7 @@ function getTotalsDettesAmendes() {
   const ancienne = Array.isArray(ancienneTourneeDettes) ? ancienneTourneeDettes : [];
   let amendesDue = 0;
   list.forEach((a) => {
+    if (!a || a.deletedAt) return;
     amendesDue += getOpenAmendeRemaining(a);
   });
   // Dettes événement = impayés sur événements ouverts (pas de ligne amende type dette)

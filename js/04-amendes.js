@@ -294,6 +294,7 @@ Elle ne sera pas ajoutée à la caisse.`
     /* ignore */
   }
 
+  if (typeof invalidateLedgerCaches === "function") invalidateLedgerCaches();
   saveAmendes(true);
   if (typeof renderEvenements === "function") renderEvenements();
   if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
@@ -457,6 +458,7 @@ function renderAmendesAdminHistory() {
     emptyText: "Aucune amende pour le moment.",
     rowIdPrefix: "admin-amende",
     rows,
+    force: true,
   });
   if (paidEl) paidEl.innerHTML = "";
 }
