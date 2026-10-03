@@ -229,7 +229,11 @@ function deleteAmende(id) {
 }
 
 async function deleteAmendeRecord(id) {
-  if (!canDo("amendes")) {
+  const allowed =
+    (typeof canDo === "function" && canDo("amendes")) ||
+    (typeof isGroupAdmin === "function" && isGroupAdmin()) ||
+    (typeof canManageAmendesActions === "function" && canManageAmendesActions());
+  if (!allowed) {
     alert("Pas l'accès pour supprimer.");
     return;
   }
@@ -249,17 +253,18 @@ async function deleteAmendeRecord(id) {
 
   const member = getMemberById(amende.memberId);
   const memberName = member?.name || "ce poto";
-  if (
-    !(await appConfirm(
-      isDetteAmende(amende)
-        ? `Supprimer la dette de ${memberName} (${formatEuro(amende.amount)}) ?
-Elle ne sera pas ajoutée à la caisse.`
-        : `Supprimer ${getAmendeTypeLabel(amende.type).toLowerCase()} de ${memberName} (${formatEuro(amende.amount)}) ?
-Elle ne sera pas ajoutée à la caisse.`
-    ))
-  ) {
-    return;
+  const msg = isDetteAmende(amende)
+    ? `Supprimer la dette de ${memberName} (${formatEuro(amende.amount)}) ?\nElle ne sera pas ajoutée à la caisse.`
+    : `Supprimer ${getAmendeTypeLabel(amende.type).toLowerCase()} de ${memberName} (${formatEuro(amende.amount)}) ?\nElle ne sera pas ajoutée à la caisse.`;
+  // confirm natif = plus fiable sur mobile
+  let ok = false;
+  try {
+    ok = window.confirm(msg);
+  } catch {
+    ok = typeof appConfirm === "function" ? await appConfirm(msg) : true;
   }
+  if (!ok) return;
+
 
   if (String(editingAmendeId) === sid) cancelEditAmende();
 

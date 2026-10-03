@@ -1278,8 +1278,8 @@ function buildAmendeActionControls(amende, { showEdit = false } = {}) {
         <input type="number" min="0.5" step="0.5" max="${remaining}" value="${remaining}" class="amende-repay-input pret-repay-input" data-id="${amende.id}" inputmode="decimal" placeholder="ex. 10" aria-label="Montant à valider, reste ${remaining} euros" />
         <span>€</span>
       </label>
-      <button type="button" class="btn-primary btn-amende-repay" data-id="${amende.id}">Valider</button>
-      <button type="button" class="btn-secondary btn-amende-delete" data-id="${amende.id}">Supprimer</button>
+      <button type="button" class="btn-primary btn-amende-repay" data-id="${escapeHtml(String(amende.id))}">Valider</button>
+      <button type="button" class="btn-secondary btn-amende-delete" data-id="${escapeHtml(String(amende.id))}" onclick="event.preventDefault();event.stopPropagation();if(window.deleteAmendeRecord)window.deleteAmendeRecord(this.dataset.id);return false;">Supprimer</button>
     </div>
   `;
 }
