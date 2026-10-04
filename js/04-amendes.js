@@ -426,7 +426,9 @@ function renderAmendesAdminHistory() {
         settled: remaining <= 0,
         actions: remaining > 0
           ? buildAmendeActionControls(amende, { showEdit: true })
-          : "",
+          : (typeof canManageAmendesActions === "function" && canManageAmendesActions()
+              ? `<button type="button" class="btn-secondary btn-amende-delete" data-id="${escapeHtml(String(amende.id))}" title="Supprimer cette ligne soldée">Supprimer</button>`
+              : ""),
         sortAt: amende.settledAt || amende.date,
       };
     });

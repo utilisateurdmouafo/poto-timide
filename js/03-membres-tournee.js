@@ -1415,7 +1415,11 @@ function renderAncienneTourneeDettesAdmin() {
         repaid,
         remaining,
         settled: remaining <= 0,
-        actions: remaining > 0 ? buildAncienneTourneeRepayControls(entry) : "",
+        actions: remaining > 0
+          ? buildAncienneTourneeRepayControls(entry)
+          : (typeof canRepayAncienneTourneeDette === "function" && canRepayAncienneTourneeDette()
+              ? `<button type="button" class="btn-secondary btn-ancienne-tournee-delete" data-id="${escapeHtml(entry.id)}" title="Supprimer cette dette soldée">Supprimer</button>`
+              : ""),
         sortAt: entry.createdAt,
       };
     })
