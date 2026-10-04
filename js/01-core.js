@@ -657,23 +657,26 @@ function formatAncienneTourneeAmountHtml(entry) {
 function buildAncienneTourneeRepayControls(entry) {
   if (!canRepayAncienneTourneeDette()) return "";
   const remaining = Number(entry.amount) || 0;
+  if (remaining <= 0) return "";
   return `
-    <div class="ancienne-tournee-repay-controls">
-      <label class="ancienne-tournee-repay-field">
+    <div class="pret-repay-form amende-action-controls ancienne-tournee-repay-controls" data-ancienne-id="${escapeHtml(entry.id)}">
+      <label class="amende-repay-field">
+        <span>Montant reçu</span>
         <input
           type="number"
           min="0.5"
           step="0.5"
           max="${remaining}"
           value="${remaining}"
-          class="ancienne-tournee-repay-input"
+          class="ancienne-tournee-repay-input amende-repay-input pret-repay-input"
           data-id="${escapeHtml(entry.id)}"
           inputmode="decimal"
           aria-label="Montant à rembourser, reste ${formatEuro(remaining)}"
         />
-        <span aria-hidden="true">€</span>
+        <span>€</span>
       </label>
-      <button type="button" class="btn-primary btn-ancienne-tournee-repay" data-id="${escapeHtml(entry.id)}">Rembourser</button>
+      <button type="button" class="btn-primary btn-ancienne-tournee-repay" data-id="${escapeHtml(entry.id)}">Valider</button>
+      <button type="button" class="btn-secondary btn-ancienne-tournee-delete" data-id="${escapeHtml(entry.id)}" title="Supprimer">Supprimer</button>
     </div>
   `;
 }

@@ -1369,18 +1369,16 @@ function renderAncienneTourneeDettesAdmin() {
         domId: `admin-ancienne-${entry.id}`,
         date: entry.createdAt,
         type: "ancienne-tournee",
-        detail: member?.name || "—",
+        detail: (() => {
+          const name = member?.name || "—";
+          const note = String(entry.note || "").trim();
+          return note ? `${name} — ${note}` : name;
+        })(),
         original,
         repaid,
         remaining,
         settled: remaining <= 0,
-        actions: remaining > 0
-          ? `<div class="amende-admin-actions">
-              <button type="button" class="btn-secondary btn-ancienne-tournee-add" data-member-id="${escapeHtml(entry.memberId)}">Ajouter</button>
-              <button type="button" class="btn-secondary btn-ancienne-tournee-delete" data-id="${escapeHtml(entry.id)}" onclick="event.preventDefault();event.stopPropagation();window.deleteAncienneTourneeDette && window.deleteAncienneTourneeDette('${escapeHtml(entry.id)}');return false;">Supprimer dette</button>
-              ${buildAncienneTourneeRepayControls(entry)}
-            </div>`
-          : "",
+        actions: remaining > 0 ? buildAncienneTourneeRepayControls(entry) : "",
         sortAt: entry.createdAt,
       };
     })

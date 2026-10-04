@@ -10132,3 +10132,120 @@ span.reunion-notif-badge[data-notif-badge] {
   font-size: 0.88rem;
   color: #475569;
 }
+
+/* —— Uniformisation tableaux (amendes / ex-tournée / finance) —— */
+.amende-table,
+.finance-table,
+.dette-table,
+.permissions-table,
+.membres-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+}
+.amende-table th,
+.amende-table td,
+.finance-table th,
+.finance-table td {
+  padding: 0.55rem 0.5rem;
+  vertical-align: middle;
+  font-size: 0.88rem;
+}
+.amende-table thead th {
+  background: #e8f2fb;
+  color: #1e3a5f;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.amende-table tbody tr {
+  border-bottom: 1px solid #e2e8f0;
+}
+.amende-table tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+.amende-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.amende-col-actions {
+  min-width: 11rem;
+  max-width: 16rem;
+}
+.amende-action-controls,
+.ancienne-tournee-repay-controls.amende-action-controls {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.35rem !important;
+  min-width: 9.5rem;
+  max-width: 14rem;
+}
+.amende-action-controls .amende-repay-field,
+.ancienne-tournee-repay-controls .amende-repay-field {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0;
+  font-size: 0.75rem;
+  color: #64748b;
+}
+.amende-action-controls .amende-repay-field span:first-child {
+  display: none; /* compact mobile */
+}
+.amende-action-controls input[type="number"],
+.ancienne-tournee-repay-controls input[type="number"] {
+  width: 4.5rem !important;
+  min-width: 4.5rem !important;
+  max-width: 5.5rem !important;
+  padding: 0.3rem 0.4rem !important;
+  font-size: 0.85rem !important;
+  border-radius: 0.45rem !important;
+  border: 1px solid #cbd5e1 !important;
+}
+.amende-action-controls .btn-primary,
+.amende-action-controls .btn-secondary,
+.ancienne-tournee-repay-controls .btn-primary,
+.ancienne-tournee-repay-controls .btn-secondary {
+  width: 100%;
+  padding: 0.35rem 0.5rem !important;
+  font-size: 0.8rem !important;
+  border-radius: 999px !important;
+  white-space: nowrap;
+}
+.amende-admin-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.amende-table-wrap,
+.table-wrap,
+.dette-table-wrap,
+.finance-table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+}
+@media (min-width: 700px) {
+  .amende-action-controls,
+  .ancienne-tournee-repay-controls.amende-action-controls {
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    min-width: 12rem;
+    max-width: 18rem;
+  }
+  .amende-action-controls .btn-primary,
+  .amende-action-controls .btn-secondary,
+  .ancienne-tournee-repay-controls .btn-primary,
+  .ancienne-tournee-repay-controls .btn-secondary {
+    width: auto;
+    flex: 1 1 auto;
+  }
+  .amende-action-controls .amende-repay-field span:first-child {
+    display: inline;
+  }
+}
