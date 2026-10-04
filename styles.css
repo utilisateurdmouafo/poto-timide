@@ -10133,119 +10133,151 @@ span.reunion-notif-badge[data-notif-badge] {
   color: #475569;
 }
 
-/* —— Uniformisation tableaux (amendes / ex-tournée / finance) —— */
+
+
+/* —— Tableaux : une seule ligne + scroll horizontal —— */
+.amende-table-wrap,
+.table-wrap,
+.dette-table-wrap,
+.finance-table-wrap,
+.permissions-table-wrap,
+.membres-table-wrap {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  width: 100%;
+}
+
 .amende-table,
 .finance-table,
 .dette-table,
 .permissions-table,
-.membres-table {
-  width: 100%;
+.membres-table,
+.tournee-table {
+  width: max-content;
+  min-width: 100%;
   border-collapse: collapse;
   table-layout: auto;
+  white-space: nowrap;
 }
+
 .amende-table th,
 .amende-table td,
 .finance-table th,
-.finance-table td {
-  padding: 0.55rem 0.5rem;
+.finance-table td,
+.dette-table th,
+.dette-table td {
+  padding: 0.45rem 0.55rem;
   vertical-align: middle;
-  font-size: 0.88rem;
+  font-size: 0.85rem;
+  white-space: nowrap;
 }
-.amende-table thead th {
+
+.amende-table thead th,
+.finance-table thead th {
   background: #e8f2fb;
   color: #1e3a5f;
   font-weight: 700;
   text-transform: uppercase;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   letter-spacing: 0.03em;
   white-space: nowrap;
 }
+
 .amende-table tbody tr {
   border-bottom: 1px solid #e2e8f0;
 }
 .amende-table tbody tr:nth-child(even) {
   background: #f8fafc;
 }
+
 .amende-table .num {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-.amende-col-actions {
-  min-width: 11rem;
-  max-width: 16rem;
-}
-.amende-action-controls,
-.ancienne-tournee-repay-controls.amende-action-controls {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: stretch !important;
-  gap: 0.35rem !important;
-  min-width: 9.5rem;
+
+/* Détail peut être un peu long mais reste sur 1 ligne */
+.amende-col-detail {
   max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
+
+/* Actions toujours en ligne horizontale */
+.amende-col-actions {
+  white-space: nowrap !important;
+  min-width: max-content;
+}
+
+.amende-action-controls,
+.ancienne-tournee-repay-controls,
+.ancienne-tournee-repay-controls.amende-action-controls,
+.pret-repay-form.amende-action-controls,
+.amende-admin-actions {
+  display: inline-flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 0.3rem !important;
+  white-space: nowrap !important;
+  width: max-content !important;
+  max-width: none !important;
+  min-width: 0 !important;
+}
+
 .amende-action-controls .amende-repay-field,
-.ancienne-tournee-repay-controls .amende-repay-field {
-  display: flex;
-  align-items: center;
-  gap: 0.25rem;
-  margin: 0;
-  font-size: 0.75rem;
-  color: #64748b;
+.ancienne-tournee-repay-controls .amende-repay-field,
+.ancienne-tournee-repay-field {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.2rem !important;
+  margin: 0 !important;
+  white-space: nowrap !important;
+  flex-shrink: 0;
 }
+
 .amende-action-controls .amende-repay-field span:first-child {
-  display: none; /* compact mobile */
+  display: none !important; /* "Montant reçu" trop long */
 }
+
 .amende-action-controls input[type="number"],
-.ancienne-tournee-repay-controls input[type="number"] {
-  width: 4.5rem !important;
-  min-width: 4.5rem !important;
-  max-width: 5.5rem !important;
-  padding: 0.3rem 0.4rem !important;
-  font-size: 0.85rem !important;
-  border-radius: 0.45rem !important;
+.ancienne-tournee-repay-controls input[type="number"],
+.ancienne-tournee-repay-input,
+.amende-repay-input,
+.pret-repay-input {
+  width: 4.2rem !important;
+  min-width: 4.2rem !important;
+  max-width: 4.8rem !important;
+  padding: 0.28rem 0.35rem !important;
+  font-size: 0.82rem !important;
+  border-radius: 0.4rem !important;
   border: 1px solid #cbd5e1 !important;
+  flex-shrink: 0;
 }
+
 .amende-action-controls .btn-primary,
 .amende-action-controls .btn-secondary,
 .ancienne-tournee-repay-controls .btn-primary,
-.ancienne-tournee-repay-controls .btn-secondary {
-  width: 100%;
-  padding: 0.35rem 0.5rem !important;
-  font-size: 0.8rem !important;
+.ancienne-tournee-repay-controls .btn-secondary,
+.amende-admin-actions .btn-primary,
+.amende-admin-actions .btn-secondary {
+  width: auto !important;
+  flex: 0 0 auto !important;
+  padding: 0.28rem 0.55rem !important;
+  font-size: 0.78rem !important;
   border-radius: 999px !important;
+  white-space: nowrap !important;
+}
+
+/* Pas de ligne extra qui casse le layout */
+.amende-detail-row td {
+  white-space: normal;
+}
+
+/* Ligne de pied de tableau */
+.amende-foot-row td {
   white-space: nowrap;
-}
-.amende-admin-actions {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-}
-.amende-table-wrap,
-.table-wrap,
-.dette-table-wrap,
-.finance-table-wrap {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  max-width: 100%;
-}
-@media (min-width: 700px) {
-  .amende-action-controls,
-  .ancienne-tournee-repay-controls.amende-action-controls {
-    flex-direction: row !important;
-    flex-wrap: wrap !important;
-    align-items: center !important;
-    min-width: 12rem;
-    max-width: 18rem;
-  }
-  .amende-action-controls .btn-primary,
-  .amende-action-controls .btn-secondary,
-  .ancienne-tournee-repay-controls .btn-primary,
-  .ancienne-tournee-repay-controls .btn-secondary {
-    width: auto;
-    flex: 1 1 auto;
-  }
-  .amende-action-controls .amende-repay-field span:first-child {
-    display: inline;
-  }
+  font-weight: 600;
 }
