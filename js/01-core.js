@@ -660,25 +660,57 @@ function buildAncienneTourneeRepayControls(entry) {
   if (remaining <= 0) return "";
   return `
     <div class="pret-repay-form amende-action-controls ancienne-tournee-repay-controls" data-ancienne-id="${escapeHtml(entry.id)}">
-      <label class="amende-repay-field">
-        <span>Montant reçu</span>
-        <input
-          type="number"
-          min="0.5"
-          step="0.5"
-          max="${remaining}"
-          value="${remaining}"
-          class="ancienne-tournee-repay-input amende-repay-input pret-repay-input"
-          data-id="${escapeHtml(entry.id)}"
-          inputmode="decimal"
-          aria-label="Montant à rembourser, reste ${formatEuro(remaining)}"
-        />
-        <span>€</span>
-      </label>
-      <button type="button" class="btn-primary btn-ancienne-tournee-repay" data-id="${escapeHtml(entry.id)}">Valider</button>
-      <button type="button" class="btn-secondary btn-ancienne-tournee-delete" data-id="${escapeHtml(entry.id)}" title="Supprimer">Supprimer</button>
+      <input
+        type="number"
+        min="0"
+        step="0.5"
+        max="${remaining}"
+        value="${remaining}"
+        class="ancienne-tournee-repay-input amende-repay-input pret-repay-input"
+        data-id="${escapeHtml(entry.id)}"
+        inputmode="decimal"
+        aria-label="Montant, reste ${formatEuro(remaining)}"
+      />
+      <button type="button" class="btn-primary btn-ancienne-tournee-repay" data-id="${escapeHtml(entry.id)}" title="Encaisser ce montant">Valider</button>
+      <button type="button" class="btn-secondary btn-ancienne-tournee-adjust" data-id="${escapeHtml(entry.id)}" title="Fixer le reste (0 = soldé)">Modifier</button>
     </div>
   `;
+}
+
+/** Fixe le reste d'une dette ex-tournée (0 = soldée, sans encaissement). */
+function adjustAncienneTourneeRemaining(entryId, amountValue) {
+  if (!canRepayAncienneTourneeDette()) {
+    alert("Pas l'accès pour modifier.");
+    return false;
+  }
+  const entry = (ancienneTourneeDettes || []).find((e) => e && String(e.id) === String(entryId));
+  if (!entry || entry.deletedAt) {
+    alert("Dette introuvable.");
+    return false;
+  }
+  const raw = String(amountValue ?? "").trim().replace(",", ".");
+  const val = Math.round(parseFloat(raw) * 100) / 100;
+  if (Number.isNaN(val) || val < 0) {
+    alert("Montant invalide (0 ou plus).");
+    return false;
+  }
+  const original = Math.round((Number(entry.originalAmount) || Number(entry.amount) || 0) * 100) / 100;
+  const prev = Math.round((Number(entry.amount) || 0) * 100) / 100;
+  entry.amount = val;
+  entry.originalAmount = Math.max(original, val);
+  // repaid = original - remaining (approx)
+  entry.repaidAmount = Math.max(0, Math.round((Math.max(original, prev) - val) * 100) / 100);
+  entry.updatedAt = new Date().toISOString();
+  if (val <= 0) {
+    entry.settledAt = entry.updatedAt;
+  } else {
+    delete entry.settledAt;
+  }
+  saveAncienneTourneeDettes(true);
+  if (typeof showToast === "function") {
+    showToast(val <= 0 ? "Dette soldée (reste 0)." : `Reste fixé à ${formatEuro(val)}.`, "success");
+  }
+  return true;
 }
 
 function loadFinance() {
@@ -2595,6 +2627,46 @@ async function convertFondCaisseAnnuelResteToDettes(year) {
   return true;
 }
 
+
+/** Fixe le reste fond annuel (0 = soldé sans encaisser). amountValue = reste voulu. */
+function adjustFondCaisseAnnuelRemaining(year, memberId, amountValue) {
+  if (!canManageCaisseArgent() && !canEditFondCaisse()) {
+    alert("Pas l'accès pour modifier.");
+    return false;
+  }
+  const member = getMemberById(memberId);
+  if (!member) return false;
+  const yearData0 = ensureFondCaisseAnnuelYear(year);
+  const amountPerMember = Math.round((Number(yearData0.amountPerMember) || 0) * 100) / 100;
+  const raw = String(amountValue ?? "").trim().replace(",", ".");
+  const remaining = Math.round(parseFloat(raw) * 100) / 100;
+  if (Number.isNaN(remaining) || remaining < 0) {
+    alert("Montant invalide (0 ou plus).");
+    return false;
+  }
+  if (remaining > amountPerMember) {
+    alert(`Le reste ne peut pas dépasser ${formatEuro(amountPerMember)}.`);
+    return false;
+  }
+  const yearData = ensureFondCaisseAnnuelYear(year);
+  if (!yearData.payments[memberId]) {
+    yearData.payments[memberId] = { paidAmount: 0, history: [] };
+  }
+  const paid = Math.round((amountPerMember - remaining) * 100) / 100;
+  yearData.payments[memberId].paidAmount = paid;
+  yearData.payments[memberId].updatedAt = new Date().toISOString();
+  saveFondCaisseAnnuel(true);
+  if (typeof showToast === "function") {
+    showToast(
+      remaining <= 0
+        ? `${member.name} : fond ${year} soldé (reste 0).`
+        : `${member.name} : reste fixé à ${formatEuro(remaining)}.`,
+      "success"
+    );
+  }
+  return true;
+}
+
 function renderFondCaisseAnnuel() {
   const panel = document.getElementById("fondCaisseAnnuelPanel");
   if (!panel) return;
@@ -2669,8 +2741,9 @@ function renderFondCaisseAnnuel() {
       : `<div class="amende-admin-actions">
           ${historyHtml}
           <div class="pret-repay-form">
-            <input type="number" min="0.5" step="0.5" max="${due}" placeholder="${due}" class="fond-caisse-annuel-pay-input" data-member-id="${escapeHtml(member.id)}" data-year="${selectedYear}" inputmode="decimal" aria-label="Montant de ce versement pour ${escapeHtml(member.name)}, reste ${due} euros" />
+            <input type="number" min="0" step="0.5" max="${due}" value="${due}" class="fond-caisse-annuel-pay-input" data-member-id="${escapeHtml(member.id)}" data-year="${selectedYear}" inputmode="decimal" aria-label="Montant pour ${escapeHtml(member.name)}, reste ${due} euros" />
             <button type="button" class="btn-primary btn-fond-caisse-annuel-pay" data-member-id="${escapeHtml(member.id)}" data-year="${selectedYear}">Verser</button>
+            <button type="button" class="btn-secondary btn-fond-caisse-annuel-adjust" data-member-id="${escapeHtml(member.id)}" data-year="${selectedYear}" title="Fixer le reste (0 = soldé)">Modifier</button>
           </div>
         </div>`;
     return {

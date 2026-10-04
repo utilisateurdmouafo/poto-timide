@@ -1263,25 +1263,62 @@ function canRepayAmende(amende) {
 function buildAmendeActionControls(amende, { showEdit = false } = {}) {
   if (!canManageAmendesActions()) return "";
   const remaining = Number(amende.amount) || 0;
-  const repaid = getAmendeRepaidAmount(amende);
   if (remaining <= 0) return "";
   return `
-    <div class="pret-repay-form amende-action-controls" data-amende-id="${amende.id}">
-      ${
-        showEdit && !isDetteAmende(amende)
-          ? `<button type="button" class="btn-amende-edit" data-id="${amende.id}">Modifier</button>`
-          : ""
-      }
-      ${repaid > 0 ? `<p class="amende-repaid-hint">Déjà versé ${formatEuro(repaid)}</p>` : ""}
-      <label class="amende-repay-field">
-        <span>Montant reçu</span>
-        <input type="number" min="0.5" step="0.5" max="${remaining}" value="${remaining}" class="amende-repay-input pret-repay-input" data-id="${amende.id}" inputmode="decimal" placeholder="ex. 10" aria-label="Montant à valider, reste ${remaining} euros" />
-        <span>€</span>
-      </label>
-      <button type="button" class="btn-primary btn-amende-repay" data-id="${escapeHtml(String(amende.id))}">Valider</button>
-      <button type="button" class="btn-secondary btn-amende-delete" data-id="${escapeHtml(String(amende.id))}" onclick="event.preventDefault();event.stopPropagation();if(window.deleteAmendeRecord)window.deleteAmendeRecord(this.dataset.id);return false;">Supprimer</button>
+    <div class="pret-repay-form amende-action-controls" data-amende-id="${escapeHtml(String(amende.id))}">
+      <input type="number" min="0" step="0.5" max="${remaining}" value="${remaining}" class="amende-repay-input pret-repay-input" data-id="${escapeHtml(String(amende.id))}" inputmode="decimal" aria-label="Montant, reste ${remaining} euros" />
+      <button type="button" class="btn-primary btn-amende-repay" data-id="${escapeHtml(String(amende.id))}" title="Encaisser ce montant">Valider</button>
+      <button type="button" class="btn-secondary btn-amende-adjust" data-id="${escapeHtml(String(amende.id))}" title="Fixer le reste (0 = soldé)">Modifier</button>
     </div>
   `;
+}
+
+/** Fixe le reste d'une amende/dette (0 = soldée, sans encaissement en caisse). */
+function adjustAmendeRemaining(id, amountValue) {
+  if (!canManageAmendesActions()) {
+    alert("Pas l'accès pour modifier.");
+    return false;
+  }
+  const amende = getAmendeById(id);
+  if (!amende || amende.deletedAt) {
+    alert("Ligne introuvable.");
+    return false;
+  }
+  const raw = String(amountValue ?? "").trim().replace(",", ".");
+  const val = Math.round(parseFloat(raw) * 100) / 100;
+  if (Number.isNaN(val) || val < 0) {
+    alert("Montant invalide (0 ou plus).");
+    return false;
+  }
+  const prev = Math.round((Number(amende.amount) || 0) * 100) / 100;
+  const original = Math.round(
+    (Number(amende.originalAmount) || prev) * 100
+  ) / 100;
+  amende.amount = val;
+  amende.originalAmount = Math.max(original, val);
+  const repaid = Math.max(0, Math.round((Math.max(original, prev) - val) * 100) / 100);
+  amende.repaidAmount = Math.max(Number(amende.repaidAmount) || 0, repaid);
+  amende.updatedAt = new Date().toISOString();
+  if (val <= 0) {
+    amende.settledAt = amende.updatedAt;
+  } else {
+    delete amende.settledAt;
+  }
+  if (typeof saveAmendes === "function") saveAmendes(true);
+  if (typeof showToast === "function") {
+    const member = getMemberById(amende.memberId);
+    showToast(
+      val <= 0
+        ? `${member?.name || "Ligne"} soldée (reste 0).`
+        : `Reste fixé à ${formatEuro(val)}.`,
+      "success"
+    );
+  }
+  if (typeof renderAmendesAdminHistory === "function") renderAmendesAdminHistory();
+  if (typeof renderMesAmendes === "function") renderMesAmendes();
+  if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
+  if (typeof renderReunion === "function") renderReunion();
+  return true;
 }
 
 function buildDetteCard(amende, { showMember = false, showEdit = false, index = 0 } = {}) {

@@ -1,3 +1,29 @@
+
+document.addEventListener("click", (e) => {
+  const adj = e.target.closest(".btn-ancienne-tournee-adjust");
+  if (adj) {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = adj.dataset.id;
+    const input = adj.closest(".amende-action-controls, .pret-repay-form")?.querySelector("input.ancienne-tournee-repay-input, input[type='number']");
+    if (typeof adjustAncienneTourneeRemaining === "function") {
+      adjustAncienneTourneeRemaining(id, input?.value);
+    }
+    return;
+  }
+  const fondAdj = e.target.closest(".btn-fond-caisse-annuel-adjust");
+  if (fondAdj) {
+    e.preventDefault();
+    e.stopPropagation();
+    const year = fondAdj.dataset.year;
+    const memberId = fondAdj.dataset.memberId;
+    const input = fondAdj.closest(".amende-admin-actions, .pret-repay-form")?.querySelector("input.fond-caisse-annuel-pay-input, input[type='number']");
+    if (typeof adjustFondCaisseAnnuelRemaining === "function") {
+      adjustFondCaisseAnnuelRemaining(year, memberId, input?.value);
+    }
+  }
+}, true);
+
 async function clearRole(roleId) {
   if (!requireTabAccess("bureau", "modifier le bureau")) return;
 
@@ -787,6 +813,18 @@ amendeForm?.addEventListener("submit", async (e) => {
 amendeCancelBtn?.addEventListener("click", cancelEditAmende);
 
 function handleAmendeCardClick(e) {
+  const adjustBtn = e.target.closest(".btn-amende-adjust");
+  if (adjustBtn) {
+    e.preventDefault();
+    e.stopPropagation();
+    const id = adjustBtn.dataset.id;
+    const input = adjustBtn.closest(".amende-action-controls, .pret-repay-form")?.querySelector("input.amende-repay-input, input[type='number']")
+      || document.querySelector(`input.amende-repay-input[data-id="${CSS.escape(id)}"]`);
+    if (typeof adjustAmendeRemaining === "function") {
+      adjustAmendeRemaining(id, input?.value);
+    }
+    return;
+  }
   const editBtn = e.target.closest(".btn-amende-edit");
   if (editBtn) {
     startEditAmende(editBtn.dataset.id);
@@ -2002,6 +2040,10 @@ document.addEventListener(
 // Expose suppressions pour onclick HTML + tests
 window.deleteAncienneTourneeDette = deleteAncienneTourneeDette;
 window.deleteAmendeRecord = deleteAmendeRecord;
+window.adjustAmendeRemaining = adjustAmendeRemaining;
+window.adjustAncienneTourneeRemaining = adjustAncienneTourneeRemaining;
+window.adjustFondCaisseAnnuelRemaining = adjustFondCaisseAnnuelRemaining;
+
 window.deleteMember = deleteMember;
 window.deletePret = deletePret;
 window.deleteEvenement = deleteEvenement;
