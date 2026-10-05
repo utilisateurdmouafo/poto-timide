@@ -17,6 +17,194 @@ function isMemberOnline(memberId) {
   return onlineMembers.some((person) => person.id === memberId);
 }
 
+function loadMessages() {
+  try {
+    const parsed = typeof readSynced === "function" ? readSynced(MESSAGES_KEY, []) : [];
+    return Array.isArray(parsed) ? parsed.filter((m) => m && m.id) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveMessages(shouldRender = true) {
+  try {
+    localStorage.setItem(MESSAGES_KEY, JSON.stringify(messages));
+  } catch { /* ignore */ }
+  if (typeof queueServerSync === "function") {
+    try { queueServerSync(MESSAGES_KEY, JSON.stringify(messages)); } catch { /* ignore */ }
+  }
+  if (typeof bumpLiveDataRevision === "function") {
+    try { bumpLiveDataRevision(); } catch { /* ignore */ }
+  }
+  if (shouldRender) {
+    renderOnlineList();
+    if (chatPeerId) renderChatThread();
+  }
+}
+
+function getConversation(aId, bId) {
+  if (!aId || !bId) return [];
+  return (messages || [])
+    .filter(
+      (m) =>
+        m &&
+        !m.deletedAt &&
+        ((m.fromId === aId && m.toId === bId) || (m.fromId === bId && m.toId === aId))
+    )
+    .sort((x, y) => new Date(x.createdAt || 0) - new Date(y.createdAt || 0));
+}
+
+function getUnreadMessageCountFrom(fromId) {
+  const me = getCurrentMember();
+  if (!me || !fromId) return 0;
+  return (messages || []).filter(
+    (m) => m && !m.deletedAt && m.toId === me.id && m.fromId === fromId && !m.readAt
+  ).length;
+}
+
+function getTotalUnreadMessages() {
+  const me = getCurrentMember();
+  if (!me) return 0;
+  return (messages || []).filter(
+    (m) => m && !m.deletedAt && m.toId === me.id && !m.readAt
+  ).length;
+}
+
+function markConversationRead(peerId) {
+  const me = getCurrentMember();
+  if (!me || !peerId) return;
+  let changed = false;
+  const now = new Date().toISOString();
+  (messages || []).forEach((m) => {
+    if (m && !m.deletedAt && m.toId === me.id && m.fromId === peerId && !m.readAt) {
+      m.readAt = now;
+      m.updatedAt = now;
+      changed = true;
+    }
+  });
+  if (changed) saveMessages(true);
+}
+
+function sendPrivateMessage(toId, text) {
+  const me = getCurrentMember();
+  if (!me) {
+    alert("Connecte-toi pour envoyer un message.");
+    return false;
+  }
+  if (!toId || toId === me.id) return false;
+  const body = String(text || "").trim();
+  if (!body) return false;
+  if (body.length > 500) {
+    alert("Message trop long (max 500 caractères).");
+    return false;
+  }
+  const now = new Date().toISOString();
+  const msg = {
+    id: typeof generateId === "function" ? generateId() : `msg${Date.now()}`,
+    fromId: me.id,
+    toId,
+    text: body,
+    createdAt: now,
+    updatedAt: now,
+    readAt: null,
+  };
+  if (!Array.isArray(messages)) messages = [];
+  messages.unshift(msg);
+  saveMessages(true);
+
+  const peer = typeof getMemberById === "function" ? getMemberById(toId) : null;
+  const peerName = peer?.name || "un poto";
+  // Notification destinataire
+  if (typeof addNotification === "function") {
+    addNotification(toId, "message", msg.id, `${me.name} : ${body.slice(0, 80)}`, {
+      tab: "membres",
+      title: "Nouveau message",
+      item: msg.id,
+    });
+    if (typeof saveNotifications === "function") saveNotifications(true);
+  }
+  if (typeof queuePushMessage === "function") {
+    queuePushMessage(toId, {
+      title: `Message de ${me.name}`,
+      body: body.slice(0, 120),
+      tab: "membres",
+      tag: `msg-${msg.id}`,
+    });
+  }
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
+  return true;
+}
+
+let chatPeerId = null;
+
+function openChatWith(memberId) {
+  if (!isLoggedIn()) {
+    alert("Connecte-toi pour discuter.");
+    if (typeof openLoginModal === "function") openLoginModal();
+    return;
+  }
+  const me = getCurrentMember();
+  if (!memberId || memberId === me?.id) return;
+  const peer = typeof getMemberById === "function" ? getMemberById(memberId) : null;
+  if (!peer) return;
+  chatPeerId = memberId;
+  const modal = document.getElementById("chatModal");
+  if (!modal) return;
+  modal.hidden = false;
+  document.getElementById("chatModalTitle").textContent = peer.name;
+  const av = document.getElementById("chatModalAvatar");
+  if (av) av.textContent = typeof getInitials === "function" ? getInitials(peer.name) : "?";
+  const st = document.getElementById("chatModalStatus");
+  if (st) {
+    st.textContent = typeof isMemberOnline === "function" && isMemberOnline(memberId)
+      ? "En ligne"
+      : "Hors ligne";
+  }
+  markConversationRead(memberId);
+  renderChatThread();
+  const input = document.getElementById("chatModalInput");
+  if (input) {
+    input.value = "";
+    setTimeout(() => input.focus(), 50);
+  }
+}
+
+function closeChatModal() {
+  chatPeerId = null;
+  const modal = document.getElementById("chatModal");
+  if (modal) modal.hidden = true;
+}
+
+function renderChatThread() {
+  const body = document.getElementById("chatModalBody");
+  if (!body || !chatPeerId) return;
+  const me = getCurrentMember();
+  if (!me) return;
+  const thread = getConversation(me.id, chatPeerId);
+  if (!thread.length) {
+    body.innerHTML = `<p class="chat-empty">Aucun message pour le moment. Dis bonjour !</p>`;
+    return;
+  }
+  body.innerHTML = thread
+    .map((m) => {
+      const mine = m.fromId === me.id;
+      const time = m.createdAt
+        ? (typeof formatFriendlyDate === "function"
+            ? formatFriendlyDate(m.createdAt)
+            : new Date(m.createdAt).toLocaleString("fr-FR"))
+        : "";
+      return `
+        <div class="chat-bubble ${mine ? "is-mine" : "is-theirs"}">
+          <p class="chat-bubble-text">${escapeHtml(m.text)}</p>
+          <span class="chat-bubble-time">${escapeHtml(time)}</span>
+        </div>`;
+    })
+    .join("");
+  body.scrollTop = body.scrollHeight;
+}
+
 function renderOnlineList() {
   if (onlineCount) onlineCount.textContent = String(onlineMembers.length);
   if (!onlineList) return;
@@ -30,14 +218,29 @@ function renderOnlineList() {
   onlineList.innerHTML = onlineMembers
     .map((person) => {
       const isYou = currentMember?.id === person.id;
-      return `
-        <li class="online-item${isYou ? " online-item-you" : ""}">
+      const unread = isYou ? 0 : getUnreadMessageCountFrom(person.id);
+      const badge = unread > 0
+        ? `<span class="chat-unread-badge" aria-label="${unread} message(s) non lu(s)">${unread > 9 ? "9+" : unread}</span>`
+        : "";
+      if (isYou) {
+        return `
+        <li class="online-item online-item-you">
           <span class="online-dot" aria-hidden="true"></span>
           <span class="online-avatar">${escapeHtml(getInitials(person.name))}</span>
           <span class="online-name">${escapeHtml(person.name)}</span>
-          ${isYou ? '<span class="tag-you">Vous</span>' : ""}
-        </li>
-      `;
+          <span class="tag-you">Vous</span>
+        </li>`;
+      }
+      return `
+        <li class="online-item online-item-chat" data-chat-member="${escapeHtml(person.id)}" title="Écrire à ${escapeHtml(person.name)}">
+          <span class="online-dot" aria-hidden="true"></span>
+          <span class="online-avatar">${escapeHtml(getInitials(person.name))}</span>
+          <button type="button" class="online-name online-name-btn" data-chat-member="${escapeHtml(person.id)}">${escapeHtml(person.name)}</button>
+          <button type="button" class="online-msg-btn" data-chat-member="${escapeHtml(person.id)}" aria-label="Message à ${escapeHtml(person.name)}">
+            <span class="online-msg-icon" aria-hidden="true">💬</span>
+            ${badge}
+          </button>
+        </li>`;
     })
     .join("");
 }

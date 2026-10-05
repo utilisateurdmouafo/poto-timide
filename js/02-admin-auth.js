@@ -482,6 +482,10 @@ function resetEvenementDettes() {
 }
 
 function reloadFromStorage() {
+  try {
+    if (typeof loadMessages === "function") messages = loadMessages();
+  } catch { /* ignore */ }
+
   try { if (typeof loadLoginLog === "function") loadLoginLog(); } catch { /* ignore */ }
   members = loadMembers();
   roles = loadRoles();

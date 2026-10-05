@@ -1,4 +1,33 @@
 
+// —— Messagerie privée ——
+document.getElementById("onlineList")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-chat-member]");
+  if (!btn) return;
+  e.preventDefault();
+  const id = btn.dataset.chatMember || btn.closest("[data-chat-member]")?.dataset.chatMember;
+  if (id && typeof openChatWith === "function") openChatWith(id);
+});
+
+document.getElementById("chatModal")?.addEventListener("click", (e) => {
+  if (e.target.closest("[data-chat-close]")) {
+    e.preventDefault();
+    if (typeof closeChatModal === "function") closeChatModal();
+  }
+});
+
+document.getElementById("chatModalForm")?.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const input = document.getElementById("chatModalInput");
+  if (!input || !chatPeerId) return;
+  const ok = typeof sendPrivateMessage === "function" && sendPrivateMessage(chatPeerId, input.value);
+  if (ok) {
+    input.value = "";
+    if (typeof renderChatThread === "function") renderChatThread();
+    input.focus();
+  }
+});
+
+
 document.addEventListener("click", (e) => {
   const adj = e.target.closest(".btn-ancienne-tournee-adjust");
   if (adj) {

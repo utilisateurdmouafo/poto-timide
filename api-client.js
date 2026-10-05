@@ -23,6 +23,7 @@ const API_SYNC_KEYS = new Set([
   "poto-timide-data-revision",
   "poto-timide-audit-log",
   "poto-timide-login-log",
+  "poto-timide-messages",
 ]);
 
 const LAST_USER_KEY = "poto-last-user";

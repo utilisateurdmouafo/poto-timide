@@ -48,6 +48,7 @@ const STORAGE_KEYS = [
   "poto-timide-data-revision",
   "poto-timide-audit-log",
   "poto-timide-login-log",
+  "poto-timide-messages",
 ];
 
 const DUMP_KIND = "poto-timide-full-dump";
@@ -83,6 +84,7 @@ const EMPTY_APP_DEFAULTS = {
   "poto-timide-tab-permissions": DEFAULT_TAB_PERMISSIONS,
   "poto-timide-prets": [],
   "poto-timide-notifications": [],
+  "poto-timide-messages": [],
   "poto-timide-evenements": [],
   "poto-timide-audit-log": [],
   "poto-timide-communication": [],
@@ -340,6 +342,7 @@ const MERGE_BY_ID_KEYS = new Set([
   "poto-timide-guide",
   "poto-timide-audit-log",
   "poto-timide-login-log",
+  "poto-timide-messages",
   "poto-timide-amendes",
   "poto-timide-amendes-caisse",
   "poto-timide-ancienne-tournee-dettes",

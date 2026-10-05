@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,500;1,9..144,600&family=Outfit:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" media="(min-width: 768px)" />
-  <link rel="stylesheet" href="styles.css?v=pwa-167" />
+  <link rel="stylesheet" href="styles.css?v=pwa-168" />
 </head>
 <body>
   <div class="app" id="app">
@@ -1234,15 +1234,38 @@
 
   <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
 
-    <script src="api-client.js?v=pwa-167"></script>
-  <script src="api-auth.js?v=pwa-167"></script>
-  <script src="api-sync.js?v=pwa-167"></script>
-  <script src="js/01-core.js?v=pwa-167"></script>
-  <script src="js/02-admin-auth.js?v=pwa-167"></script>
-  <script src="js/03-membres-tournee.js?v=pwa-167"></script>
-  <script src="js/04-amendes.js?v=pwa-167"></script>
-  <script src="js/05-prets.js?v=pwa-167"></script>
-  <script src="js/06-evenements-comm.js?v=pwa-167"></script>
-  <script src="js/07-boot.js?v=pwa-167"></script>
+    <script src="api-client.js?v=pwa-168"></script>
+  <script src="api-auth.js?v=pwa-168"></script>
+  <script src="api-sync.js?v=pwa-168"></script>
+  <script src="js/01-core.js?v=pwa-168"></script>
+  <script src="js/02-admin-auth.js?v=pwa-168"></script>
+  <script src="js/03-membres-tournee.js?v=pwa-168"></script>
+  <script src="js/04-amendes.js?v=pwa-168"></script>
+  <script src="js/05-prets.js?v=pwa-168"></script>
+  <script src="js/06-evenements-comm.js?v=pwa-168"></script>
+  <script src="js/07-boot.js?v=pwa-168"></script>
+
+  <!-- Messagerie privée -->
+  <div id="chatModal" class="chat-modal" hidden>
+    <div class="chat-modal-backdrop" data-chat-close></div>
+    <div class="chat-modal-panel" role="dialog" aria-modal="true" aria-labelledby="chatModalTitle">
+      <header class="chat-modal-head">
+        <div class="chat-modal-peer">
+          <span class="chat-modal-avatar" id="chatModalAvatar">?</span>
+          <div>
+            <h3 id="chatModalTitle">Message</h3>
+            <p class="chat-modal-status" id="chatModalStatus"></p>
+          </div>
+        </div>
+        <button type="button" class="chat-modal-close" data-chat-close aria-label="Fermer">×</button>
+      </header>
+      <div class="chat-modal-body" id="chatModalBody"></div>
+      <form class="chat-modal-form" id="chatModalForm">
+        <input type="text" id="chatModalInput" maxlength="500" placeholder="Écrire un message…" autocomplete="off" />
+        <button type="submit" class="btn-primary">Envoyer</button>
+      </form>
+    </div>
+  </div>
+
 </body>
 </html>
