@@ -1149,8 +1149,9 @@ function renderFinancePrets() {
   });
 }
 
-/** Lignes unifiées caisse + prêts pour l'historique finance (lecture seule) */
+/** Lignes unifiées : caisse (entrées/sorties) + prêts + amendes + ex-tournée (pas les supprimés) */
 function buildFinanceHistoryRows() {
+  // 1) Mouvements caisse (dons, remboursements ex-tournée encaissés, retraits)
   const caisseRows = buildAutreArgentHistoryRows(false).map((row) => ({
     id: `caisse-${row.id}`,
     date: row.date,
@@ -1165,16 +1166,20 @@ function buildFinanceHistoryRows() {
     sortAt: row.date,
   }));
 
+  // 2) Prêts (en cours + soldés)
   const pretRows = buildFinancePretRows().map((row) => {
-    const loan = getLoanById(row.id);
+    const loan = typeof getLoanById === "function" ? getLoanById(row.id) : null;
     const note = String(loan?.note || "").trim();
     const detail = note ? `${row.detail} — ${note}` : row.detail;
     const baseStatus = row.settled
       ? "Soldé"
-      : getPretStatusLabel(loan?.status || "active");
-    const countdown = !row.settled && !loan?.interestAmount
-      ? getLoanRepaymentCountdown(loan)
-      : "";
+      : (typeof getPretStatusLabel === "function"
+          ? getPretStatusLabel(loan?.status || "active")
+          : "En cours");
+    const countdown =
+      !row.settled && !loan?.interestAmount && typeof getLoanRepaymentCountdown === "function"
+        ? getLoanRepaymentCountdown(loan)
+        : "";
     const sanction = loan?.interestAmount
       ? `prêt init ${formatEuro(loan.amount)} · art. 4.4 : ${formatEuro(loan.interestAmount)}`
       : "";
@@ -1194,35 +1199,83 @@ function buildFinanceHistoryRows() {
     };
   });
 
-  // Ordre fixe : 1) dettes (prêts ouverts)  2) sorties  3) soldés / le reste
+  // 3) Amendes / dettes (ouvertes + soldées, hors supprimées)
+  const amendeRows = (typeof buildFinanceAmendeRows === "function" ? buildFinanceAmendeRows() : [])
+    .filter((row) => {
+      // exclure purement vides
+      return (Number(row.original) || 0) > 0 || (Number(row.repaid) || 0) > 0;
+    })
+    .map((row) => ({
+      id: `amende-${row.id}`,
+      date: row.date,
+      typeLabel: (typeof getAmendeTypeLabel === "function"
+        ? getAmendeTypeLabel(row.type)
+        : null) || row.type || "Amende",
+      detail: row.detail || "—",
+      original: row.original || 0,
+      repaid: row.repaid ?? 0,
+      remaining: row.remaining ?? 0,
+      statusLabel: row.settled ? "Soldé" : "En cours",
+      chipClass: row.settled ? "is-paid" : "is-open",
+      settled: row.settled,
+      sortAt: row.sortAt || row.date,
+    }));
+
+  // 4) Ex tournée (ouvertes + soldées, hors supprimées)
+  const exRows = (typeof buildFinanceAncienneTourneeRows === "function"
+    ? buildFinanceAncienneTourneeRows()
+    : []
+  )
+    .filter((row) => (Number(row.original) || 0) > 0 || (Number(row.repaid) || 0) > 0)
+    .map((row) => ({
+      id: `ex-${row.id}`,
+      date: row.date,
+      typeLabel: "Ex tournée",
+      detail: row.detail || "—",
+      original: row.original || 0,
+      repaid: row.repaid ?? 0,
+      remaining: row.remaining ?? 0,
+      statusLabel: row.settled ? "Soldé" : "En cours",
+      chipClass: row.settled ? "is-paid" : "is-open",
+      settled: row.settled,
+      sortAt: row.sortAt || row.date,
+    }));
+
+  // Ordre : 1) dettes ouvertes  2) sorties  3) entrées  4) soldés
   const rankRow = (row) => {
     const status = String(row.statusLabel || "").toLowerCase();
     const type = String(row.typeLabel || "").toLowerCase();
     const isSortie =
       status.includes("sortie") ||
       type.includes("sortie") ||
-      type.includes("retrait") ||
-      (row.chipClass === "is-rejected" && (row.repaid == null || row.remaining == null));
+      type.includes("retrait");
+    const isEntree =
+      status.includes("entrée") ||
+      status.includes("entree") ||
+      type.includes("don");
     const isSolde =
       row.settled === true ||
       status.includes("sold") ||
-      status.includes("rembours") ||
       row.chipClass === "is-paid";
     const isDette =
       !isSortie &&
+      !isEntree &&
       !isSolde &&
-      (type.includes("prêt") ||
+      ((Number(row.remaining) || 0) > 0 ||
+        type.includes("prêt") ||
         type.includes("pret") ||
+        type.includes("amende") ||
+        type.includes("ex tourn") ||
         status.includes("cours") ||
-        status.includes("retard") ||
-        (Number(row.remaining) || 0) > 0);
+        status.includes("retard"));
     if (isDette) return 1;
     if (isSortie) return 2;
-    if (isSolde) return 3;
-    return 4;
+    if (isEntree) return 3;
+    if (isSolde) return 4;
+    return 5;
   };
 
-  return [...caisseRows, ...pretRows].sort((a, b) => {
+  return [...caisseRows, ...pretRows, ...amendeRows, ...exRows].sort((a, b) => {
     const ra = rankRow(a);
     const rb = rankRow(b);
     if (ra !== rb) return ra - rb;
@@ -1250,12 +1303,13 @@ function renderFinanceArchives() {
   const dons = getTotalDonsOuAides();
   const retraits = getTotalRetraitsCaisse();
   const pretsOut = getLoansCapitalOut();
+  const caisse = getCaisseDisponible();
   const summary = `
     <p class="panel-desc finance-caisse-hist-summary">
       Dons ou aides : <strong>${formatEuro(dons)}</strong>
       · Retraits : <strong>${formatEuro(retraits)}</strong>
       · Prêts dehors : <strong>${formatEuro(pretsOut)}</strong>
-      · Caisse disponible : <strong>${formatEuro(getCaisseDisponible())}</strong>
+      · Caisse disponible : <strong>${formatEuro(caisse)}</strong>
     </p>`;
   return `
     <div class="amende-ledger finance-caisse-historique">
@@ -2011,7 +2065,15 @@ function getAmendeRepaidAmount(amende) {
 function loadFondCaisse() {
   try {
     const value = readSynced(FOND_CAISSE_KEY, DEFAULT_FOND_CAISSE);
-    const amount = typeof value === "number" ? value : Number(value);
+    let amount;
+    if (typeof value === "number") {
+      amount = value;
+    } else if (value && typeof value === "object") {
+      // Format serveur { data: 1724, updatedAt: "..." } ou { amount: ... }
+      amount = Number(value.data ?? value.amount ?? value.value);
+    } else {
+      amount = Number(value);
+    }
     if (!Number.isFinite(amount) || amount < 0) return DEFAULT_FOND_CAISSE;
     return Math.round(amount * 100) / 100;
   } catch {
@@ -2020,7 +2082,16 @@ function loadFondCaisse() {
 }
 
 function saveFondCaisse() {
+  // Toujours un nombre simple + sync serveur
   localStorage.setItem(FOND_CAISSE_KEY, JSON.stringify(fondCaisse));
+  if (typeof queueServerSync === "function") {
+    try {
+      queueServerSync(FOND_CAISSE_KEY, JSON.stringify(fondCaisse));
+    } catch { /* ignore */ }
+  }
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  }
 }
 
 function getFondCaisse() {
