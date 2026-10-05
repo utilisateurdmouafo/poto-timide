@@ -1186,10 +1186,23 @@ function toggleDevMode() {
   if (!isDeveloperAccount()) return;
   setDevModeEnabled(!isDevModeEnabled());
   const on = isDevModeEnabled();
+  // Rafraîchir tout l’UI d’accès
+  if (typeof updateSessionUI === "function") updateSessionUI();
+  if (typeof updateAdminSubtabVisibility === "function") updateAdminSubtabVisibility();
+  if (typeof updateNavVisibility === "function") updateNavVisibility();
+  if (typeof renderReunion === "function") {
+    try { renderReunion(); } catch { /* ignore */ }
+  }
+  if (typeof showTab === "function") {
+    try {
+      const active = typeof getActiveTab === "function" ? getActiveTab() : null;
+      if (active) showTab(active);
+    } catch { /* ignore */ }
+  }
   alert(
     on
-      ? "Mode développeur activé.\nTes actions n’envoient plus de notifications."
-      : "Mode normal activé.\nTes actions enverront des notifications aux potos."
+      ? "Mode développeur activé.\n• Accès total à toutes les pages admin\n• Tes actions n’envoient pas de notifications"
+      : "Mode normal activé.\n• Uniquement tes accès de rôle attribués\n• Tes actions envoient des notifications"
   );
 }
 
@@ -1204,8 +1217,8 @@ function updateDevModeToggleUI() {
   btn.classList.toggle("is-dev-on", on);
   btn.classList.toggle("is-dev-off", !on);
   btn.title = on
-    ? "Mode développeur ON — tes actions n’envoient pas de notifications (clique pour mode normal)"
-    : "Mode normal — tes actions envoient des notifications (clique pour mode développeur)";
+    ? "Mode Dev ON — accès total + sans notifications (clique pour mode normal)"
+    : "Mode Normal — seulement tes accès de rôle + notifications (clique pour mode dev)";
   if (label) label.textContent = on ? "Dev ON" : "Normal";
 }
 

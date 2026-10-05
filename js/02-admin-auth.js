@@ -579,7 +579,26 @@ function getCurrentMember() {
 
 function isGroupAdmin() {
   const member = getCurrentMember();
-  return !!member && isMemberAdmin(member.id);
+  if (!member) return false;
+  // Développeur en mode Dev → accès total admin
+  if (
+    typeof isDeveloperAccount === "function" &&
+    isDeveloperAccount() &&
+    typeof isDevModeEnabled === "function" &&
+    isDevModeEnabled()
+  ) {
+    return true;
+  }
+  // Développeur en mode Normal → pas de super-admin, uniquement ses accès de rôle
+  if (
+    typeof isDeveloperAccount === "function" &&
+    isDeveloperAccount() &&
+    typeof isDevModeEnabled === "function" &&
+    !isDevModeEnabled()
+  ) {
+    return false;
+  }
+  return isMemberAdmin(member.id);
 }
 
 function isFinancier() {
@@ -1180,12 +1199,14 @@ function requireGroupAdmin(actionLabel) {
 /** Accès simple : connecté + (admin groupe OU owner OU rôle) — pas de verrou "vue simple" */
 function canDo(tabId) {
   if (!isLoggedIn()) return false;
+  // Mode Dev (développeur) ou admin groupe → tout
   if (typeof isGroupAdmin === "function" && isGroupAdmin()) return true;
-  if (typeof isOwnerMember === "function" && isOwnerMember(getCurrentMember())) return true;
+  // Financier (poste) : accès métier finance
   if (typeof isFinancierPoste === "function" && isFinancierPoste()) {
     if (!tabId || ["caisse", "prets", "amendes", "evenements", "finance"].includes(tabId)) return true;
   }
   if (!tabId) return canAccessAdminTab();
+  // Mode Normal : uniquement les accès de rôle attribués
   if (typeof hasRoleTabAccess === "function" && hasRoleTabAccess(tabId)) return true;
   if (tabId === "membres" && hasRoleTabAccess("bureau")) return true;
   if (tabId === "ancienne-tournee" && hasRoleTabAccess("amendes")) return true;
