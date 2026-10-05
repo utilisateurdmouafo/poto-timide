@@ -17,8 +17,9 @@ Les données (membres, prêts, etc.) restent dans **Turso** — pas besoin de le
 
 ## Méthode A — Git (recommandé si le repo est déjà lié à Render)
 1. Remplace les fichiers modifiés dans ton repo local :
-   - `index.html`
-   - `app.js`
+   - `legacy.html`
+   - `frontend/`
+   - `package.json` / `package-lock.json`
    - `styles.css`
    - `api-client.js`
    - `server.js`
@@ -30,7 +31,7 @@ Les données (membres, prêts, etc.) restent dans **Turso** — pas besoin de le
 2. Si le code vient de GitHub : pousse les fichiers (méthode A)
 3. Sinon, connecte le repo ou redéploie après push
 4. **Manual Deploy** → Deploy latest commit
-5. Vérifie les logs : `npm install` puis `node server.js` OK
+5. Vérifie les logs : le build frontend Vite puis `node server.js` OK
 6. Ouvre https://poto-timide.onrender.com
 
 ## Après déploiement — tests rapides

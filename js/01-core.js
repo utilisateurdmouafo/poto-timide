@@ -614,22 +614,6 @@ function bumpLiveDataRevision() {
   localStorage.setItem("poto-timide-data-revision", JSON.stringify(Date.now()));
 }
 
-function saveAncienneTourneeDettes(shouldRender = true) {
-  localStorage.setItem(ANCIENNE_TOURNEE_DETTES_KEY, JSON.stringify(ancienneTourneeDettes));
-  bumpLiveDataRevision();
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
-  }
-  if (shouldRender) {
-    renderAncienneTourneeDettesAdmin();
-    renderAmendes();
-    renderMesDettes();
-    if (typeof renderExTournee === "function") renderExTournee();
-    if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
-    if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
-  }
-}
-
 function getAncienneTourneeEntriesFor(memberId) {
   return ancienneTourneeDettes.filter(
     (entry) => entry.memberId === memberId && !entry.deletedAt
@@ -675,12 +659,13 @@ function buildAncienneTourneeRepayControls(entry) {
       />
       <button type="button" class="btn-primary btn-ancienne-tournee-repay" data-id="${escapeHtml(entry.id)}" title="Encaisser ce montant">Valider</button>
       <button type="button" class="btn-secondary btn-ancienne-tournee-adjust" data-id="${escapeHtml(entry.id)}" title="Fixer le reste (0 = soldé)">Modifier</button>
+      <button type="button" class="btn-secondary btn-ancienne-tournee-delete" data-id="${escapeHtml(entry.id)}" title="Supprimer cette dette">Supprimer</button>
     </div>
   `;
 }
 
 /** Fixe le reste d'une dette ex-tournée (0 = soldée, sans encaissement). */
-function adjustAncienneTourneeRemaining(entryId, amountValue) {
+async function adjustAncienneTourneeRemaining(entryId, amountValue) {
   if (!canRepayAncienneTourneeDette()) {
     alert("Pas l'accès pour modifier.");
     return false;
@@ -696,19 +681,17 @@ function adjustAncienneTourneeRemaining(entryId, amountValue) {
     alert("Montant invalide (0 ou plus).");
     return false;
   }
-  const original = Math.round((Number(entry.originalAmount) || Number(entry.amount) || 0) * 100) / 100;
-  const prev = Math.round((Number(entry.amount) || 0) * 100) / 100;
-  entry.amount = val;
-  entry.originalAmount = Math.max(original, val);
-  // repaid = original - remaining (approx)
-  entry.repaidAmount = Math.max(0, Math.round((Math.max(original, prev) - val) * 100) / 100);
-  entry.updatedAt = new Date().toISOString();
-  if (val <= 0) {
-    entry.settledAt = entry.updatedAt;
-  } else {
-    delete entry.settledAt;
+  try {
+    await window.potoRunAction({
+      domain: "old-debt",
+      type: "adjust-remaining",
+      entryId: String(entryId),
+      amount: val,
+    });
+  } catch (error) {
+    alert(error.message || "Impossible de modifier le solde de cette dette.");
+    return false;
   }
-  saveAncienneTourneeDettes(true);
   if (typeof showToast === "function") {
     showToast(val <= 0 ? "Dette soldée (reste 0)." : `Reste fixé à ${formatEuro(val)}.`, "success");
   }
@@ -1358,34 +1341,6 @@ function renderFinance() {
   });
   renderFinanceSubcontent();
   refreshFinancierPayBoxes();
-}
-
-function saveAutreArgent(shouldRender = true) {
-  localStorage.setItem(AUTRE_ARGENT_KEY, JSON.stringify(autreArgent));
-  // Toujours pousser vers le serveur pour que TOUS voient le mouvement en caisse
-  if (typeof queueServerSync === "function") {
-    try {
-      queueServerSync(AUTRE_ARGENT_KEY, JSON.stringify(autreArgent));
-    } catch (e) {
-      console.warn("queueServerSync autreArgent", e);
-    }
-  }
-  if (typeof bumpLiveDataRevision === "function") {
-    try { bumpLiveDataRevision(); } catch { /* ignore */ }
-  }
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
-  } else if (typeof flushServerSync === "function") {
-    Promise.resolve(flushServerSync()).catch(() => {});
-  }
-  if (shouldRender) {
-    if (typeof renderAutreArgent === "function") renderAutreArgent();
-    if (typeof renderPrets === "function") renderPrets();
-    if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
-    if (typeof renderFinance === "function") {
-      try { renderFinance(); } catch { /* ignore */ }
-    }
-  }
 }
 
 function loadRoles() {
@@ -2081,19 +2036,6 @@ function loadFondCaisse() {
   }
 }
 
-function saveFondCaisse() {
-  // Toujours un nombre simple + sync serveur
-  localStorage.setItem(FOND_CAISSE_KEY, JSON.stringify(fondCaisse));
-  if (typeof queueServerSync === "function") {
-    try {
-      queueServerSync(FOND_CAISSE_KEY, JSON.stringify(fondCaisse));
-    } catch { /* ignore */ }
-  }
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
-  }
-}
-
 function getFondCaisse() {
   return Number.isFinite(fondCaisse) && fondCaisse >= 0 ? fondCaisse : DEFAULT_FOND_CAISSE;
 }
@@ -2139,7 +2081,7 @@ function syncFondCaisseInputs() {
   }
 }
 
-function setFondCaisseAmount(amount) {
+async function setFondCaisseAmount(amount) {
   if (!requireFondCaisseEditor("modifier le fond de caisse de départ")) return false;
 
   const parsed = Math.round(parseFloat(amount) * 100) / 100;
@@ -2148,13 +2090,12 @@ function setFondCaisseAmount(amount) {
     return false;
   }
 
-  fondCaisse = parsed;
-  saveFondCaisse();
-  notifyAllMembers(
-    "financier_fond",
-    `${getActorLabel()} a modifié le fond de caisse de départ : ${formatEuro(fondCaisse)}.`,
-    { tab: "finance", title: "Fond de caisse" }
-  );
+  try {
+    fondCaisse = await window.potoRunAction({ domain: "cash", type: "set-base", amount: parsed });
+  } catch (error) {
+    alert(error.message || "Impossible de modifier le fond de caisse.");
+    return false;
+  }
   syncFondCaisseInputs();
   showFondCaisseSaveMessage(
     `Fond de caisse de départ enregistré : ${formatEuro(fondCaisse)}. Caisse brute : ${formatEuro(getCaisseBrute())}.`
@@ -2179,8 +2120,12 @@ async function resetFondCaisse() {
     return false;
   }
 
-  fondCaisse = DEFAULT_FOND_CAISSE;
-  saveFondCaisse();
+  try {
+    fondCaisse = await window.potoRunAction({ domain: "cash", type: "reset-base" });
+  } catch (error) {
+    alert(error.message || "Impossible de réinitialiser le fond de caisse.");
+    return false;
+  }
   syncFondCaisseInputs();
   showFondCaisseSaveMessage(
     `Fond de caisse de départ réinitialisé à ${formatEuro(DEFAULT_FOND_CAISSE)}. Caisse brute : ${formatEuro(getCaisseBrute())}.`
@@ -2334,15 +2279,6 @@ function loadFondCaisseAnnuel() {
   }
 }
 
-function saveFondCaisseAnnuel(shouldRender = true) {
-  localStorage.setItem(FOND_CAISSE_ANNUEL_KEY, JSON.stringify(fondCaisseAnnuel));
-  bumpLiveDataRevision();
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
-  }
-  if (shouldRender) renderFondCaisseAnnuel();
-}
-
 function getFondCaisseAnnuelYear() {
   const selected = fondCaisseAnnuelYearSelect?.value;
   if (selected) return String(selected);
@@ -2411,7 +2347,7 @@ function getFondCaisseAnnuelYearTotals(year) {
   return { amountPerMember, memberCount, expected, paid, remaining };
 }
 
-function setFondCaisseAnnuelAmount(year, amount) {
+async function setFondCaisseAnnuelAmount(year, amount) {
   if (!canManageCaisseArgent() && !canEditFondCaisse()) {
     alert("Seul le Financier ou un administrateur peut définir le fond de caisse.");
     return;
@@ -2423,11 +2359,17 @@ function setFondCaisseAnnuelAmount(year, amount) {
     return;
   }
 
-  const yearData = ensureFondCaisseAnnuelYear(year);
-  yearData.amountPerMember = parsed;
-  yearData.updatedAt = new Date().toISOString();
-  yearData.updatedBy = getCurrentMember()?.id || null;
-  saveFondCaisseAnnuel();
+  try {
+    await window.potoRunAction({
+      domain: "fund",
+      type: "set-annual-amount",
+      year,
+      amount: parsed,
+    });
+  } catch (error) {
+    alert(error.message || "Impossible d’enregistrer le fond annuel.");
+    return;
+  }
   renderAutreArgent();
   renderFinanceDashboard();
 
@@ -2463,9 +2405,12 @@ async function deleteFondCaisseAnnuel(year) {
   }
   if (!(await appConfirm(message))) return;
 
-  delete fondCaisseAnnuel.years[key];
-  saveFondCaisseAnnuel();
-  if (typeof potoFlushSync === "function") await potoFlushSync();
+  try {
+    await window.potoRunAction({ domain: "fund", type: "delete-annual", year: key });
+  } catch (error) {
+    alert(error.message || "Impossible de supprimer le fond de caisse annuel.");
+    return;
+  }
   renderAutreArgent();
   renderFinanceDashboard();
   renderPrets();
@@ -2520,29 +2465,18 @@ async function payFondCaisseAnnuel(year, memberId, amountValue) {
     return;
   }
 
-  const yearData = ensureFondCaisseAnnuelYear(year);
-  if (!yearData.payments[memberId]) {
-    yearData.payments[memberId] = { paidAmount: 0, history: [] };
+  try {
+    await window.potoRunAction({
+      domain: "fund",
+      type: "pay",
+      year,
+      memberId,
+      amount: payAmount,
+    });
+  } catch (error) {
+    alert(error.message || "Impossible d’enregistrer ce versement.");
+    return;
   }
-  yearData.payments[memberId].paidAmount =
-    Math.round((getFondCaisseAnnuelPaid(year, memberId) + payAmount) * 100) / 100;
-  yearData.payments[memberId].updatedAt = new Date().toISOString();
-  if (!Array.isArray(yearData.payments[memberId].history)) {
-    yearData.payments[memberId].history = [];
-  }
-  yearData.payments[memberId].history.unshift({
-    id: generateId(),
-    amount: payAmount,
-    createdAt: new Date().toISOString(),
-    createdBy: getCurrentMember()?.id || null,
-  });
-
-  saveFondCaisseAnnuel();
-  notifyAllMembers(
-    "financier_fond",
-    `${getActorLabel()} a encaissé ${formatEuro(payAmount)} de fond de caisse ${year} pour ${member.name}.`,
-    { tab: "finance", title: "Fond de caisse" }
-  );
   renderAutreArgent();
   renderFinanceDashboard();
 
@@ -2560,23 +2494,13 @@ async function cancelFondCaisseAnnuelPayment(year, memberId, paymentId) {
   }
 
   const member = getMemberById(memberId);
-  const yearData = fondCaisseAnnuel.years?.[String(year)];
-  const record = yearData?.payments?.[memberId];
-  if (!record) return;
-
-  const history = Array.isArray(record.history) ? record.history : [];
-  const item = paymentId
-    ? history.find((entry) => entry.id === paymentId)
-    : history[0];
-
-  let cancelAmount = Number(item?.amount);
-  if (!item) {
-    cancelAmount = Number(record.paidAmount) || 0;
-  }
-  cancelAmount = Math.round((Number(cancelAmount) || 0) * 100) / 100;
-  if (cancelAmount <= 0) return;
-
   const memberName = member?.name || "ce poto";
+  const record = fondCaisseAnnuel.years?.[String(year)]?.payments?.[memberId];
+  if (!record) return;
+  const history = Array.isArray(record.history) ? record.history : [];
+  const item = paymentId ? history.find((entry) => entry.id === paymentId) : history[0];
+  const cancelAmount = Math.round((Number(item?.amount ?? record.paidAmount) || 0) * 100) / 100;
+  if (cancelAmount <= 0) return;
   if (
     !(await appConfirm(
       `Annuler le versement de ${formatEuro(cancelAmount)} (${memberName}) ?\nCe montant sortira de la caisse et reviendra dans son reste dû.`
@@ -2585,29 +2509,25 @@ async function cancelFondCaisseAnnuelPayment(year, memberId, paymentId) {
     return;
   }
 
-  if (item) {
-    record.history = history.filter((entry) => entry.id !== item.id);
-  } else {
-    record.history = [];
+  let cancelled;
+  try {
+    cancelled = await window.potoRunAction({
+      domain: "fund",
+      type: "cancel-payment",
+      year,
+      memberId,
+      paymentId: item?.id || "",
+    });
+  } catch (error) {
+    alert(error.message || "Impossible d’annuler ce versement.");
+    return;
   }
 
-  record.paidAmount = Math.max(
-    0,
-    Math.round(((Number(record.paidAmount) || 0) - cancelAmount) * 100) / 100
-  );
-  record.updatedAt = new Date().toISOString();
-
-  if (record.paidAmount <= 0.001) {
-    delete yearData.payments[memberId];
-  }
-
-  saveFondCaisseAnnuel();
   renderAutreArgent();
   renderFinanceDashboard();
 
-  const due = getFondCaisseAnnuelDue(year, memberId);
   alert(
-    `Versement annulé — ${formatEuro(cancelAmount)} retiré de la caisse.\nReste dû pour ${memberName} : ${formatEuro(due)}\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
+    `Versement annulé — ${formatEuro(cancelled.cancelledAmount)} retiré de la caisse.\nReste dû pour ${memberName} : ${formatEuro(cancelled.due)}\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
   );
 }
 
@@ -2622,8 +2542,8 @@ async function convertFondCaisseAnnuelResteToDettes(year) {
     return false;
   }
   const y = String(year || getFondCaisseAnnuelYear());
-  const yearData = ensureFondCaisseAnnuelYear(y);
-  const amountPerMember = Number(yearData.amountPerMember) || 0;
+  const yearData = fondCaisseAnnuel.years?.[y];
+  const amountPerMember = Number(yearData?.amountPerMember) || 0;
   if (amountPerMember <= 0) {
     alert("Aucun fond de caisse défini pour cette année.");
     return false;
@@ -2649,64 +2569,24 @@ async function convertFondCaisseAnnuelResteToDettes(year) {
     return false;
   }
 
-  const now = new Date().toISOString();
-  const actor = getCurrentMember()?.id || null;
-  let count = 0;
-
-  debtors.forEach(({ member, due }) => {
-    const amount = Math.round(due * 100) / 100;
-    if (!yearData.payments[member.id]) {
-      yearData.payments[member.id] = { paidAmount: 0, history: [] };
-    }
-    // évite double conversion
-    if (yearData.payments[member.id].convertedToDebt) return;
-    yearData.payments[member.id].convertedToDebt = true;
-    yearData.payments[member.id].convertedAt = now;
-    yearData.payments[member.id].convertedAmount = amount;
-    yearData.payments[member.id].updatedAt = now;
-
-    amendes.unshift({
-      id: generateId(),
-      memberId: member.id,
-      type: "contribution",
-      amount,
-      originalAmount: amount,
-      repaidAmount: 0,
-      note: `Fond de caisse ${y} — reste non versé`,
-      date: now,
-      createdAt: now,
-      updatedAt: now,
-      createdBy: actor,
-      fromFondCaisseYear: y,
-      collective: true,
+  let created;
+  try {
+    created = await window.potoRunAction({
+      domain: "fund",
+      type: "convert-annual-debt",
+      year: y,
     });
-    count += 1;
-  });
+  } catch (err) {
+    alert(err.message || "Impossible de convertir le reste du fond de caisse en dettes.");
+    return false;
+  }
+  const count = Array.isArray(created) ? created.length : 0;
 
   if (!count) {
     alert("Rien à convertir.");
     return false;
   }
 
-  saveFondCaisseAnnuel();
-  if (typeof saveAmendes === "function") saveAmendes();
-  else {
-    try {
-      localStorage.setItem(AMENDES_KEY, JSON.stringify(amendes));
-    } catch {
-      /* ignore */
-    }
-  }
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
-  }
-  if (typeof notifyAllMembers === "function") {
-    notifyAllMembers(
-      "amende",
-      `${getActorLabel()} a passé en dette le reste de fond ${y} (${count} poto${count > 1 ? "s" : ""}, ${formatEuro(totalReste)}).`,
-      { tab: "amendes", title: "Fond → dette" }
-    );
-  }
   renderFondCaisseAnnuel();
   if (typeof renderMesAmendes === "function") renderMesAmendes();
   if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
@@ -2718,7 +2598,7 @@ async function convertFondCaisseAnnuelResteToDettes(year) {
 
 
 /** Fixe le reste fond annuel (0 = soldé sans encaisser). amountValue = reste voulu. */
-function adjustFondCaisseAnnuelRemaining(year, memberId, amountValue) {
+async function adjustFondCaisseAnnuelRemaining(year, memberId, amountValue) {
   if (!canManageCaisseArgent() && !canEditFondCaisse()) {
     alert("Pas l'accès pour modifier.");
     return false;
@@ -2733,18 +2613,18 @@ function adjustFondCaisseAnnuelRemaining(year, memberId, amountValue) {
     alert("Montant invalide (0 ou plus).");
     return false;
   }
-  if (remaining > amountPerMember) {
-    alert(`Le reste ne peut pas dépasser ${formatEuro(amountPerMember)}.`);
+  try {
+    await window.potoRunAction({
+      domain: "fund",
+      type: "adjust-remaining",
+      year,
+      memberId,
+      amount: remaining,
+    });
+  } catch (error) {
+    alert(error.message || "Impossible de modifier le reste dû.");
     return false;
   }
-  const yearData = ensureFondCaisseAnnuelYear(year);
-  if (!yearData.payments[memberId]) {
-    yearData.payments[memberId] = { paidAmount: 0, history: [] };
-  }
-  const paid = Math.round((amountPerMember - remaining) * 100) / 100;
-  yearData.payments[memberId].paidAmount = paid;
-  yearData.payments[memberId].updatedAt = new Date().toISOString();
-  saveFondCaisseAnnuel(true);
   if (typeof showToast === "function") {
     showToast(
       remaining <= 0
@@ -2890,4 +2770,3 @@ function saveTabPermissionsData() {
   tabPermissions = { ...tabPermissions, updatedAt: new Date().toISOString() };
   localStorage.setItem(TAB_PERMISSIONS_KEY, JSON.stringify(tabPermissions));
 }
-

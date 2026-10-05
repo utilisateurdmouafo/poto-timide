@@ -1,4 +1,5 @@
 node_modules/
+frontend/dist/
 data/*.db
 data/*.db-*
 data/backup-*.json

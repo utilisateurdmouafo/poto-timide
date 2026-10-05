@@ -442,7 +442,6 @@ function renderPrets() {
   if (isUserEditingForm()) return;
   refreshFinancierPayBoxes();
 
-  processLoanStatusUpdates();
   renderPretSummary();
   renderInitiatePretPanel();
   renderPretNotifications();
@@ -751,8 +750,6 @@ function renderAdminPretLedger(force = false) {
 function renderAdminPrets() {
   if (!hasRoleTabAccess("prets")) return;
   if (isUserEditingForm()) return;
-
-  processLoanStatusUpdates();
 
   const summaryEl = document.getElementById("adminPretSummary");
   const votingEl = document.getElementById("adminPretVotingList");
@@ -1148,7 +1145,7 @@ function showEvenementSaveMessage(text, type = "success") {
   });
 }
 
-function createEvenement(title, shareAmount, description, beneficiaryMemberId) {
+async function createEvenement(title, shareAmount, description, beneficiaryMemberId) {
   if (!canManageEvenements()) {
     alert("Seuls les gestionnaires autorisés peuvent créer un événement.");
     return;
@@ -1182,35 +1179,26 @@ function createEvenement(title, shareAmount, description, beneficiaryMemberId) {
     return;
   }
 
-  const current = getCurrentMember();
-  const totalAmount = Math.round(sharePerMember * cotisantCount * 100) / 100;
-  const payments = {};
-
-  members.forEach((member) => {
-    if (member.id !== beneficiaryMemberId) {
-      payments[member.id] = { paid: false, paidAt: null, validatedBy: null };
-    }
-  });
-
-  evenements.unshift({
-    id: generateId(),
-    title: title.trim(),
-    description: description.trim(),
-    beneficiaryMemberId,
-    totalAmount,
-    sharePerMember,
-    memberCount: cotisantCount,
-    payments,
-    createdAt: new Date().toISOString(),
-    createdBy: current?.id || null,
-  });
-
-  saveEvenements();
+  let created;
+  try {
+    created = await window.potoRunAction({
+      domain: "event",
+      type: "create",
+      title: title.trim(),
+      description: description.trim(),
+      sharePerMember,
+      beneficiaryMemberId,
+    });
+  } catch (err) {
+    alert(err.message || "Impossible de créer l’événement.");
+    return false;
+  }
   evenementForm?.reset();
   document.getElementById("evenementFormPublic")?.reset();
   showEvenementSaveMessage(
-    `Événement créé pour ${beneficiary.name} — ${formatEuro(sharePerMember)} par cotisant (total ${formatEuro(totalAmount)}).`
+    `Événement créé pour ${beneficiary.name} — ${formatEuro(sharePerMember)} par cotisant (total ${formatEuro(created.totalAmount)}).`
   );
+  return true;
 }
 
 function parseEvenementPaymentAmount(value) {
@@ -1221,26 +1209,6 @@ function parseEvenementPaymentAmount(value) {
   }
   return parsed;
 }
-
-function setEvenementMemberPayment(evt, memberId, paidAmount) {
-  if (!evt.payments) evt.payments = {};
-  if (!evt.payments[memberId]) {
-    evt.payments[memberId] = { paid: false, paidAt: null, validatedBy: null };
-  }
-
-  evt.payments[memberId] = {
-    ...evt.payments[memberId],
-    paid: true,
-    paidAt: new Date().toISOString(),
-    validatedBy: getCurrentMember()?.id || null,
-    paidAmount,
-  };
-
-  delete evt.payments[memberId].convertedToDebt;
-  delete evt.payments[memberId].debtCreatedAt;
-  evt.updatedAt = new Date().toISOString();
-}
-
 
 async function markAllEvenementPaid(eventId) {
   if (!canManageEvenements()) {
@@ -1270,14 +1238,18 @@ async function markAllEvenementPaid(eventId) {
   ) {
     return;
   }
-  unpaid.forEach((m) => setEvenementMemberPayment(evt, m.id, share));
+  try {
+    await window.potoRunAction({ domain: "event", type: "payment-bulk", eventId });
+  } catch (err) {
+    alert(err.message || "Impossible d’enregistrer les paiements groupés.");
+    return;
+  }
   logAudit(
     "Événement · paiement groupé",
     `${unpaid.length} paiements · ${evt.title} · ${formatEuro(share)}`
   );
-  saveEvenements();
   showEvenementSaveMessage(
-    `${unpaid.length} paiement(s) validés à ${formatEuro(share)}. Collecté : ${formatEuro(getEvenementCollectedAmount(evt))}.`
+    `${unpaid.length} paiement(s) validés à ${formatEuro(share)}. Collecté : ${formatEuro(getEvenementCollectedAmount(getEvenementById(eventId)))}.`
   );
 }
 
@@ -1309,20 +1281,25 @@ function validateEvenementPayment(eventId, memberId, amountValue) {
   );
   if (paidAmount === null) return;
 
-  setEvenementMemberPayment(evt, memberId, paidAmount);
+  window.potoRunAction({
+    domain: "event",
+    type: "payment",
+    eventId,
+    memberId,
+    amount: paidAmount,
+  }).then(() => {
+    const extra =
+      paidAmount > defaultAmount
+        ? ` (+${formatEuro(paidAmount - defaultAmount)} de plus que les ${formatEuro(defaultAmount)} de cotisation)`
+        : "";
+    showEvenementSaveMessage(
+      `Paiement validé pour ${member.name} — ${formatEuro(paidAmount)} enregistré${extra}. À percevoir par le poto : ${formatEuro(getEvenementPotoReceivable(getEvenementById(eventId)))}.`
+    );
+  }).catch((err) => alert(err.message || "Impossible de valider le paiement."));
 
   logAudit(
     "Événement · paiement",
     `${member.name} a payé ${formatEuro(paidAmount)} — ${evt.title}`
-  );
-  saveEvenements();
-  const potoReceivable = getEvenementPotoReceivable(evt);
-  const extra =
-    paidAmount > defaultAmount
-      ? ` (+${formatEuro(paidAmount - defaultAmount)} de plus que les ${formatEuro(defaultAmount)} de cotisation)`
-      : "";
-  showEvenementSaveMessage(
-    `Paiement validé pour ${member.name} — ${formatEuro(paidAmount)} enregistré${extra}. À percevoir par le poto : ${formatEuro(potoReceivable)}.`
   );
 }
 
@@ -1350,12 +1327,17 @@ function updateEvenementPayment(eventId, memberId, amountValue) {
   if (paidAmount === null) return;
 
   const previousAmount = getEvenementPaidAmount(evt, memberId);
-  setEvenementMemberPayment(evt, memberId, paidAmount);
-
-  saveEvenements();
-  showEvenementSaveMessage(
-    `Paiement de ${member.name} modifié : ${formatEuro(previousAmount)} → ${formatEuro(paidAmount)}. À percevoir par le poto : ${formatEuro(getEvenementPotoReceivable(evt))}.`
-  );
+  window.potoRunAction({
+    domain: "event",
+    type: "update-payment",
+    eventId,
+    memberId,
+    amount: paidAmount,
+  }).then(() => {
+    showEvenementSaveMessage(
+      `Paiement de ${member.name} modifié : ${formatEuro(previousAmount)} → ${formatEuro(paidAmount)}. À percevoir par le poto : ${formatEuro(getEvenementPotoReceivable(getEvenementById(eventId)))}.`
+    );
+  }).catch((err) => alert(err.message || "Impossible de modifier le paiement."));
 }
 
 function cancelEvenementPayment(eventId, memberId) {
@@ -1377,19 +1359,17 @@ function cancelEvenementPayment(eventId, memberId) {
 
   const previousAmount = getEvenementPaidAmount(evt, memberId);
 
-  evt.payments[memberId] = {
-    paid: false,
-    paidAt: null,
-    validatedBy: null,
-    paidAmount: null,
-  };
-
-  if (evt) evt.updatedAt = new Date().toISOString();
+  window.potoRunAction({
+    domain: "event",
+    type: "cancel-payment",
+    eventId,
+    memberId,
+  }).then(() => {
+    showEvenementSaveMessage(
+      `Paiement annulé pour ${member.name}${previousAmount > 0 ? ` (${formatEuro(previousAmount)} retiré de la caisse)` : ""}.`
+    );
+  }).catch((err) => alert(err.message || "Impossible d’annuler le paiement."));
   logAudit("Événement · annulation paiement", member?.name || memberId);
-  saveEvenements();
-  showEvenementSaveMessage(
-    `Paiement annulé pour ${member.name}${previousAmount > 0 ? ` (${formatEuro(previousAmount)} retiré de la caisse)` : ""}.`
-  );
 }
 
 async function closeEvenement(eventId) {
@@ -1408,11 +1388,12 @@ async function closeEvenement(eventId) {
 
   if (!(await appConfirm(`Clôturer « ${evt.title} » ?\nIl sera rangé discrètement sur le côté.`))) return;
 
-  evt.closed = true;
-  evt.closedAt = new Date().toISOString();
-  evt.closedBy = getCurrentMember()?.id || null;
-
-  saveEvenements();
+  try {
+    await window.potoRunAction({ domain: "event", type: "close", eventId });
+  } catch (err) {
+    alert(err.message || "Impossible de clôturer l’événement.");
+    return;
+  }
   showEvenementSaveMessage(`Événement « ${evt.title} » clôturé.`);
 }
 
@@ -1447,24 +1428,21 @@ async function reimburseEvenementToBeneficiary(eventId) {
 
   if (!(await appConfirm(confirmMsg))) return;
 
-  const debtMembers = createEvenementDebts(evt);
-
-  evt.reimbursedToBeneficiary = true;
-  evt.reimbursedAt = new Date().toISOString();
-  evt.reimbursedBy = getCurrentMember()?.id || null;
-  evt.reimbursedAmount = collected;
-  evt.caisseDebtDeduction = unpaidTotal;
-
-  saveAmendes(false);
+  let result;
+  try {
+    result = await window.potoRunAction({ domain: "event", type: "reimburse", eventId });
+  } catch (err) {
+    alert(err.message || "Impossible d’enregistrer le remboursement.");
+    return;
+  }
   logAudit("Événement · remboursement", evt?.title || eventId);
-  saveEvenements();
 
-  let message = collected > 0
-    ? `Remboursé ${formatEuro(collected)} à ${beneficiary?.name || "le poto"} — déduit de la caisse brute.`
+  let message = result.collected > 0
+    ? `Remboursé ${formatEuro(result.collected)} à ${beneficiary?.name || "le poto"} — déduit de la caisse brute.`
     : `Événement finalisé pour ${beneficiary?.name || "le poto"}.`;
 
-  if (debtMembers.length > 0) {
-    message += ` ${debtMembers.length} dette(s) enregistrée(s) — ${formatEuro(unpaidTotal)} déduit de la caisse.`;
+  if (result.unpaidCount > 0) {
+    message += ` ${result.unpaidCount} dette(s) enregistrée(s) — ${formatEuro(result.unpaidTotal)} déduit de la caisse.`;
   }
 
   renderAmendes();
@@ -1494,27 +1472,12 @@ async function deleteEvenement(eventId) {
 
   if (!(await appConfirm(confirmMsg))) return;
 
-  const now = new Date().toISOString();
-  amendes = amendes.map((amende) =>
-    amende.evenementId === eventId
-      ? { ...amende, amount: 0, deletedAt: now, updatedAt: now }
-      : amende
-  );
-  localStorage.setItem(AMENDES_KEY, JSON.stringify(amendes));
-
-  evenements = evenements.map((item) =>
-    item.id === eventId ? { ...item, deletedAt: now, updatedAt: now } : item
-  );
-  saveEvenements(false);
-  bumpLiveDataRevision();
-  if (typeof potoFlushSync === "function") {
-    await potoFlushSync();
+  try {
+    await window.potoRunAction({ domain: "event", type: "delete", eventId });
+  } catch (err) {
+    alert(err.message || "Impossible de supprimer l’événement.");
+    return;
   }
-
-  renderAmendes();
-  renderEvenements();
-  renderPrets();
-  renderFinanceDashboard();
 
   const extra = relatedDettes.length
     ? ` ${relatedDettes.length} dette(s) liée(s) retirée(s).`
@@ -1539,21 +1502,10 @@ async function resetClosedEvenements() {
     return;
   }
 
-  const closedIds = new Set(closedEvents.map((evt) => evt.id));
-
-  const now = new Date().toISOString();
-  amendes = amendes.map((amende) =>
-    isDetteAmende(amende) && amende.evenementId && closedIds.has(amende.evenementId)
-      ? { ...amende, amount: 0, deletedAt: now, updatedAt: now }
-      : amende
-  );
-  localStorage.setItem(AMENDES_KEY, JSON.stringify(amendes));
-
-  evenements = evenements.map((evt) =>
-    closedIds.has(evt.id) ? { ...evt, deletedAt: now, updatedAt: now } : evt
-  );
-  saveEvenements();
-  renderAmendes();
-  showEvenementSaveMessage(`${closedEvents.length} événement(s) clôturé(s) réinitialisé(s).`);
+  try {
+    await window.potoRunAction({ domain: "event", type: "reset-closed" });
+    showEvenementSaveMessage(`${closedEvents.length} événement(s) clôturé(s) réinitialisé(s).`);
+  } catch (err) {
+    alert(err.message || "Impossible de réinitialiser les événements clôturés.");
+  }
 }
-

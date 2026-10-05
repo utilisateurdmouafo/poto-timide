@@ -145,6 +145,7 @@ async function flushServerSync() {
 }
 
 let liveEventSource = null;
+let liveSocket = null;
 let liveReconnectTimer = null;
 /** Intervalle court quand des votes sont en cours */
 const SYNC_INTERVAL_MS = 800;
@@ -183,13 +184,38 @@ function stopLiveEventSource() {
     }
     liveEventSource = null;
   }
+  if (liveSocket) {
+    liveSocket.disconnect();
+    liveSocket = null;
+  }
 }
 
-/** Canal SSE : le serveur pousse dès qu'un poto vote / modifie les prêts */
+/** Canal Socket.IO : le serveur pousse les données après leur persistance */
 function startLiveEventSource() {
-  if (typeof window === "undefined" || typeof EventSource === "undefined") return;
+  if (typeof window === "undefined") return;
   if (!authState.loggedIn) return;
   stopLiveEventSource();
+
+  if (typeof window.io === "function") {
+    liveSocket = window.io({ withCredentials: true });
+    const onData = async () => {
+      if (!authState.loggedIn) return;
+      await flushServerSync();
+      await pullSharedUpdatesFromServer();
+    };
+    liveSocket.on("data", () => {
+      onData().catch((err) => console.warn("Mise à jour temps réel impossible.", err));
+    });
+    liveSocket.on("connect", () => {
+      onData().catch((err) => console.warn("Synchronisation après connexion impossible.", err));
+    });
+    liveSocket.on("connect_error", (err) => {
+      console.warn("Connexion Socket.IO indisponible.", err.message);
+    });
+    return;
+  }
+
+  if (typeof EventSource === "undefined") return;
   try {
     // withCredentials pour envoyer le cookie de session
     liveEventSource = new EventSource("/api/live", { withCredentials: true });
@@ -286,6 +312,22 @@ window.flushPotoServerSync = flushServerSync;
 window.potoFlushSync = flushServerSync;
 window.queueServerSync = queueServerSync;
 window.potoPullSharedUpdates = pullSharedUpdatesFromServer;
+window.potoRunAction = async function potoRunAction(action) {
+  if (!authState.loggedIn) throw new Error("Connectez-vous pour effectuer cette action.");
+  const synced = await flushServerSync();
+  if (!synced) throw new Error("La synchronisation est indisponible. Réessayez avant de valider cette action.");
+  const response = await apiFetch("/api/actions", {
+    method: "POST",
+    body: JSON.stringify(action),
+  });
+  Object.entries(response.data || {}).forEach(([key, value]) => {
+    if (API_SYNC_KEYS.has(key)) rawSetItem(key, JSON.stringify(value));
+  });
+  if (typeof window.potoOnServerDataPulled === "function") {
+    window.potoOnServerDataPulled();
+  }
+  return response.result;
+};
 window.potoStartPeriodicSync = startPeriodicSync;
 window.potoStopPeriodicSync = stopPeriodicSync;
 window.potoSetVotingSyncBoost = setVotingSyncBoost;

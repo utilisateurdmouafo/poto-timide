@@ -4,14 +4,14 @@ services:
     runtime: node
     plan: free
     region: frankfurt
-    buildCommand: npm install
+    buildCommand: npm install && npm run build:react
     startCommand: node server.js
     healthCheckPath: /
     envVars:
       - key: NODE_ENV
         value: production
       - key: NODE_VERSION
-        value: "20"
+        value: "20.19.0"
       - key: SESSION_SECRET
         generateValue: true
       - key: TURSO_DATABASE_URL

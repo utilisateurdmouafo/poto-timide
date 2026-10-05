@@ -25,7 +25,8 @@ git fetch origin
 git checkout main
 git pull origin main
 
-npm install --omit=dev
+npm install
+npm run build:react
 ```
 
 Si `git pull` demande un token GitHub, utilise un **Personal Access Token** (pas le mot de passe GitHub).

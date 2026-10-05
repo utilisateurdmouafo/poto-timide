@@ -1,4 +1,4 @@
-const CACHE_NAME = "poto-timide-app-v46";
+const CACHE_NAME = "poto-timide-app-v47";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -6,6 +6,8 @@ self.addEventListener("install", (event) => {
       cache.addAll([
         "/",
         "/index.html",
+        "/legacy.html",
+        "/styles.css",
         "/assets/icons/icon-192.png",
         "/assets/icons/icon-512.png",
         "/assets/icons/apple-touch-icon.png",

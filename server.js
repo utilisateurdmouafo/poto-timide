@@ -2,6 +2,8 @@ require("./lib/load-env").loadEnvFile();
 
 const express = require("express");
 const session = require("express-session");
+const { createServer } = require("http");
+const { Server } = require("socket.io");
 const SessionStore = session.Store;
 const bcrypt = require("bcryptjs");
 const crypto = require("crypto");
@@ -10,10 +12,21 @@ const fs = require("fs");
 const db = require("./lib/db");
 const { ensureFrozenPlanning } = require("./lib/default-planning");
 const push = require("./lib/push");
+const { applyGroupAction, advanceLoanStatuses } = require("./lib/group-actions");
+const {
+  canWriteSyncKey,
+  hasSyncTabPermission,
+  validateFineSyncValue,
+  validateMemberListSyncValue,
+  validatePersonalSyncValue,
+} = require("./lib/sync-permissions");
 
 const PORT = process.env.PORT || 8080;
 const DEFAULT_PASSWORD = "1234";
-const DATA_DIR = path.join(__dirname, "data");
+const DATA_DIR = process.env.POTO_DATA_DIR
+  ? path.resolve(process.env.POTO_DATA_DIR)
+  : path.join(__dirname, "data");
+let groupActionQueue = Promise.resolve();
 const BACKUP_PATH = path.join(DATA_DIR, "backup-latest.json");
 const FINANCE_KEY = "poto-timide-finance";
 const FINANCE_JSON_PATH = path.join(__dirname, "finance-vitran.json");
@@ -548,8 +561,10 @@ const VERSIONED_OBJECT_KEYS = new Set([
 
 /** Clients SSE branchés pour la synchro quasi temps réel (votes prêts) */
 const liveClients = new Set();
+let liveSocketServer = null;
 
 function broadcastLive(eventName, payload = {}) {
+  liveSocketServer?.emit(eventName, payload);
   if (!liveClients.size) return;
   const body = `event: ${eventName}\ndata: ${JSON.stringify(payload)}\n\n`;
   for (const client of [...liveClients]) {
@@ -1320,23 +1335,23 @@ function createApp() {
     );
   }
 
-  app.use(
-    session({
-      name: "poto.sid",
-      store: sessionStore,
-      secret: process.env.SESSION_SECRET || "poto-timide-secret-change-in-production",
-      resave: false,
-      saveUninitialized: false,
-      rolling: true,
-      cookie: {
-        httpOnly: true,
-        sameSite: "lax",
-        secure: isProduction,
-        maxAge: SESSION_MAX_AGE_MS,
-        path: "/",
-      },
-    })
-  );
+  const sessionMiddleware = session({
+    name: "poto.sid",
+    store: sessionStore,
+    secret: process.env.SESSION_SECRET || "poto-timide-secret-change-in-production",
+    resave: false,
+    saveUninitialized: false,
+    rolling: true,
+    cookie: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: isProduction,
+      maxAge: SESSION_MAX_AGE_MS,
+      path: "/",
+    },
+  });
+  app.use(sessionMiddleware);
+  app.locals.sessionMiddleware = sessionMiddleware;
 
   function requireAuth(req, res, next) {
     if (!req.session?.userId) {
@@ -1489,7 +1504,13 @@ async function syncPresenceLogFromOnline(onlineList) {
   });
 
   app.post("/api/auth/logout", (req, res) => {
-    req.session.destroy(() => {
+    const userId = req.session?.userId;
+    req.session.destroy((err) => {
+      if (err) {
+        console.error("Déconnexion impossible :", err);
+        return res.status(500).json({ error: "Déconnexion impossible" });
+      }
+      if (userId) liveSocketServer?.in(`user:${userId}`).disconnectSockets(true);
       res.json({ ok: true });
     });
   });
@@ -1737,17 +1758,165 @@ async function syncPresenceLogFromOnline(onlineList) {
     }
   });
 
-  app.put("/api/data", requireAuth, async (req, res) => {
+  app.post("/api/actions", requireAuth, async (req, res) => {
+    const runAction = async () => {
+      const member = await findMemberById(req.session.userId);
+      if (!member) {
+        const error = new Error("Membre introuvable.");
+        error.status = 403;
+        throw error;
+      }
+      const [storedRoles, storedPermissions] = await Promise.all([
+        getData("poto-timide-roles"),
+        getData("poto-timide-tab-permissions"),
+      ]);
+      const roles = storedRoles && typeof storedRoles === "object" ? storedRoles : {};
+      const roleIds = Object.entries(roles)
+        .filter(([, memberId]) => String(memberId) === String(member.id))
+        .map(([roleId]) => roleId);
+      const permissions =
+        storedPermissions && typeof storedPermissions === "object"
+          ? storedPermissions
+          : DEFAULT_TAB_PERMISSIONS;
+      const isAdmin = await isAdminId(member.id);
+      const hasTab = (tab) =>
+        roleIds.some((roleId) => Array.isArray(permissions[tab]) && permissions[tab].includes(roleId));
+      const isTreasurer = isAdmin || roleIds.includes("tresorier");
+      const action = req.body || {};
+      const canManageLoans =
+        isTreasurer || hasTab("prets");
+      const canManageFines =
+        isTreasurer || hasTab("amendes") || hasTab("ancienne-tournee");
+      const canManageFund = isTreasurer || hasTab("caisse") || hasTab("tournee");
+      const canManageEvents = isTreasurer || hasTab("evenements");
+      const state = await getAllStoredData();
+      const canManageMembers = isAdmin || hasTab("membres");
+      const applied = applyGroupAction(
+        state,
+        {
+          id: member.id,
+          isAdmin,
+          canManageLoans,
+          canManageFines,
+          canManageFund,
+          canManageEvents,
+          canManageMembers,
+          ownerId: action.domain === "member" ? await getOwnerId() : null,
+        },
+        action,
+      );
+
+      for (const key of applied.changedKeys) {
+        await setData(key, applied.data[key]);
+      }
+      if (applied.changedKeys.includes(MEMBERS_KEY)) {
+        await syncUsersFromMembers(applied.data[MEMBERS_KEY]);
+        await enforceOwnerSafeguards();
+      }
+      await backupDatabase();
+      broadcastLive("data", {
+        keys: applied.changedKeys,
+        at: new Date().toISOString(),
+        action: `${action.domain}.${action.type}`,
+      });
+      res.json({ ok: true, result: applied.result, data: applied.data });
+    };
+
+    const queued = groupActionQueue.then(runAction, runAction);
+    groupActionQueue = queued.then(
+      () => undefined,
+      () => undefined,
+    );
     try {
+      await queued;
+    } catch (err) {
+      const status = Number(err.status) || 500;
+      if (status === 500) console.error("Opération métier impossible :", err);
+      res.status(status).json({ error: status === 500 ? "Erreur serveur" : err.message });
+    }
+  });
+
+  app.put("/api/data", requireAuth, async (req, res) => {
+    const runSync = async () => {
       const payload = await sanitizePayloadForOwner(req.body || {});
+      const actor = await findMemberById(req.session.userId);
+      if (!actor) {
+        const error = new Error("Membre introuvable.");
+        error.status = 403;
+        throw error;
+      }
+      const [storedRoles, storedPermissions, admin] = await Promise.all([
+        getData("poto-timide-roles"),
+        getData("poto-timide-tab-permissions"),
+        isAdminId(actor.id),
+      ]);
+      const roleIds = Object.entries(storedRoles || {})
+        .filter(([, memberId]) => String(memberId) === String(actor.id))
+        .map(([roleId]) => roleId);
+      const permissions =
+        storedPermissions && typeof storedPermissions === "object"
+          ? storedPermissions
+          : DEFAULT_TAB_PERMISSIONS;
+      const syncActor = { id: actor.id, isAdmin: admin, roleIds, permissions };
+      if (Array.isArray(payload[MEMBERS_KEY])) {
+        const existingMembers = unwrapStored(await getData(MEMBERS_KEY)) || [];
+        if (!validateMemberListSyncValue(payload[MEMBERS_KEY], existingMembers)) {
+          const error = new Error("La suppression d’un membre doit passer par une action métier.");
+          error.status = 403;
+          throw error;
+        }
+      }
+      const entries = Object.entries(payload);
+      for (const [key, value] of entries) {
+        if (!STORAGE_KEYS.includes(key)) {
+          const error = new Error(`Clé de synchronisation inconnue : ${key}`);
+          error.status = 400;
+          throw error;
+        }
+        const canWriteDomain = canWriteSyncKey(key, syncActor);
+        if (!canWriteDomain) {
+          const error = new Error(`Vous n’avez pas accès à la modification de ${key}.`);
+          error.status = 403;
+          throw error;
+        }
+        if (
+          (key !== "poto-timide-communication" || !hasSyncTabPermission("communication", syncActor)) &&
+          !validatePersonalSyncValue(
+            key,
+            unwrapStored(value),
+            unwrapStored(await getData(key)),
+            actor.id,
+            {
+              messages: unwrapStored(
+                payload["poto-timide-messages"] || (await getData("poto-timide-messages")),
+              ),
+            },
+          )
+        ) {
+          const error = new Error(`Modification non autorisée dans ${key}.`);
+          error.status = 403;
+          throw error;
+        }
+        if (
+          key === "poto-timide-amendes" &&
+          !validateFineSyncValue(
+            unwrapStored(value),
+            unwrapStored(await getData(key)),
+            unwrapStored(
+              payload["poto-timide-evenements"] || (await getData("poto-timide-evenements")),
+            ),
+          )
+        ) {
+          const error = new Error("Les amendes courantes doivent être modifiées via une action métier.");
+          error.status = 403;
+          throw error;
+        }
+      }
+      const persistedKeys = [];
 
       for (const [key, value] of Object.entries(payload)) {
-        if (!STORAGE_KEYS.includes(key)) continue;
-        try {
-          await persistStorageValue(key, value);
-        } catch (err) {
-          console.warn("Écriture clé impossible :", key, err.message);
-        }
+        await persistStorageValue(key, value);
+        persistedKeys.push(key);
       }
 
       if (payload[MEMBERS_KEY]) {
@@ -1757,7 +1926,7 @@ async function syncPresenceLogFromOnline(onlineList) {
       await enforceOwnerSafeguards();
 
       // Notifier tous les clients connectés (votes, prêts, etc.)
-      const changedKeys = Object.keys(payload || {}).filter((k) => STORAGE_KEYS.includes(k));
+      const changedKeys = persistedKeys;
       if (changedKeys.length) {
         broadcastLive("data", {
           keys: changedKeys,
@@ -1767,9 +1936,18 @@ async function syncPresenceLogFromOnline(onlineList) {
       }
 
       res.json({ ok: true });
+    };
+    const queued = groupActionQueue.then(runSync, runSync);
+    groupActionQueue = queued.then(
+      () => undefined,
+      () => undefined,
+    );
+    try {
+      await queued;
     } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: "Erreur serveur" });
+      const status = Number(err.status) || 500;
+      if (status === 500) console.error("Synchronisation impossible :", err);
+      res.status(status).json({ error: status === 500 ? "Erreur serveur" : err.message });
     }
   });
 
@@ -1953,11 +2131,25 @@ async function syncPresenceLogFromOnline(onlineList) {
     })
   );
 
+  app.use(
+    express.static(path.join(__dirname, "frontend", "dist"), {
+      etag: false,
+      lastModified: false,
+      setHeaders(res, filePath) {
+        if (/\.(html|js|css)$/i.test(filePath)) {
+          res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+        }
+      },
+    })
+  );
+
   app.get("*", (req, res) => {
     if (req.path.startsWith("/api/")) {
       return res.status(404).json({ error: "Route introuvable" });
     }
-    res.sendFile(path.join(__dirname, "index.html"));
+    const reactEntry = path.join(__dirname, "frontend", "dist", "index.html");
+    if (fs.existsSync(reactEntry)) return res.sendFile(reactEntry);
+    res.sendFile(path.join(__dirname, "legacy.html"));
   });
 
   return app;
@@ -1970,7 +2162,70 @@ async function main() {
   await push.ensureVapidKeys();
 
   const app = createApp();
-  app.listen(PORT, "0.0.0.0", () => {
+  const httpServer = createServer(app);
+  const io = new Server(httpServer);
+  io.engine.use(app.locals.sessionMiddleware);
+  io.use((socket, next) => {
+    const session = socket.request.session;
+    if (!session?.userId) return next(new Error("Non connecté"));
+
+    session.lastSeen = Date.now();
+    session.save((err) => {
+      if (err) return next(err);
+      socket.data.userId = session.userId;
+      next();
+    });
+  });
+  io.on("connection", (socket) => {
+    socket.join(`user:${socket.data.userId}`);
+  });
+  liveSocketServer = io;
+  const loanStatusTimer = setInterval(async () => {
+    const runStatusUpdate = async () => {
+      const state = await getAllStoredData();
+      const priorNotificationIds = new Set(
+        (Array.isArray(state["poto-timide-notifications"]) ? state["poto-timide-notifications"] : [])
+          .map((notification) => notification?.id)
+          .filter(Boolean),
+      );
+      const advanced = advanceLoanStatuses(state);
+      if (!advanced.changed) return;
+      for (const [key, value] of Object.entries(advanced.data)) await setData(key, value);
+      broadcastLive("data", {
+        keys: Object.keys(advanced.data),
+        at: new Date().toISOString(),
+        action: "loan.status-updated",
+      });
+      const newInterestNotifications = (advanced.data["poto-timide-notifications"] || [])
+        .filter((notification) =>
+          notification?.type === "loan_interest" && !priorNotificationIds.has(notification.id),
+        );
+      await Promise.all(newInterestNotifications.map(async (notification) => {
+        try {
+          await push.sendToUserIds([notification.memberId], {
+            title: notification.title || "Retard de prêt",
+            body: notification.message,
+            url: `/?tab=prets&loan=${encodeURIComponent(notification.loanId || "")}`,
+            tab: "prets",
+            loanId: notification.loanId || "",
+            tag: `loan-interest-${notification.loanId || notification.id}`,
+          });
+        } catch (err) {
+          console.warn("Push de retard de prêt impossible :", err.message);
+        }
+      }));
+    };
+    const queued = groupActionQueue.then(runStatusUpdate, runStatusUpdate);
+    groupActionQueue = queued.then(() => undefined, () => undefined);
+    try {
+      await queued;
+    } catch (err) {
+      console.error("Mise à jour automatique des prêts impossible :", err);
+    }
+  }, 10_000);
+  loanStatusTimer.unref();
+
+  httpServer.listen(PORT, "0.0.0.0", () => {
     console.log(`Poto Timide — http://localhost:${PORT}`);
     console.log(`Base de données : ${db.getConnectionLabel()}`);
   });

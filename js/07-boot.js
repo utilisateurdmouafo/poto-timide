@@ -192,132 +192,6 @@ async function addMember(name, kind = "member") {
   if (typeof renderBureau === "function") renderBureau();
 }
 
-function purgeMemberFromTourneeYear(yearData, memberId) {
-  if (!yearData || typeof yearData !== "object") return;
-
-  Object.keys(yearData).forEach((key) => {
-    if (key === TOURNEE_PARTNERS_KEY) {
-      const partners = yearData[key];
-      delete partners[memberId];
-      Object.entries(partners).forEach(([otherId, monthPartners]) => {
-        Object.entries(monthPartners || {}).forEach(([monthKey, partnerId]) => {
-          if (partnerId === memberId) delete monthPartners[monthKey];
-        });
-        if (!Object.keys(monthPartners || {}).length) delete partners[otherId];
-      });
-      if (!Object.keys(partners).length) delete yearData[key];
-      return;
-    }
-
-    if (
-      key === TOURNEE_BOUFFE_OK_KEY ||
-      key === TOURNEE_RECEPTION_OK_KEY ||
-      key === TOURNEE_RISTOURNE_OK_KEY ||
-      key === TOURNEE_RECEPTION_DATES_KEY
-    ) {
-      if (yearData[key]?.[memberId]) {
-        delete yearData[key][memberId];
-        if (!Object.keys(yearData[key]).length) delete yearData[key];
-      }
-      return;
-    }
-
-    if (key === TOURNEE_RECEPTION_KEY || key === TOURNEE_RISTOURNE_KEY) {
-      const map = yearData[key] || {};
-      Object.keys(map).forEach((monthKey) => {
-        if (!Array.isArray(map[monthKey])) return;
-        map[monthKey] = map[monthKey].filter((id) => id !== memberId);
-        if (map[monthKey].length === 0) delete map[monthKey];
-      });
-      if (!Object.keys(map).length) delete yearData[key];
-      return;
-    }
-
-    if (Number.isNaN(Number(key)) || !Array.isArray(yearData[key])) return;
-
-    yearData[key] = yearData[key].filter((id) => id !== memberId);
-    if (yearData[key].length === 0) delete yearData[key];
-  });
-}
-
-function purgeMemberFromTourneeStore(tourneeStore, memberId) {
-  if (!tourneeStore?.years) return;
-  Object.values(tourneeStore.years).forEach((yearData) => {
-    purgeMemberFromTourneeYear(yearData, memberId);
-  });
-}
-
-function purgeMemberFromEvenements(memberId) {
-  const removedEventIds = new Set();
-
-  evenements.forEach((evt) => {
-    if (evt.beneficiaryMemberId === memberId) {
-      removedEventIds.add(evt.id);
-      return;
-    }
-
-    if (evt.payments?.[memberId]) {
-      delete evt.payments[memberId];
-    }
-
-    if (evt.createdBy === memberId) {
-      evt.createdBy = null;
-    }
-  });
-
-  if (removedEventIds.size > 0) {
-    evenements = evenements.filter((evt) => !removedEventIds.has(evt.id));
-    amendes = amendes.filter(
-      (amende) => !amende.evenementId || !removedEventIds.has(amende.evenementId)
-    );
-  }
-}
-
-function purgeMemberReferences(memberId) {
-  Object.keys(roles).forEach((roleId) => {
-    if (roles[roleId] === memberId) delete roles[roleId];
-  });
-
-  delete cotisations[memberId];
-  delete cotisationsDraft[memberId];
-
-  purgeMemberFromTourneeStore(tourneeData, memberId);
-  purgeMemberFromTourneeStore(tourneeDraft, memberId);
-
-  amendes = amendes.filter((amende) => amende.memberId !== memberId);
-  amendesCaisse = amendesCaisse.filter((entry) => entry.memberId !== memberId);
-
-  purgeMemberFromEvenements(memberId);
-
-  prets = prets.filter((loan) => loan.borrowerId !== memberId);
-  prets.forEach((loan) => {
-    delete loan.votes?.[memberId];
-  });
-
-  notifications = notifications.filter((notif) => notif.memberId !== memberId);
-  adminIds = adminIds.filter((adminId) => adminId !== memberId || isOwnerMember(adminId));
-  ensureOwnerAdmin();
-  autreArgent = autreArgent.filter((entry) => entry.memberId !== memberId);
-  ancienneTourneeDettes = ancienneTourneeDettes.filter((entry) => entry.memberId !== memberId);
-
-  Object.values(fondCaisseAnnuel.years || {}).forEach((yearData) => {
-    if (yearData?.payments) delete yearData.payments[memberId];
-  });
-
-  localStorage.setItem(ROLES_KEY, JSON.stringify(roles));
-  localStorage.setItem(COTISATIONS_KEY, JSON.stringify(cotisations));
-  localStorage.setItem(TOURNEE_KEY, JSON.stringify(tourneeData));
-  localStorage.setItem(AMENDES_KEY, JSON.stringify(amendes));
-  localStorage.setItem(AMENDES_CAISSE_KEY, JSON.stringify(amendesCaisse));
-  localStorage.setItem(EVENEMENTS_KEY, JSON.stringify(evenements));
-  localStorage.setItem(PRETS_KEY, JSON.stringify(prets));
-  localStorage.setItem(NOTIFICATIONS_KEY, JSON.stringify(notifications));
-  saveAdminIds(false);
-  localStorage.setItem(AUTRE_ARGENT_KEY, JSON.stringify(autreArgent));
-  localStorage.setItem(ANCIENNE_TOURNEE_DETTES_KEY, JSON.stringify(ancienneTourneeDettes));
-  localStorage.setItem(FOND_CAISSE_ANNUEL_KEY, JSON.stringify(fondCaisseAnnuel));
-}
-
 async function deleteMember(id) {
   if (!canDo("membres")) {
     alert("Pas l'accès pour supprimer.");
@@ -341,10 +215,15 @@ async function deleteMember(id) {
   }
 
   const deletingSelf = getCurrentMember()?.id === id;
-
-  purgeMemberReferences(id);
-  members = members.filter((m) => m.id !== id);
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(members));
+  try {
+    if (typeof window.potoRunAction !== "function") {
+      throw new Error("Le service de suppression serveur est indisponible.");
+    }
+    await window.potoRunAction({ domain: "member", type: "delete", memberId: id });
+  } catch (error) {
+    alert(`Suppression impossible : ${error.message || "erreur serveur"}`);
+    return;
+  }
 
   if (deletingSelf) {
     logoutMember();
@@ -843,11 +722,11 @@ document.addEventListener("click", (e) => {
 
 
 
-document.getElementById("capitalHorsGroupeForm")?.addEventListener("submit", (e) => {
+document.getElementById("capitalHorsGroupeForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
   const label = document.getElementById("capitalHorsGroupeLabel")?.value;
   const amount = document.getElementById("capitalHorsGroupeAmount")?.value;
-  if (addCapitalHorsGroupe(label, amount)) {
+  if (await addCapitalHorsGroupe(label, amount)) {
     e.target.reset();
   }
 });
@@ -991,9 +870,9 @@ pretForm?.addEventListener("submit", (e) => {
   initiatePret(pretAmountInput.value, pretNoteInput.value);
 });
 
-fondCaisseForm?.addEventListener("submit", (e) => {
+fondCaisseForm?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  setFondCaisseAmount(fondCaisseAmountInput?.value);
+  await setFondCaisseAmount(fondCaisseAmountInput?.value);
 });
 
 resetFondCaisseBtn?.addEventListener("click", () => {
@@ -1005,9 +884,9 @@ document.getElementById("financierAccountForm")?.addEventListener("submit", (e) 
   saveFinancierAccountFromForm();
 });
 
-fondCaisseFormAdmin?.addEventListener("submit", (e) => {
+fondCaisseFormAdmin?.addEventListener("submit", async (e) => {
   e.preventDefault();
-  setFondCaisseAmount(fondCaisseAmountAdmin?.value);
+  await setFondCaisseAmount(fondCaisseAmountAdmin?.value);
 });
 
 resetFondCaisseBtnAdmin?.addEventListener("click", () => {

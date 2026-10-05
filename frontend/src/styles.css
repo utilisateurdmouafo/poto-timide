@@ -1,0 +1,41 @@
+@import "tailwindcss";
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  min-height: 100%;
+}
+
+.application-host {
+  min-height: 100dvh;
+}
+
+.load-error {
+  box-sizing: border-box;
+  display: grid;
+  min-height: 100dvh;
+  align-content: center;
+  justify-items: center;
+  gap: 1rem;
+  padding: 2rem;
+  color: #072033;
+  font-family: system-ui, sans-serif;
+  text-align: center;
+}
+
+.load-error h1,
+.load-error p {
+  margin: 0;
+}
+
+.load-error button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.75rem 1.25rem;
+  background: #0284c7;
+  color: white;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}

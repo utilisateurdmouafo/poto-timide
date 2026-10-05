@@ -1738,7 +1738,7 @@ function requireCaisseArgentAccess(actionLabel) {
   return false;
 }
 
-function addAutreArgent(memberId, amount, note, motif) {
+async function addAutreArgent(memberId, amount, note, motif) {
   if (!requireCaisseArgentAccess("enregistrer de l'autre argent")) return;
 
   const member = resolveAutreArgentMember(memberId);
@@ -1753,23 +1753,19 @@ function addAutreArgent(memberId, amount, note, motif) {
     return;
   }
 
-  autreArgent.unshift({
-    id: generateId(),
-    memberId: member.id,
-    amount: parsedAmount,
-    type: "don",
-    motif: String(motif || "").trim() || "Don ou aide",
-    note: buildAutreArgentNote(motif, note, "Don ou aide"),
-    createdAt: new Date().toISOString(),
-    createdBy: getCurrentMember()?.id || null,
-  });
-
-  saveAutreArgent();
-  notifyAllMembers(
-    "financier_caisse",
-    `${getActorLabel()} a ajouté ${formatEuro(parsedAmount)} à la caisse (don ou aide de ${member.name}).`,
-    { tab: "finance", title: "Caisse" }
-  );
+  try {
+    await window.potoRunAction({
+      domain: "cash",
+      type: "add",
+      memberId: member.id,
+      amount: parsedAmount,
+      note,
+      motif,
+    });
+  } catch (error) {
+    alert(error.message || "Impossible d’enregistrer le mouvement de caisse.");
+    return;
+  }
   if (autreArgentForm) autreArgentForm.reset();
   showAutreArgentSaveMessage(
     `${formatEuro(parsedAmount)} de ${member.name} ajouté à la caisse disponible.`
@@ -1777,7 +1773,7 @@ function addAutreArgent(memberId, amount, note, motif) {
   autreArgentListPanel?.scrollIntoView({ behavior: "smooth", block: "nearest" });
 }
 
-function withdrawAutreArgent(memberId, amount, note, motif) {
+async function withdrawAutreArgent(memberId, amount, note, motif) {
   if (!requireCaisseArgentAccess("faire un retrait d'argent")) return;
 
   const member = resolveAutreArgentMember(memberId, { allowGroupe: true }) || {
@@ -1791,33 +1787,20 @@ function withdrawAutreArgent(memberId, amount, note, motif) {
     return;
   }
 
-  const caisseDispo = getCaisseDisponible();
-  if (parsedAmount > caisseDispo + 1e-9) {
-    alert(
-      `Impossible de retirer ${formatEuro(parsedAmount)} : la caisse disponible n'a que ${formatEuro(caisseDispo)}.`
-    );
+  const motifLabel = String(motif || "").trim() || "Sortie";
+  try {
+    await window.potoRunAction({
+      domain: "cash",
+      type: "withdraw",
+      memberId: member.id,
+      amount: parsedAmount,
+      note,
+      motif: motifLabel,
+    });
+  } catch (error) {
+    alert(error.message || "Impossible d’enregistrer le retrait.");
     return;
   }
-
-  const motifLabel = String(motif || "").trim() || "Sortie";
-
-  autreArgent.unshift({
-    id: generateId(),
-    memberId: member.id,
-    amount: -parsedAmount,
-    type: "retrait",
-    motif: motifLabel,
-    note: buildAutreArgentNote(motifLabel, note, "Sortie"),
-    createdAt: new Date().toISOString(),
-    createdBy: getCurrentMember()?.id || null,
-  });
-
-  saveAutreArgent();
-  notifyAllMembers(
-    "financier_caisse",
-    `${getActorLabel()} a retiré ${formatEuro(parsedAmount)} de la caisse (${member.name} — ${motifLabel}).`,
-    { tab: "finance", title: "Caisse" }
-  );
   if (autreArgentForm) autreArgentForm.reset();
   showAutreArgentSaveMessage(
     `${formatEuro(parsedAmount)} retiré de la caisse disponible (${member.name} — ${motifLabel}).`
@@ -1856,21 +1839,12 @@ async function deleteAutreArgent(entryId) {
     return;
   }
 
-  const now = new Date().toISOString();
-  // Soft-delete pour que la synchro ne ramène pas la ligne
-  entry.deletedAt = now;
-  entry.updatedAt = now;
-  autreArgent = autreArgent.map((item) =>
-    String(item.id) === id ? { ...item, deletedAt: now, updatedAt: now } : item
-  );
-
-  // Retrait immédiat du DOM
-  document.querySelectorAll(`.btn-autre-argent-delete[data-id="${CSS.escape(id)}"]`).forEach((btn) => {
-    btn.closest("tr, .amende-history-row, article, li")?.remove();
-  });
-
-  saveAutreArgent(true);
-  if (typeof bumpLiveDataRevision === "function") bumpLiveDataRevision();
+  try {
+    await window.potoRunAction({ domain: "cash", type: "delete", entryId: id });
+  } catch (error) {
+    alert(error.message || "Impossible de supprimer ce mouvement de caisse.");
+    return;
+  }
   if (typeof renderAutreArgent === "function") renderAutreArgent();
   if (typeof renderFondCaissePanel === "function") renderFondCaissePanel();
   if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
@@ -1879,11 +1853,6 @@ async function deleteAutreArgent(entryId) {
       ? "Retrait supprimé — le montant est remis dans la caisse disponible."
       : "Entrée supprimée — montant retiré de la caisse disponible."
   );
-  try {
-    if (typeof potoFlushSync === "function") await potoFlushSync();
-  } catch (e) {
-    console.warn("sync deleteAutreArgent", e);
-  }
 }
 
 
@@ -2084,4 +2053,3 @@ async function assignRole(memberId, roleId) {
   updateSessionUI();
   renderBureau();
 }
-

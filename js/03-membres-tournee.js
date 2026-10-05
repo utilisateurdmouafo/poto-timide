@@ -1550,12 +1550,13 @@ function buildAmendeActionControls(amende, { showEdit = false } = {}) {
       <input type="number" min="0" step="0.5" max="${remaining}" value="${remaining}" class="amende-repay-input pret-repay-input" data-id="${escapeHtml(String(amende.id))}" inputmode="decimal" aria-label="Montant, reste ${remaining} euros" />
       <button type="button" class="btn-primary btn-amende-repay" data-id="${escapeHtml(String(amende.id))}" title="Encaisser ce montant">Valider</button>
       <button type="button" class="btn-secondary btn-amende-adjust" data-id="${escapeHtml(String(amende.id))}" title="Fixer le reste (0 = soldé)">Modifier</button>
+      <button type="button" class="btn-secondary btn-amende-delete" data-id="${escapeHtml(String(amende.id))}" title="Supprimer cette ligne">Supprimer</button>
     </div>
   `;
 }
 
 /** Fixe le reste d'une amende/dette (0 = soldée, sans encaissement en caisse). */
-function adjustAmendeRemaining(id, amountValue) {
+async function adjustAmendeRemaining(id, amountValue) {
   if (!canManageAmendesActions()) {
     alert("Pas l'accès pour modifier.");
     return false;
@@ -1571,21 +1572,17 @@ function adjustAmendeRemaining(id, amountValue) {
     alert("Montant invalide (0 ou plus).");
     return false;
   }
-  const prev = Math.round((Number(amende.amount) || 0) * 100) / 100;
-  const original = Math.round(
-    (Number(amende.originalAmount) || prev) * 100
-  ) / 100;
-  amende.amount = val;
-  amende.originalAmount = Math.max(original, val);
-  const repaid = Math.max(0, Math.round((Math.max(original, prev) - val) * 100) / 100);
-  amende.repaidAmount = Math.max(Number(amende.repaidAmount) || 0, repaid);
-  amende.updatedAt = new Date().toISOString();
-  if (val <= 0) {
-    amende.settledAt = amende.updatedAt;
-  } else {
-    delete amende.settledAt;
+  try {
+    await window.potoRunAction({
+      domain: "fine",
+      type: "adjust-remaining",
+      fineId: String(id),
+      amount: val,
+    });
+  } catch (err) {
+    alert(err.message || "Impossible de modifier le solde de cette ligne.");
+    return false;
   }
-  if (typeof saveAmendes === "function") saveAmendes(true);
   if (typeof showToast === "function") {
     const member = getMemberById(amende.memberId);
     showToast(
@@ -1830,7 +1827,7 @@ function canRepayAncienneTourneeDette() {
   return isLoggedIn() && (isFinancierPoste() || hasRoleTabAccess("ancienne-tournee"));
 }
 
-function addAncienneTourneeDette(memberId, amount) {
+async function addAncienneTourneeDette(memberId, amount) {
   if (!requireTabAccess("ancienne-tournee", "ajouter une dette d'ancienne tournée")) return;
 
   const member = getMemberById(memberId);
@@ -1845,21 +1842,17 @@ function addAncienneTourneeDette(memberId, amount) {
     return;
   }
 
-  const nowAt = new Date().toISOString();
-  ancienneTourneeDettes.unshift({
-    id: generateId(),
-    memberId: member.id,
-    amount: parsedAmount,
-    originalAmount: parsedAmount,
-    repaidAmount: 0,
-    repayments: [],
-    note: "",
-    createdAt: nowAt,
-    updatedAt: nowAt,
-    createdBy: getCurrentMember()?.id || null,
-  });
-
-  saveAncienneTourneeDettes();
+  try {
+    await window.potoRunAction({
+      domain: "old-debt",
+      type: "add",
+      memberId: member.id,
+      amount: parsedAmount,
+    });
+  } catch (error) {
+    alert(error.message || "Impossible d’ajouter cette dette.");
+    return;
+  }
   if (ancienneTourneeForm) ancienneTourneeForm.reset();
   const msg = document.getElementById("ancienneTourneeSaveMsg");
   if (msg) {
@@ -1909,20 +1902,12 @@ async function deleteAncienneTourneeDette(entryId) {
     return;
   }
 
-  const now = new Date().toISOString();
-  // Tombstone pour la synchro + retrait de la liste active
-  const tombstone = {
-    id: entry.id,
-    memberId: entry.memberId,
-    amount: 0,
-    originalAmount: entry.originalAmount || entry.amount,
-    repaidAmount: entry.repaidAmount || 0,
-    note: entry.note || "",
-    deletedAt: now,
-    updatedAt: now,
-    createdAt: entry.createdAt || now,
-  };
-  ancienneTourneeDettes.splice(idx, 1, tombstone);
+  try {
+    await window.potoRunAction({ domain: "old-debt", type: "delete", entryId });
+  } catch (error) {
+    alert(error.message || "Impossible de supprimer cette dette.");
+    return;
+  }
 
   // UI immédiate
   document.getElementById(`admin-ancienne-${entryId}`)?.remove();
@@ -1932,9 +1917,6 @@ async function deleteAncienneTourneeDette(entryId) {
   const body = document.getElementById("ancienneTourneeBody");
   if (body) body.dataset.ledgerHtml = "";
 
-  localStorage.setItem(ANCIENNE_TOURNEE_DETTES_KEY, JSON.stringify(ancienneTourneeDettes));
-  bumpLiveDataRevision();
-
   if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
   renderAmendes();
   if (typeof renderMesDettes === "function") renderMesDettes();
@@ -1942,20 +1924,6 @@ async function deleteAncienneTourneeDette(entryId) {
   if (typeof renderReunion === "function") renderReunion();
   showToast?.(`Dette ex tournée de ${memberName} (${amountLabel}) supprimée.`, "success");
 
-  // Sync forcée
-  try {
-    const raw = localStorage.getItem(ANCIENNE_TOURNEE_DETTES_KEY);
-    if (raw && window.queueServerSync) window.queueServerSync(ANCIENNE_TOURNEE_DETTES_KEY, raw);
-  } catch {
-    /* ignore */
-  }
-  if (typeof potoFlushSync === "function") {
-    try {
-      await potoFlushSync();
-    } catch {
-      /* ignore */
-    }
-  }
 }
 
 async function repayAncienneTourneeDette(entryId, amountValue) {
@@ -1978,63 +1946,45 @@ async function repayAncienneTourneeDette(entryId, amountValue) {
     alert("Montant invalide.");
     return;
   }
-  if (payAmount > remaining) {
+  const previewRemaining = Math.round((remaining - payAmount) * 100) / 100;
+  if (previewRemaining < 0) {
     alert(`Impossible de rembourser ${formatEuro(payAmount)} : il reste ${formatEuro(remaining)}.`);
     return;
   }
-
   const member = getMemberById(entry.memberId);
   const memberName = member?.name || "ce poto";
-  const nextRemaining = Math.round((remaining - payAmount) * 100) / 100;
-  const isFull = nextRemaining <= 0;
+  const isFull = previewRemaining <= 0;
   if (
     !(await appConfirm(
       isFull
         ? `Rembourser ${formatEuro(payAmount)} (${memberName}) ?\nLa dette sera soldée et ${formatEuro(payAmount)} ira dans la caisse disponible.`
-        : `Rembourser ${formatEuro(payAmount)} sur ${formatEuro(remaining)} (${memberName}) ?\nIl restera ${formatEuro(nextRemaining)}.\n${formatEuro(payAmount)} ira dans la caisse disponible.`
+        : `Rembourser ${formatEuro(payAmount)} sur ${formatEuro(remaining)} (${memberName}) ?\nIl restera ${formatEuro(previewRemaining)}.\n${formatEuro(payAmount)} ira dans la caisse disponible.`
     ))
   ) {
     return;
   }
 
-  autreArgent.unshift({
-    id: generateId(),
-    memberId: entry.memberId,
-    amount: payAmount,
-    type: "don",
-    motif: "Remboursement dette ancienne tournée",
-    note: isFull
-      ? "Remboursement dette ancienne tournée (soldée)"
-      : `Remboursement partiel dette ancienne tournée (${formatEuro(payAmount)})`,
-    createdAt: new Date().toISOString(),
-    createdBy: getCurrentMember()?.id || null,
-  });
-  saveAutreArgent(true);
-
-  if (!entry.originalAmount) entry.originalAmount = remaining;
-  entry.repaidAmount = Math.round(((Number(entry.repaidAmount) || 0) + payAmount) * 100) / 100;
-  if (!Array.isArray(entry.repayments)) entry.repayments = [];
-  entry.repayments.unshift({
-    id: generateId(),
-    amount: payAmount,
-    createdAt: new Date().toISOString(),
-    createdBy: getCurrentMember()?.id || null,
-  });
-
-  if (isFull) {
-    entry.amount = 0;
-  } else {
-    entry.amount = nextRemaining;
+  let updated;
+  try {
+    updated = await window.potoRunAction({
+      domain: "old-debt",
+      type: "repay",
+      entryId,
+      amount: payAmount,
+    });
+  } catch (error) {
+    alert(error.message || "Impossible d’enregistrer ce remboursement.");
+    return;
   }
-
-  saveAncienneTourneeDettes();
+  const nextRemaining = Number(updated?.amount) || 0;
+  const settled = nextRemaining <= 0;
   renderAutreArgent();
   renderPrets();
   renderFinanceDashboard();
 
   const msg = document.getElementById("ancienneTourneeSaveMsg");
   if (msg) {
-    msg.textContent = isFull
+    msg.textContent = settled
       ? `${formatEuro(payAmount)} de ${memberName} — dette soldée, ajouté à la caisse disponible.`
       : `${formatEuro(payAmount)} de ${memberName} ajouté à la caisse. Reste ${formatEuro(nextRemaining)}.`;
     msg.className = "save-msg save-msg-success";
@@ -2042,7 +1992,7 @@ async function repayAncienneTourneeDette(entryId, amountValue) {
   }
 
   alert(
-    isFull
+    settled
       ? `Dette soldée — ${formatEuro(payAmount)} ajouté à la caisse disponible.\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
       : `Remboursement partiel comptabilisé — ${formatEuro(payAmount)} en caisse.\nReste dû : ${formatEuro(nextRemaining)}\nCaisse disponible : ${formatEuro(getCaisseDisponible())}`
   );
@@ -2442,7 +2392,6 @@ async function submitUnifiedDettesAmendesLine({ memberId, type, amount, note }) 
     return false;
   }
 
-  const now = new Date().toISOString();
   const kind = String(type || "").trim();
 
   if (kind === "dette" || kind === "evenement") {
@@ -2453,44 +2402,35 @@ async function submitUnifiedDettesAmendesLine({ memberId, type, amount, note }) 
   }
 
   if (kind === "ex-tournee" || kind === "ancienne-tournee") {
-    ancienneTourneeDettes.unshift({
-      id: generateId(),
-      memberId: member.id,
-      amount: parsedAmount,
-      originalAmount: parsedAmount,
-      repaidAmount: 0,
-      repayments: [],
-      note: motif,
-      createdAt: now,
-      updatedAt: now,
-      createdBy: getCurrentMember()?.id || null,
-    });
-    saveAncienneTourneeDettes();
+    try {
+      await window.potoRunAction({
+        domain: "old-debt",
+        type: "add",
+        memberId: member.id,
+        amount: parsedAmount,
+        note: motif,
+      });
+    } catch (error) {
+      alert(error.message || "Impossible d’ajouter cette dette.");
+      return false;
+    }
     if (typeof renderAncienneTourneeDettesAdmin === "function") renderAncienneTourneeDettesAdmin();
   } else {
     // absence, retard, bavardage, sanctions uniquement
     const allowed = new Set(["absence", "retard", "bavardage", "sanctions"]);
     const amendeType = allowed.has(kind) ? kind : "sanctions";
-    amendes.unshift({
-      id: generateId(),
-      memberId: member.id,
-      type: amendeType,
-      amount: parsedAmount,
-      originalAmount: parsedAmount,
-      repaidAmount: 0,
-      note: motif,
-      date: now,
-      createdAt: now,
-      updatedAt: now,
-    });
-    saveAmendes();
-  }
-
-  if (typeof potoFlushSync === "function") {
     try {
-      await potoFlushSync();
-    } catch {
-      /* ignore */
+      await window.potoRunAction({
+        domain: "fine",
+        type: "add",
+        memberId: member.id,
+        fineType: amendeType,
+        amount: parsedAmount,
+        note: motif,
+      });
+    } catch (error) {
+      alert(error.message || "Impossible d’ajouter cette amende.");
+      return false;
     }
   }
   renderAmendes();

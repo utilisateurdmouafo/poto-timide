@@ -1,4 +1,4 @@
-function addAmende(memberId, type, amount, note) {
+async function addAmende(memberId, type, amount, note) {
   if (!requireTabAccess("amendes", "ajouter des amendes")) return;
 
   const member = getMemberById(memberId);
@@ -21,24 +21,19 @@ function addAmende(memberId, type, amount, note) {
     return;
   }
 
-  const now = new Date().toISOString();
-  amendes.unshift({
-    id: generateId(),
-    memberId,
-    type: type || "absence",
-    amount: parsedAmount,
-    originalAmount: parsedAmount,
-    repaidAmount: 0,
-    note: String(note || "").trim(),
-    date: now,
-    createdAt: now,
-    updatedAt: now,
-  });
-
-  saveAmendes();
-  amendeForm?.reset();
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
+  try {
+    await window.potoRunAction({
+      domain: "fine",
+      type: "add",
+      memberId,
+      fineType: type || "absence",
+      amount: parsedAmount,
+      note: String(note || "").trim(),
+    });
+    amendeForm?.reset();
+  } catch (err) {
+    alert(err.message || "Impossible d'enregistrer l'amende.");
+    return;
   }
   showToast?.(
     `Amende ${formatEuro(parsedAmount)} enregistrée pour ${member.name}.`,
@@ -46,11 +41,11 @@ function addAmende(memberId, type, amount, note) {
   );
 }
 
-function updateAmende(id, memberId, type, amount, note) {
+async function updateAmende(id, memberId, type, amount, note) {
   if (!requireTabAccess("amendes", "modifier des amendes")) return;
 
-  const index = amendes.findIndex((a) => a.id === id);
-  if (index === -1) return;
+  const existing = amendes.find((a) => a.id === id);
+  if (!existing) return;
 
   const member = getMemberById(memberId);
   if (!member) return;
@@ -58,19 +53,19 @@ function updateAmende(id, memberId, type, amount, note) {
   const parsedAmount = parseAmendeAmount(amount);
   if (parsedAmount === null) return;
 
-  amendes[index] = {
-    ...amendes[index],
-    memberId,
-    type,
-    amount: parsedAmount,
-    note: String(note || "").trim(),
-    updatedAt: new Date().toISOString(),
-  };
-
-  saveAmendes();
-  cancelEditAmende();
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
+  try {
+    await window.potoRunAction({
+      domain: "fine",
+      type: "edit",
+      fineId: id,
+      memberId,
+      fineType: type,
+      amount: parsedAmount,
+      note: String(note || "").trim(),
+    });
+    cancelEditAmende();
+  } catch (err) {
+    alert(err.message || "Impossible de modifier l'amende.");
   }
 }
 
@@ -177,6 +172,21 @@ async function repayAmende(id, amountValue) {
 
   if (editingAmendeId === id) cancelEditAmende();
 
+  if (!isDetteAmende(amende)) {
+    try {
+      await window.potoRunAction({ domain: "fine", type: "repay", fineId: id, amount: payAmount });
+      const currentFine = getAmendeById(id);
+      alert(
+        currentFine?.amount > 0
+          ? `Versement validé — ${formatEuro(payAmount)} ajouté à Déjà versé. Reste dû : ${formatEuro(currentFine.amount)}.`
+          : `Versement validé — ${formatEuro(payAmount)} dans Déjà versé, amende soldée.`,
+      );
+    } catch (err) {
+      alert(err.message || "Impossible d'enregistrer le versement.");
+    }
+    return;
+  }
+
   if (!amende.originalAmount) {
     amende.originalAmount = Math.round((remaining + getAmendeRepaidAmount(amende)) * 100) / 100;
   }
@@ -244,97 +254,28 @@ async function deleteAmendeRecord(id) {
     alert("Amende introuvable (déjà supprimée ?).");
     return;
   }
-  if (amende.deletedAt) {
-    // déjà tombstonée — force sync
-    saveAmendes(true);
-    if (typeof potoFlushSync === "function") await potoFlushSync().catch(() => {});
-    return;
-  }
+  if (amende.deletedAt) return;
 
   const member = getMemberById(amende.memberId);
   const memberName = member?.name || "ce poto";
   const msg = isDetteAmende(amende)
     ? `Supprimer la dette de ${memberName} (${formatEuro(amende.amount)}) ?\nElle ne sera pas ajoutée à la caisse.`
     : `Supprimer ${getAmendeTypeLabel(amende.type).toLowerCase()} de ${memberName} (${formatEuro(amende.amount)}) ?\nElle ne sera pas ajoutée à la caisse.`;
-  // confirm natif = plus fiable sur mobile
-  let ok = false;
-  try {
-    ok = window.confirm(msg);
-  } catch {
-    ok = typeof appConfirm === "function" ? await appConfirm(msg) : true;
-  }
-  if (!ok) return;
-
+  if (!(await appConfirm(msg))) return;
 
   if (String(editingAmendeId) === sid) cancelEditAmende();
-
-  const wasDette = isDetteAmende(amende);
-  if (wasDette) {
-    applyDetteRemoval(amende, {
-      restoreCaisse: false,
-      markEventPaid: false,
-      dismissDebt: true,
-      restoreAmount: 0,
-    });
-    localStorage.setItem(EVENEMENTS_KEY, JSON.stringify(evenements));
-  }
-
-  // Soft-delete sticky (updatedAt = deletedAt pour gagner le merge)
-  const now = new Date().toISOString();
-  amende.deletedAt = now;
-  amende.updatedAt = now;
-  amende.amount = 0;
-  amende.originalAmount = Number(amende.originalAmount) || 0;
-  amende.repaidAmount = 0;
-
-  // Retrait immédiat du DOM
   try {
-    document.getElementById(`amende-${sid}`)?.remove();
-    document.getElementById(`admin-amende-${sid}`)?.remove();
-    document.querySelectorAll(`[data-id="${CSS.escape(sid)}"]`).forEach((el) => {
-      const row = el.closest("tr, .amende-history-row, .dette-card, article, .amende-admin-row");
-      if (row) row.remove();
-    });
-  } catch {
-    /* ignore */
+    await window.potoRunAction({ domain: "fine", type: "delete", fineId: sid });
+  } catch (err) {
+    alert(err.message || "Impossible de supprimer cette ligne.");
+    return;
   }
-
-  if (typeof invalidateLedgerCaches === "function") invalidateLedgerCaches();
-  saveAmendes(true);
-  if (typeof renderEvenements === "function") renderEvenements();
-  if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
-  if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
-  if (typeof showToast === "function") {
-    showToast(wasDette ? `Dette de ${memberName} supprimée.` : `Amende de ${memberName} supprimée.`, "success");
-  }
-
-  try {
-    const qs = window.queueServerSync || (typeof queueServerSync === "function" ? queueServerSync : null);
-    const aRaw = localStorage.getItem(AMENDES_KEY);
-    if (aRaw && qs) qs(AMENDES_KEY, aRaw);
-    if (wasDette) {
-      const eRaw = localStorage.getItem(EVENEMENTS_KEY);
-      if (eRaw && qs) qs(EVENEMENTS_KEY, eRaw);
-    }
-  } catch {
-    /* ignore */
-  }
-
-  if (typeof potoFlushSync === "function") {
-    try {
-      await potoFlushSync();
-    } catch {
-      /* ignore */
-    }
-  }
-
-  // Re-render après sync
-  if (typeof renderAmendes === "function") renderAmendes();
-  if (typeof renderAmendesAdminHistory === "function") renderAmendesAdminHistory();
-  if (typeof renderMesAmendes === "function") renderMesAmendes();
-  if (typeof renderEvenements === "function") renderEvenements();
-  if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
-  if (typeof renderReunion === "function") renderReunion();
+  showToast?.(
+    isDetteAmende(amende)
+      ? `Dette de ${memberName} supprimée.`
+      : `Amende de ${memberName} supprimée.`,
+    "success",
+  );
 }
 
 async function undoAmendePayment(caisseId) {
@@ -353,36 +294,17 @@ async function undoAmendePayment(caisseId) {
     return;
   }
 
-  const existing = entry.sourceAmendeId ? getAmendeById(entry.sourceAmendeId) : null;
-  const restoredAmount = Number(entry.amount) || 0;
-  if (existing) {
-    existing.amount = Math.round(((Number(existing.amount) || 0) + restoredAmount) * 100) / 100;
-    existing.repaidAmount = Math.max(
-      0,
-      Math.round(((Number(existing.repaidAmount) || 0) - restoredAmount) * 100) / 100
-    );
-    delete existing.settledAt;
-  } else {
-    amendes.unshift({
-      id: entry.sourceAmendeId || generateId(),
-      memberId: entry.memberId,
-      type: entry.type || "sanctions",
-      amount: restoredAmount,
-      originalAmount: restoredAmount,
-      repaidAmount: 0,
-      note: entry.note || "",
-      date: entry.paidAt || new Date().toISOString(),
+  try {
+    await window.potoRunAction({
+      domain: "fine",
+      type: "undo-repay",
+      fineId: entry.sourceAmendeId,
+      cashId: caisseId,
     });
+    return;
+  } catch (err) {
+    alert(err.message || "Impossible d'annuler l'encaissement.");
   }
-
-  amendesCaisse = amendesCaisse.filter((item) => item.id !== caisseId);
-  saveAmendesCaisse();
-  saveAmendes();
-  bumpLiveDataRevision();
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
-  }
-  renderFinanceDashboard();
 }
 
 function renderAmendesAdminHistory() {
@@ -659,17 +581,11 @@ function loadCapitalHorsGroupe() {
   return parsed.filter((e) => e && e.id);
 }
 
-function saveCapitalHorsGroupe(shouldRender = true) {
-  localStorage.setItem(CAPITAL_HORS_GROUPE_KEY, JSON.stringify(capitalHorsGroupe));
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
-  }
-  if (shouldRender) {
-    renderCapitalHorsGroupeAdmin();
-    renderPrets();
-    renderFinanceDashboard();
-    if (typeof renderAutreArgent === "function") renderAutreArgent();
-  }
+function refreshCapitalHorsGroupeViews() {
+  renderCapitalHorsGroupeAdmin();
+  renderPrets();
+  renderFinanceDashboard();
+  if (typeof renderAutreArgent === "function") renderAutreArgent();
 }
 
 function getCapitalHorsGroupeTotal() {
@@ -701,7 +617,7 @@ function getCaisseTotal() {
   return getCaisseDisponible() + getLoansCapitalOut() + getCapitalHorsGroupeTotal();
 }
 
-function addCapitalHorsGroupe(label, amount) {
+async function addCapitalHorsGroupe(label, amount) {
   if (!canEditFondCaisse() && !canManageCaisseArgent()) {
     alert("Seul un administrateur (accès Caisse) peut ajouter de l'argent dehors.");
     return false;
@@ -712,19 +628,13 @@ function addCapitalHorsGroupe(label, amount) {
     return false;
   }
   const name = String(label || "").trim() || "Ex-membre / créance";
-  capitalHorsGroupe.unshift({
-    id: generateId(),
-    label: name,
-    amount: parsed,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  });
-  saveCapitalHorsGroupe();
-  notifyAllMembers(
-    "capital_hors_groupe",
-    `${getActorLabel()} a enregistré ${formatEuro(parsed)} dehors (${name}).`,
-    { tab: "prets", title: "Argent dehors" }
-  );
+  try {
+    await window.potoRunAction({ domain: "capital", type: "add", label: name, amount: parsed });
+  } catch (error) {
+    alert(error.message || "Impossible d’ajouter cette créance.");
+    return false;
+  }
+  refreshCapitalHorsGroupeViews();
   return true;
 }
 
@@ -733,16 +643,18 @@ async function deleteCapitalHorsGroupe(id) {
     alert("Seul un administrateur (accès Caisse) peut supprimer cette ligne.");
     return false;
   }
-  const entry = capitalHorsGroupe.find((e) => e.id === id);
+  const entry = capitalHorsGroupe.find((e) => e.id === id && !e.deletedAt);
   if (!entry) return false;
   if (!(await appConfirm(`Retirer « ${entry.label} » (${formatEuro(entry.amount)}) de l'argent dehors ?`))) {
     return false;
   }
-  const now = new Date().toISOString();
-  entry.deletedAt = now;
-  entry.updatedAt = now;
-  saveCapitalHorsGroupe();
-  if (typeof potoFlushSync === "function") await potoFlushSync();
+  try {
+    await window.potoRunAction({ domain: "capital", type: "delete", entryId: id });
+  } catch (error) {
+    alert(error.message || "Impossible de supprimer cette créance.");
+    return false;
+  }
+  refreshCapitalHorsGroupeViews();
   return true;
 }
 
@@ -1005,48 +917,19 @@ async function updateLoanRequestDate(loanId, ymd) {
   const loan = getLoanById(loanId);
   if (!loan) return false;
 
-  const nextCreated = combineDateWithTime(ymd, loan.createdAt);
-  if (!nextCreated) {
-    alert("Date invalide.");
-    return false;
-  }
   if (toDateInputValue(getLoanRequestDate(loan)) === ymd) {
     stopLoanDateEdit();
     renderAdminPretLedger(true);
     return true;
   }
 
-  loan.createdAt = nextCreated;
-  if (loan.approvedAt) loan.approvedAt = combineDateWithTime(ymd, loan.approvedAt) || loan.approvedAt;
-  if (loan.financierDecidedAt) {
-    loan.financierDecidedAt = combineDateWithTime(ymd, loan.financierDecidedAt) || loan.financierDecidedAt;
-  }
-  loan.updatedAt = new Date().toISOString();
-  if (loan.status === "active" || loan.status === "defaulted" || loan.status === "completed") {
-    const dueDates = getLoanDueDates(loan);
-    const dueLabel = dueDates ? formatDate(`${dueDates.month1Ymd}T12:00:00`) : "—";
-    upsertLoanNotification(
-      loan.borrowerId,
-      loan.id,
-      "loan_approved",
-      `Prêt accordé — ${formatEuro(loan.amount)}. Remboursez 80 % avant le ${dueLabel}.`
-    );
-    saveNotifications(false);
-  }
-  savePrets(false);
   try {
-    localStorage.setItem("poto-timide-data-revision", JSON.stringify(Date.now()));
-  } catch {
-    /* ignore */
-  }
-
-  const flush = window.flushPotoServerSync || window.potoFlushSync;
-  if (typeof flush === "function") {
-    try {
-      await flush();
-    } catch (err) {
-      console.warn("Synchronisation de la date de prêt :", err);
-    }
+    await window.potoRunAction({ domain: "loan", type: "update-date", loanId, date: ymd });
+  } catch (err) {
+    alert(err.message || "Impossible de modifier la date du prêt.");
+    stopLoanDateEdit();
+    renderAdminPretLedger(true);
+    return false;
   }
 
   stopLoanDateEdit();
@@ -1379,106 +1262,6 @@ function notifyBorrower(loan, type, message) {
   upsertLoanNotification(loan.borrowerId, loan.id, type, message);
 }
 
-function applyDynamicLoanSanction(loan, ratio, now) {
-  if (loan.interestApplied) return false;
-
-  const initialAmount = Number(loan.amount) || 0;
-  loan.interestApplied = true;
-  loan.interestAmount = Math.round(initialAmount * LOAN_INTEREST_RATE * 100) / 100;
-  loan.sanctionAppliedAt = new Date(now).toISOString();
-  loan.repaymentRatioAtSanction = Math.round(ratio * 10000) / 10000;
-
-  if (ratio >= 0.6) {
-    loan.sanctionLevel = "interest";
-  } else if (ratio >= 0.3) {
-    loan.sanctionLevel = "interest-and-half-tournee-ban";
-    loan.loanBanUntil = addMonthsYmd(toDateInputValue(new Date(now)), 5) + "T23:59:59.999Z";
-  } else {
-    loan.sanctionLevel = "interest-and-full-tournee-ban";
-    loan.loanBanUntil = addMonthsYmd(toDateInputValue(new Date(now)), 10) + "T23:59:59.999Z";
-  }
-
-  loan.status = "defaulted";
-  return true;
-}
-
-function processLoanStatusUpdates() {
-  const now = Date.now();
-  let changed = false;
-
-  prets.forEach((loan) => {
-    if (isLoanDeleted(loan)) return;
-    if (loan.status !== "voting") return;
-
-    const stats = getVoteStats(loan);
-    const expired = now >= new Date(loan.deadlineAt).getTime();
-
-    if (stats.unanimousYes || expired) {
-      loan.status = "awaiting_financier";
-      loan.autoApprovedByTimeout = expired && !stats.unanimousYes;
-      finalizeVotePhaseNotifications(loan);
-      notifyFinancierForLoan(loan);
-      changed = true;
-    }
-  });
-
-  prets.forEach((loan) => {
-    if (!loan || !["active", "defaulted"].includes(loan.status)) return;
-
-    const dueDates = getLoanDueDates(loan);
-    if (!dueDates) return;
-
-    // Capital entièrement versé → soldé sans intérêts
-    const repaidCap = Math.round((Number(loan.totalRepaid) || 0) * 100) / 100;
-    const amountCap = Math.round((Number(loan.amount) || 0) * 100) / 100;
-    if (repaidCap >= amountCap && amountCap > 0) {
-      loan.interestAmount = 0;
-      loan.interestApplied = false;
-      loan.status = "completed";
-      loan.updatedAt = new Date().toISOString();
-      changed = true;
-      return;
-    }
-
-    const balance = getLoanBalance(loan);
-    if (balance <= 0) {
-      loan.status = "completed";
-      changed = true;
-      return;
-    }
-
-    const ratio = repaidCap / Math.max(1, amountCap);
-    // Retard : à partir de minuit du lendemain de l'échéance 80 %
-    const month1End = new Date(`${dueDates.month1Ymd}T23:59:59.999`);
-    if (Date.now() > month1End.getTime() && !loan.firstMonthEvaluated) {
-      loan.firstMonthEvaluated = true;
-      if (ratio < REPAYMENT_MONTH1_RATIO) {
-        changed = applyDynamicLoanSanction(loan, ratio, now) || changed;
-      }
-      changed = true;
-    } else if (Date.now() > dueDates.month2.getTime() && !loan.interestApplied) {
-      changed = applyDynamicLoanSanction(loan, ratio, now) || changed;
-    }
-
-    if (loan.interestApplied && loan.sanctionAppliedAt === new Date(now).toISOString()) {
-      const interestMsg = `Retard de remboursement : intérêts de 10 % appliqués sur le montant initial (${formatEuro(loan.interestAmount)}).`;
-      notifyBorrower(loan, "loan_interest", interestMsg);
-      queuePushMessage(loan.borrowerId, {
-        title: "Retard de prêt",
-        body: interestMsg,
-        tab: "prets",
-        loanId: loan.id,
-        tag: `loan-interest-${loan.id}`,
-      });
-    }
-  });
-
-  if (changed) {
-    saveNotifications(false);
-    savePrets();
-  }
-}
-
 function formatRemainingTime(deadlineIso) {
   const diff = new Date(deadlineIso).getTime() - Date.now();
   if (diff <= 0) return "Délai expiré";
@@ -1487,7 +1270,7 @@ function formatRemainingTime(deadlineIso) {
   return `${hours} h ${minutes} min restantes`;
 }
 
-function initiatePret(amount, note) {
+async function initiatePret(amount, note) {
   const current = getCurrentMember();
   if (!current) {
     openLoginModal();
@@ -1542,167 +1325,29 @@ function initiatePret(amount, note) {
     return;
   }
 
-  const createdAt = new Date();
-  const deadlineAt = new Date(createdAt.getTime() + LOAN_VOTE_HOURS * 60 * 60 * 1000);
-
-  const loan = {
-    id: generateId(),
-    borrowerId: current.id,
-    amount: parsedAmount,
-    note: note.trim(),
-    status: "voting",
-    createdAt: createdAt.toISOString(),
-    updatedAt: createdAt.toISOString(),
-    deadlineAt: deadlineAt.toISOString(),
-    votes: {},
-    financierDecision: null,
-    financierDecidedAt: null,
-    approvedAt: null,
-    totalRepaid: 0,
-    repayments: [],
-    interestApplied: false,
-    interestAmount: 0,
-    firstMonthEvaluated: false,
-    sanctionLevel: null,
-    sanctionAppliedAt: null,
-    repaymentRatioAtSanction: null,
-    loanBanUntil: null,
-    autoApprovedByTimeout: false,
-  };
-
-  prets.unshift(loan);
-  notifyAllMembersOnLoanInitiated(loan);
-  logAudit("Prêt · demande", `${current.name} demande ${formatEuro(parsedAmount)}${motif ? ` — ${motif}` : ""}`);
-  savePrets();
-  pretForm.reset();
-}
-
-/** Votes locaux non encore confirmés par le serveur — ne jamais les perdre au pull */
-const pendingLocalVotes = new Map(); // loanId -> { [memberId]: "yes"|"no", at: iso }
-
-function rememberLocalVote(loanId, memberId, choice) {
-  if (!loanId || !memberId) return;
-  const prev = pendingLocalVotes.get(loanId) || {};
-  pendingLocalVotes.set(loanId, {
-    ...prev,
-    [memberId]: choice,
-    at: new Date().toISOString(),
-  });
-}
-
-/** Réapplique les votes locaux après un reload / pull (évite les boutons qui réapparaissent) */
-function applyPendingLocalVotesToPrets() {
-  if (!pendingLocalVotes.size || !Array.isArray(prets)) return false;
-  let changed = false;
-  pendingLocalVotes.forEach((voteMap, loanId) => {
-    const loan = prets.find((l) => l && l.id === loanId && !isLoanDeleted(l));
-    if (!loan) return;
-    if (!loan.votes || typeof loan.votes !== "object") loan.votes = {};
-    Object.entries(voteMap).forEach(([memberId, choice]) => {
-      if (memberId === "at") return;
-      if (choice !== "yes" && choice !== "no") return;
-      if (loan.votes[memberId] !== choice) {
-        loan.votes[memberId] = choice;
-        changed = true;
-      }
-    });
-    if (changed) {
-      const at = voteMap.at || new Date().toISOString();
-      if (!loan.updatedAt || new Date(at).getTime() >= new Date(loan.updatedAt).getTime()) {
-        loan.updatedAt = at;
-      }
-    }
-  });
-  return changed;
-}
-
-function clearConfirmedLocalVotes() {
-  pendingLocalVotes.forEach((voteMap, loanId) => {
-    const loan = prets.find((l) => l && l.id === loanId);
-    if (!loan || !loan.votes) return;
-    let allPresent = true;
-    Object.entries(voteMap).forEach(([memberId, choice]) => {
-      if (memberId === "at") return;
-      if (loan.votes[memberId] !== choice) allPresent = false;
-    });
-    if (allPresent) pendingLocalVotes.delete(loanId);
-  });
+  try {
+    await window.potoRunAction({ domain: "loan", type: "request", amount: parsedAmount, note: motif });
+    pretForm?.reset();
+    showPretSaveMessage("Demande de prêt envoyée au groupe.");
+  } catch (err) {
+    alert(err.message || "Impossible d'enregistrer la demande de prêt.");
+  }
 }
 
 async function votePret(loanId, vote) {
   const current = getCurrentMember();
   if (!current) return;
 
-  const loan = getLoanById(loanId);
-  if (!loan || loan.status !== "voting") return;
-  if (loan.borrowerId === current.id) return;
-
-  // Déjà voté → on ne propose plus les boutons
-  if (!loan.votes || typeof loan.votes !== "object") loan.votes = {};
-  if (loan.votes[current.id] === "yes" || loan.votes[current.id] === "no") {
-    rememberLocalVote(loanId, current.id, loan.votes[current.id]);
-    renderPrets();
-    return;
+  try {
+    await window.potoRunAction({
+      domain: "loan",
+      type: "vote",
+      loanId,
+      vote: vote === "yes" ? "yes" : "no",
+    });
+  } catch (err) {
+    alert(err.message || "Impossible d'enregistrer le vote.");
   }
-
-  const choice = vote === "yes" ? "yes" : "no";
-  loan.votes[current.id] = choice;
-  loan.updatedAt = new Date().toISOString();
-  rememberLocalVote(loanId, current.id, choice);
-  logAudit("Prêt · vote", `${current.name} vote ${choice === "yes" ? "Oui" : "Non"}`);
-  confirmVoterNotification(loan, current.id);
-
-  const stats = getVoteStats(loan);
-  if (stats.unanimousYes) {
-    loan.status = "awaiting_financier";
-    loan.autoApprovedByTimeout = false;
-    loan.updatedAt = new Date().toISOString();
-    finalizeVotePhaseNotifications(loan);
-    notifyFinancierForLoan(loan);
-    saveNotifications(false);
-  } else {
-    saveNotifications(false);
-  }
-
-  // Affichage immédiat + forcer une synchro prioritaires des prêts
-  savePrets();
-  renderPrets();
-  if (typeof renderAdminPrets === "function" && isAdminWorkspace?.() && activeAdminSub === "prets") {
-    try { renderAdminPrets(); } catch { /* ignore */ }
-  }
-
-  // Sync serveur avec retries + réapplication si un pull a écrasé
-  const flush = window.potoFlushSync || window.flushPotoServerSync;
-  if (typeof flush !== "function") return;
-
-  for (let attempt = 0; attempt < 8; attempt++) {
-    try {
-      const live = getLoanById(loanId);
-      if (live) {
-        if (!live.votes || typeof live.votes !== "object") live.votes = {};
-        if (live.votes[current.id] !== choice) {
-          live.votes[current.id] = choice;
-          live.updatedAt = new Date().toISOString();
-          rememberLocalVote(loanId, current.id, choice);
-          savePrets(false);
-        }
-      }
-      const ok = await flush();
-      if (ok) {
-        clearConfirmedLocalVotes();
-        // Tirer immédiatement les votes des autres
-        if (typeof window.potoPullSharedUpdates === "function") {
-          await window.potoPullSharedUpdates();
-        }
-        renderPrets();
-        return;
-      }
-    } catch (err) {
-      console.warn("Synchronisation du vote échouée, nouvel essai…", err);
-    }
-    await new Promise((r) => setTimeout(r, 250 + attempt * 200));
-  }
-  console.warn("Vote enregistré localement mais sync serveur non confirmée.");
 }
 
 const PENDING_FINANCIER_STATUSES = ["voting", "awaiting_financier"];
@@ -1713,52 +1358,16 @@ async function financierDecidePret(loanId, decision) {
     return;
   }
 
-  const loan = getLoanById(loanId);
-  if (!loan || !PENDING_FINANCIER_STATUSES.includes(loan.status)) return;
-
-  const borrower = getMemberById(loan.borrowerId);
-
-  if (decision === "approved") {
-    if (loan.amount > getBorrowableAmount()) {
-      alert(`Fonds insuffisants. Empruntable : ${formatEuro(getBorrowableAmount())}.`);
-      return;
-    }
-    loan.status = "active";
-    loan.financierDecision = "approved";
-    loan.financierDecidedAt = new Date().toISOString();
-    loan.approvedAt = loan.financierDecidedAt;
-    loan.updatedAt = loan.financierDecidedAt;
-    updateLoanNotificationsOnDecision(loan, "approved");
-  } else {
-    loan.status = "rejected";
-    loan.financierDecision = "rejected";
-    loan.financierDecidedAt = new Date().toISOString();
-    loan.updatedAt = loan.financierDecidedAt;
-    updateLoanNotificationsOnDecision(loan, "rejected");
+  try {
+    await window.potoRunAction({
+      domain: "loan",
+      type: "decide",
+      loanId,
+      decision: decision === "approved" ? "approved" : "rejected",
+    });
+  } catch (err) {
+    alert(err.message || "Impossible d'enregistrer la décision.");
   }
-
-  const actor = getActorLabel();
-  const action = decision === "approved" ? "accordé" : "refusé";
-  notifyAllMembers(
-    decision === "approved" ? "loan_approved" : "loan_rejected",
-    `${actor} a ${action} le prêt de ${borrower?.name || "un membre"} (${formatEuro(loan.amount)}).`,
-    { loanId: loan.id, tab: "prets", title: decision === "approved" ? "Prêt accordé" : "Prêt refusé" }
-  );
-  logAudit(
-    decision === "approved" ? "Prêt · accordé" : "Prêt · refusé",
-    `${borrower?.name || "membre"} — ${formatEuro(loan.amount)}`
-  );
-  savePrets();
-  const flush = window.potoFlushSync || window.flushPotoServerSync;
-  if (typeof flush === "function") {
-    try {
-      await flush();
-    } catch (err) {
-      console.warn("Synchronisation de la décision du prêt échouée", err);
-    }
-  }
-  renderPrets();
-  if (typeof renderAdminPrets === "function") renderAdminPrets();
 }
 
 function ensureLoanRepayments(loan) {
@@ -1785,14 +1394,11 @@ function syncLoanRepaidFromHistory(loan) {
   }
 }
 
-function recordRepayment(loanId, amount) {
+async function recordRepayment(loanId, amount) {
   if (!canManagePretsActions()) {
     alert("Seul le Financier ou un administrateur peut enregistrer un remboursement.");
     return;
   }
-
-  const loan = getLoanById(loanId);
-  if (!loan || !["active", "defaulted"].includes(loan.status)) return;
 
   const raw = String(amount ?? "").trim().replace(",", ".");
   const parsedAmount = Math.round(parseFloat(raw) * 100) / 100;
@@ -1801,59 +1407,11 @@ function recordRepayment(loanId, amount) {
     return;
   }
 
-  const remaining = getLoanBalance(loan);
-  if (parsedAmount > remaining) {
-    alert(`Impossible de rembourser ${formatEuro(parsedAmount)} : il reste ${formatEuro(remaining)}.`);
-    return;
-  }
-
-  const current = getCurrentMember();
-  ensureLoanRepayments(loan);
-  const now = new Date().toISOString();
-  loan.repayments.push({
-    id: generateId(),
-    amount: parsedAmount,
-    date: now,
-    recordedBy: current?.id || null,
-  });
-  syncLoanRepaidFromHistory(loan);
-  loan.updatedAt = now;
-
-  const actor = getActorLabel();
-  const borrower = getMemberById(loan.borrowerId);
-  notifyAllMembers(
-    "financier_repay",
-    `${actor} a enregistré un remboursement de ${formatEuro(parsedAmount)} pour ${borrower?.name || "un membre"} (prêt ${formatEuro(loan.amount)}).`,
-    { loanId: loan.id, tab: "prets", title: "Remboursement" }
-  );
-  if (loan.status === "completed") {
-    notifyAllMembers(
-      "loan_completed",
-      `Le prêt de ${borrower?.name || "un membre"} (${formatEuro(loan.amount)}) est entièrement remboursé.`,
-      { loanId: loan.id, tab: "prets", title: "Prêt remboursé" }
-    );
-  }
-
-  logAudit(
-    "Prêt · remboursement",
-    `${borrower?.name || "membre"} — ${formatEuro(parsedAmount)} (prêt ${formatEuro(loan.amount)})`
-  );
-  savePrets(true);
-  const msg = `${formatEuro(parsedAmount)} retournés dans la caisse. Reste sur ce prêt : ${formatEuro(getLoanBalance(loan))}.`;
-  showPretSaveMessage(msg);
-  // Sync serveur prioritaire pour que tous les appareils voient le nouveau reste
-  const flush = window.potoFlushSync || window.flushPotoServerSync;
-  if (typeof flush === "function") {
-    Promise.resolve(flush())
-      .then((ok) => (ok ? null : flush()))
-      .then(() => {
-        if (typeof reloadFromStorage === "function") reloadFromStorage();
-        if (typeof renderPrets === "function") renderPrets();
-        if (typeof renderAdminPrets === "function") renderAdminPrets();
-        if (typeof renderFinance === "function") renderFinance();
-        if (typeof refreshReunionIfActive === "function") refreshReunionIfActive();
-      })
-      .catch(() => {});
+  try {
+    await window.potoRunAction({ domain: "loan", type: "repay", loanId, amount: parsedAmount });
+    showPretSaveMessage(`${formatEuro(parsedAmount)} retournés dans la caisse.`);
+  } catch (err) {
+    alert(err.message || "Impossible d'enregistrer le remboursement.");
   }
 }
 
@@ -1880,23 +1438,17 @@ async function undoLoanRepayment(loanId, repaymentId) {
   });
   if (!confirmed) return;
 
-  loan.repayments = repayments.filter((item) => item.id !== repayment.id);
-  const wasCompleted = loan.status === "completed";
-  syncLoanRepaidFromHistory(loan);
-
-  savePrets();
-  if (typeof window.flushPotoServerSync === "function") {
-    window.flushPotoServerSync();
-  } else if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
+  try {
+    await window.potoRunAction({
+      domain: "loan",
+      type: "undo-repayment",
+      loanId,
+      repaymentId: repayment.id,
+    });
+    showPretSaveMessage(`Remboursement de ${formatEuro(amount)} annulé.`);
+  } catch (err) {
+    alert(err.message || "Impossible d'annuler le remboursement.");
   }
-
-  const remaining = getLoanBalance(loan);
-  showPretSaveMessage(
-    wasCompleted && remaining > 0
-      ? `Remboursement de ${formatEuro(amount)} annulé. Le prêt est de nouveau en cours, reste ${formatEuro(remaining)}.`
-      : `Remboursement de ${formatEuro(amount)} annulé. Reste dû : ${formatEuro(remaining)}. Caisse : ${formatEuro(getCaisseDisponible())}.`
-  );
 }
 
 function buildLoanRepaymentsBlock(loan) {
@@ -1930,7 +1482,7 @@ function isLoanDeleted(loan) {
 }
 
 async function deletePret(loanId) {
-  if (!canDo("prets")) {
+  if (!canManagePretsActions()) {
     alert("Pas l'accès pour supprimer un prêt.");
     return;
   }
@@ -1948,30 +1500,12 @@ async function deletePret(loanId) {
     return;
   }
 
-  // Soft-delete : on garde une tombe pour que la synchro ne ramène pas le prêt
-  const now = new Date().toISOString();
-  loan.deletedAt = now;
-  loan.updatedAt = now;
-  loan.status = "rejected";
-
-  notifications = notifications.filter((notif) => notif.loanId !== loanId);
-
-  notifyAllMembers(
-    "loan_deleted",
-    `${getActorLabel()} a supprimé le prêt de ${borrowerName} (${formatEuro(loan.amount)}).`,
-    { loanId, tab: "prets", title: "Prêt supprimé" }
-  );
-  logAudit("Prêt · suppression", `Prêt ${loanId} supprimé`);
-  savePrets();
-  saveNotifications(false);
   try {
-    if (typeof potoFlushSync === "function") await potoFlushSync();
-    else if (typeof window.flushPotoServerSync === "function") await window.flushPotoServerSync();
+    await window.potoRunAction({ domain: "loan", type: "delete", loanId });
   } catch (err) {
-    console.warn("Sync suppression prêt échouée", err);
+    alert(err.message || "Impossible de supprimer le prêt.");
+    return;
   }
-  renderPrets();
-  if (typeof renderAdminPrets === "function") renderAdminPrets();
 }
 
 function isPretNotification(notif) {
@@ -2060,7 +1594,7 @@ function showDetteCollectiveMsg(text, type = "success") {
   el.hidden = false;
 }
 
-function addDetteCollective(amount, note, memberIds) {
+async function addDetteCollective(amount, note, memberIds) {
   if (!canAddDetteCollective()) {
     alert("Tu n'as pas l'accès pour ajouter une dette de groupe.");
     return false;
@@ -2080,42 +1614,19 @@ function addDetteCollective(amount, note, memberIds) {
     alert("Choisis au moins un poto.");
     return false;
   }
-  const now = new Date().toISOString();
-  const actor = getCurrentMember()?.id || null;
-  let count = 0;
-  ids.forEach((memberId) => {
-    const member = getMemberById(memberId);
-    if (!member || member.id === "groupe" || isNouveauMember?.(member)) return;
-    amendes.unshift({
-      id: generateId(),
-      memberId: member.id,
-      type: "contribution",
+  let count;
+  try {
+    const created = await window.potoRunAction({
+      domain: "fine",
+      type: "add-bulk",
+      memberIds: ids,
       amount: parsed,
-      originalAmount: parsed,
-      repaidAmount: 0,
       note: motif,
-      date: now,
-      createdAt: now,
-      updatedAt: now,
-      createdBy: actor,
-      collective: true,
     });
-    count += 1;
-  });
-  if (!count) {
-    alert("Aucun membre valide sélectionné.");
+    count = Array.isArray(created) ? created.length : 0;
+  } catch (err) {
+    alert(err.message || "Impossible d’ajouter les contributions.");
     return false;
-  }
-  saveAmendes();
-  if (typeof potoFlushSync === "function") {
-    Promise.resolve(potoFlushSync()).catch(() => {});
-  }
-  if (typeof notifyAllMembers === "function") {
-    notifyAllMembers(
-      "amende",
-      `${getActorLabel()} a ajouté une contribution de ${formatEuro(parsed)} pour ${count} poto${count > 1 ? "s" : ""} : ${motif}.`,
-      { tab: "amendes", title: "Contribution groupe" }
-    );
   }
   showDetteCollectiveMsg(
     `${count} dette${count > 1 ? "s" : ""} de ${formatEuro(parsed)} ajoutée${count > 1 ? "s" : ""} (${motif}).`,
@@ -2136,7 +1647,7 @@ function initDetteCollectiveForm() {
     pickWrap.hidden = scope.value !== "pick";
     if (scope.value === "pick") fillDetteCollectiveMemberList();
   });
-  form.addEventListener("submit", (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const amount = document.getElementById("detteCollectiveAmount")?.value;
     const note = document.getElementById("detteCollectiveNote")?.value;
@@ -2149,7 +1660,7 @@ function initDetteCollectiveForm() {
       const members = typeof getGroupMembers === "function" ? getGroupMembers() : getSortedMembers();
       memberIds = members.map((m) => m.id);
     }
-    if (addDetteCollective(amount, note, memberIds)) {
+    if (await addDetteCollective(amount, note, memberIds)) {
       form.reset();
       if (scope) scope.value = "all";
       if (pickWrap) pickWrap.hidden = true;
@@ -2157,4 +1668,3 @@ function initDetteCollectiveForm() {
     }
   });
 }
-
