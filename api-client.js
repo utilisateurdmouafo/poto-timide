@@ -402,7 +402,8 @@ function writeServerDataToLocal(serverData) {
         key === "poto-timide-amendes-caisse" ||
         key === "poto-timide-ancienne-tournee-dettes" ||
         key === "poto-timide-autre-argent" ||
-        key === "poto-timide-members"
+        key === "poto-timide-members" ||
+        key === "poto-timide-messages"
       ) {
         const raw = localStorage.getItem(key);
         let local = [];

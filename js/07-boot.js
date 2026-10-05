@@ -34,13 +34,42 @@ document.getElementById("chatModal")?.addEventListener("click", (e) => {
 
 document.getElementById("chatModalForm")?.addEventListener("submit", (e) => {
   e.preventDefault();
+  e.stopPropagation();
   const input = document.getElementById("chatModalInput");
-  if (!input || !chatPeerId) return;
-  const ok = typeof sendPrivateMessage === "function" && sendPrivateMessage(chatPeerId, input.value);
+  const peer =
+    (typeof window.getChatPeerId === "function" && window.getChatPeerId()) ||
+    window.chatPeerId ||
+    (typeof chatPeerId !== "undefined" ? chatPeerId : null);
+  if (!input) return;
+  if (!peer) {
+    alert("Destinataire manquant. Rouvre la discussion.");
+    return;
+  }
+  const text = input.value;
+  if (!String(text || "").trim()) {
+    alert("Écris un message avant d'envoyer.");
+    return;
+  }
+  const sendFn = window.sendPrivateMessage || (typeof sendPrivateMessage === "function" ? sendPrivateMessage : null);
+  if (!sendFn) {
+    alert("Fonction d'envoi indisponible. Recharge la page (Ctrl+F5).");
+    return;
+  }
+  let ok = false;
+  try {
+    ok = sendFn(peer, text);
+  } catch (err) {
+    console.error(err);
+    alert("Erreur d'envoi : " + (err && err.message ? err.message : err));
+    return;
+  }
   if (ok) {
     input.value = "";
     if (typeof renderChatThread === "function") renderChatThread();
+    if (typeof showToast === "function") showToast("Message envoyé.", "success");
     input.focus();
+  } else {
+    alert("Le message n'a pas pu être envoyé.");
   }
 });
 

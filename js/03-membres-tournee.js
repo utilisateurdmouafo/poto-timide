@@ -36,9 +36,20 @@ function saveMessages(shouldRender = true) {
   if (typeof bumpLiveDataRevision === "function") {
     try { bumpLiveDataRevision(); } catch { /* ignore */ }
   }
+  // Flush immédiat pour que le message parte vraiment
+  if (typeof potoFlushSync === "function") {
+    Promise.resolve(potoFlushSync()).catch(() => {});
+  } else if (typeof window.flushPotoServerSync === "function") {
+    try { window.flushPotoServerSync(); } catch { /* ignore */ }
+  } else if (typeof flushServerSync === "function") {
+    Promise.resolve(flushServerSync()).catch(() => {});
+  }
   if (shouldRender) {
-    renderOnlineList();
-    if (chatPeerId) renderChatThread();
+    try { renderOnlineList(); } catch { /* ignore */ }
+    try { renderMessagesInbox(); } catch { /* ignore */ }
+    if (chatPeerId) {
+      try { renderChatThread(); } catch { /* ignore */ }
+    }
   }
 }
 
@@ -86,6 +97,8 @@ function markConversationRead(peerId) {
 }
 
 function sendPrivateMessage(toId, text) {
+  // exposé pour le formulaire chat
+
   const me = getCurrentMember();
   if (!me) {
     alert("Connecte-toi pour envoyer un message.");
@@ -138,7 +151,9 @@ function sendPrivateMessage(toId, text) {
   return true;
 }
 
-let chatPeerId = null;
+var chatPeerId = null;
+window.getChatPeerId = function () { return chatPeerId; };
+window.setChatPeerId = function (id) { chatPeerId = id; };
 
 function openChatWith(memberId) {
   if (!isLoggedIn()) {
@@ -151,6 +166,7 @@ function openChatWith(memberId) {
   const peer = typeof getMemberById === "function" ? getMemberById(memberId) : null;
   if (!peer) return;
   chatPeerId = memberId;
+  window.chatPeerId = memberId;
   const modal = document.getElementById("chatModal");
   if (!modal) return;
   modal.hidden = false;
@@ -174,6 +190,7 @@ function openChatWith(memberId) {
 
 function closeChatModal() {
   chatPeerId = null;
+  window.chatPeerId = null;
   const modal = document.getElementById("chatModal");
   if (modal) modal.hidden = true;
 }
@@ -2486,3 +2503,7 @@ async function submitUnifiedDettesAmendesLine({ memberId, type, amount, note }) 
   return true;
 }
 
+
+window.sendPrivateMessage = sendPrivateMessage;
+window.openChatWith = openChatWith;
+window.closeChatModal = closeChatModal;
