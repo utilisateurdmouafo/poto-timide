@@ -53,6 +53,7 @@ async function pullSharedUpdatesFromServer() {
 const SYNC_FAST_KEYS = new Set([
   "poto-timide-messages",
   "poto-timide-notifications",
+  "poto-timide-autre-argent",
   "poto-timide-amendes",
   "poto-timide-amendes-caisse",
   "poto-timide-ancienne-tournee-dettes",

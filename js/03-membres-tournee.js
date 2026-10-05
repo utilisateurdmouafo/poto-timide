@@ -2009,7 +2009,7 @@ async function repayAncienneTourneeDette(entryId, amountValue) {
     createdAt: new Date().toISOString(),
     createdBy: getCurrentMember()?.id || null,
   });
-  saveAutreArgent(false);
+  saveAutreArgent(true);
 
   if (!entry.originalAmount) entry.originalAmount = remaining;
   entry.repaidAmount = Math.round(((Number(entry.repaidAmount) || 0) + payAmount) * 100) / 100;

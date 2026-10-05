@@ -1308,13 +1308,29 @@ function renderFinance() {
 
 function saveAutreArgent(shouldRender = true) {
   localStorage.setItem(AUTRE_ARGENT_KEY, JSON.stringify(autreArgent));
+  // Toujours pousser vers le serveur pour que TOUS voient le mouvement en caisse
+  if (typeof queueServerSync === "function") {
+    try {
+      queueServerSync(AUTRE_ARGENT_KEY, JSON.stringify(autreArgent));
+    } catch (e) {
+      console.warn("queueServerSync autreArgent", e);
+    }
+  }
+  if (typeof bumpLiveDataRevision === "function") {
+    try { bumpLiveDataRevision(); } catch { /* ignore */ }
+  }
   if (typeof potoFlushSync === "function") {
     Promise.resolve(potoFlushSync()).catch(() => {});
+  } else if (typeof flushServerSync === "function") {
+    Promise.resolve(flushServerSync()).catch(() => {});
   }
   if (shouldRender) {
-    renderAutreArgent();
-    renderPrets();
-    renderFinanceDashboard();
+    if (typeof renderAutreArgent === "function") renderAutreArgent();
+    if (typeof renderPrets === "function") renderPrets();
+    if (typeof renderFinanceDashboard === "function") renderFinanceDashboard();
+    if (typeof renderFinance === "function") {
+      try { renderFinance(); } catch { /* ignore */ }
+    }
   }
 }
 
