@@ -1149,8 +1149,8 @@ function buildFinanceHistoryRows() {
     sortAt: row.date,
   }));
 
-  // 2) Prêts (en cours + soldés)
-  const pretRows = buildFinancePretRows().map((row) => {
+  // 2) Prêts soldés uniquement
+  const pretRows = buildFinancePretRows().filter((row) => row.settled).map((row) => {
     const loan = typeof getLoanById === "function" ? getLoanById(row.id) : null;
     const note = String(loan?.note || "").trim();
     const detail = note ? `${row.detail} — ${note}` : row.detail;
@@ -1182,12 +1182,9 @@ function buildFinanceHistoryRows() {
     };
   });
 
-  // 3) Amendes / dettes (ouvertes + soldées, hors supprimées)
+  // 3) Amendes soldées uniquement
   const amendeRows = (typeof buildFinanceAmendeRows === "function" ? buildFinanceAmendeRows() : [])
-    .filter((row) => {
-      // exclure purement vides
-      return (Number(row.original) || 0) > 0 || (Number(row.repaid) || 0) > 0;
-    })
+    .filter((row) => row.settled && ((Number(row.original) || 0) > 0 || (Number(row.repaid) || 0) > 0))
     .map((row) => ({
       id: `amende-${row.id}`,
       date: row.date,
@@ -1204,12 +1201,12 @@ function buildFinanceHistoryRows() {
       sortAt: row.sortAt || row.date,
     }));
 
-  // 4) Ex tournée (ouvertes + soldées, hors supprimées)
+  // 4) Ex tournée soldées uniquement
   const exRows = (typeof buildFinanceAncienneTourneeRows === "function"
     ? buildFinanceAncienneTourneeRows()
     : []
   )
-    .filter((row) => (Number(row.original) || 0) > 0 || (Number(row.repaid) || 0) > 0)
+    .filter((row) => row.settled && ((Number(row.original) || 0) > 0 || (Number(row.repaid) || 0) > 0))
     .map((row) => ({
       id: `ex-${row.id}`,
       date: row.date,
@@ -1224,41 +1221,49 @@ function buildFinanceHistoryRows() {
       sortAt: row.sortAt || row.date,
     }));
 
-  // Ordre : 1) dettes ouvertes  2) sorties  3) entrées  4) soldés
-  const rankRow = (row) => {
+  // Garde uniquement : sorties, entrées, soldés — PAS les "en cours"
+  const isSortieRow = (row) => {
     const status = String(row.statusLabel || "").toLowerCase();
     const type = String(row.typeLabel || "").toLowerCase();
-    const isSortie =
+    return (
       status.includes("sortie") ||
       type.includes("sortie") ||
-      type.includes("retrait");
-    const isEntree =
+      type.includes("retrait")
+    );
+  };
+  const isEntreeRow = (row) => {
+    const status = String(row.statusLabel || "").toLowerCase();
+    const type = String(row.typeLabel || "").toLowerCase();
+    return (
       status.includes("entrée") ||
       status.includes("entree") ||
-      type.includes("don");
-    const isSolde =
+      type.includes("don")
+    );
+  };
+  const isSoldeRow = (row) => {
+    const status = String(row.statusLabel || "").toLowerCase();
+    return (
       row.settled === true ||
       status.includes("sold") ||
-      row.chipClass === "is-paid";
-    const isDette =
-      !isSortie &&
-      !isEntree &&
-      !isSolde &&
-      ((Number(row.remaining) || 0) > 0 ||
-        type.includes("prêt") ||
-        type.includes("pret") ||
-        type.includes("amende") ||
-        type.includes("ex tourn") ||
-        status.includes("cours") ||
-        status.includes("retard"));
-    if (isDette) return 1;
-    if (isSortie) return 2;
-    if (isEntree) return 3;
-    if (isSolde) return 4;
-    return 5;
+      row.chipClass === "is-paid"
+    );
   };
 
-  return [...caisseRows, ...pretRows, ...amendeRows, ...exRows].sort((a, b) => {
+  const all = [...caisseRows, ...pretRows, ...amendeRows, ...exRows].filter((row) => {
+    // Exclure explicitement les lignes "en cours" / ouvertes
+    if (isSortieRow(row) || isEntreeRow(row) || isSoldeRow(row)) return true;
+    return false;
+  });
+
+  // Ordre : 1) sorties  2) entrées  3) soldés
+  const rankRow = (row) => {
+    if (isSortieRow(row)) return 1;
+    if (isEntreeRow(row)) return 2;
+    if (isSoldeRow(row)) return 3;
+    return 4;
+  };
+
+  return all.sort((a, b) => {
     const ra = rankRow(a);
     const rb = rankRow(b);
     if (ra !== rb) return ra - rb;
