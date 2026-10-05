@@ -8,6 +8,23 @@ document.getElementById("onlineList")?.addEventListener("click", (e) => {
   if (id && typeof openChatWith === "function") openChatWith(id);
 });
 
+document.getElementById("memberList")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-chat-member]");
+  if (!btn) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const id = btn.dataset.chatMember;
+  if (id && typeof openChatWith === "function") openChatWith(id);
+});
+
+document.getElementById("messagesInbox")?.addEventListener("click", (e) => {
+  const item = e.target.closest("[data-chat-member]");
+  if (!item) return;
+  e.preventDefault();
+  const id = item.dataset.chatMember;
+  if (id && typeof openChatWith === "function") openChatWith(id);
+});
+
 document.getElementById("chatModal")?.addEventListener("click", (e) => {
   if (e.target.closest("[data-chat-close]")) {
     e.preventDefault();
@@ -904,6 +921,27 @@ document.getElementById("notificationsList")?.addEventListener("click", (e) => {
   }
   const item = e.target.closest(".pret-notif-item");
   if (!item) return;
+  const nType = item.dataset.type || "";
+  const peer = item.dataset.peer || item.dataset.admin || "";
+  if (nType === "message" && peer && typeof openChatWith === "function") {
+    if (typeof markNotificationRead === "function" && item.dataset.notifId) {
+      try { markNotificationRead(item.dataset.notifId); } catch { /* ignore */ }
+    }
+    openChatWith(peer);
+    return;
+  }
+  // Fallback: message notif without peer → try resolve from message id
+  if (nType === "message" && typeof messages !== "undefined" && item.dataset.loanId) {
+    const msg = (messages || []).find((m) => m && m.id === item.dataset.loanId);
+    const me = typeof getCurrentMember === "function" ? getCurrentMember() : null;
+    if (msg && me) {
+      const peerId = msg.fromId === me.id ? msg.toId : msg.fromId;
+      if (peerId && typeof openChatWith === "function") {
+        openChatWith(peerId);
+        return;
+      }
+    }
+  }
   const tab = item.dataset.tab || "reunion";
   const loanId = item.dataset.loanId || "";
   const admin = item.dataset.admin || "";

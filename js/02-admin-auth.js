@@ -1771,6 +1771,16 @@ function fillMemberList(listEl, { withAdminActions }) {
         </div>
       </div>
       ${
+        !isCurrentUser
+          ? `<button type="button" class="online-msg-btn member-msg-btn" data-chat-member="${escapeHtml(member.id)}" title="Écrire à ${escapeHtml(member.name)}" aria-label="Message">
+              <span class="online-msg-icon" aria-hidden="true">💬</span>
+              ${typeof getUnreadMessageCountFrom === "function" && getUnreadMessageCountFrom(member.id) > 0
+                ? `<span class="chat-unread-badge">${getUnreadMessageCountFrom(member.id) > 9 ? "9+" : getUnreadMessageCountFrom(member.id)}</span>`
+                : ""}
+            </button>`
+          : ""
+      }
+      ${
         showActions
           ? `<div class="member-right">
               <div class="member-actions">

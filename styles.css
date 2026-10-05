@@ -10488,3 +10488,46 @@ span.reunion-notif-badge[data-notif-badge] {
     border-radius: 1rem;
   }
 }
+
+.messages-inbox-panel { margin-top: 0.75rem; }
+.messages-inbox-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.messages-inbox-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+}
+.messages-inbox-item.has-unread {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.messages-inbox-item:hover {
+  background: #e0f2fe;
+}
+.messages-inbox-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.messages-inbox-text strong { font-size: 0.92rem; }
+.messages-inbox-preview {
+  font-size: 0.8rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.member-msg-btn { margin-left: auto; flex-shrink: 0; }

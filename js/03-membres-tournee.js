@@ -120,6 +120,7 @@ function sendPrivateMessage(toId, text) {
       tab: "membres",
       title: "Nouveau message",
       item: msg.id,
+      admin: me.id, // peer (expéditeur) pour ouvrir le chat
     });
     if (typeof saveNotifications === "function") saveNotifications(true);
   }
@@ -205,7 +206,67 @@ function renderChatThread() {
   body.scrollTop = body.scrollHeight;
 }
 
+
+function renderMessagesInbox() {
+  const list = document.getElementById("messagesInbox");
+  const countEl = document.getElementById("messagesInboxCount");
+  if (!list) return;
+  const me = getCurrentMember();
+  if (!me) {
+    list.innerHTML = `<li class="online-empty">Connecte-toi pour voir tes messages.</li>`;
+    if (countEl) countEl.textContent = "0";
+    return;
+  }
+  // Peers with whom we have messages, or all members for easy access
+  const peerMap = new Map();
+  (messages || []).forEach((m) => {
+    if (!m || m.deletedAt) return;
+    if (m.fromId !== me.id && m.toId !== me.id) return;
+    const peerId = m.fromId === me.id ? m.toId : m.fromId;
+    if (!peerMap.has(peerId)) peerMap.set(peerId, []);
+    peerMap.get(peerId).push(m);
+  });
+  const peers = [...peerMap.keys()].map((peerId) => {
+    const thread = peerMap.get(peerId).sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const last = thread[0];
+    const unread = getUnreadMessageCountFrom(peerId);
+    const member = typeof getMemberById === "function" ? getMemberById(peerId) : null;
+    return {
+      id: peerId,
+      name: member?.name || "Poto",
+      lastText: last?.text || "",
+      lastAt: last?.createdAt,
+      unread,
+    };
+  }).sort((a, b) => {
+    if (a.unread !== b.unread) return b.unread - a.unread;
+    return new Date(b.lastAt || 0) - new Date(a.lastAt || 0);
+  });
+
+  const totalUnread = peers.reduce((s, p) => s + p.unread, 0);
+  if (countEl) countEl.textContent = String(totalUnread);
+
+  if (!peers.length) {
+    list.innerHTML = `<li class="online-empty">Aucun message pour le moment. Utilise 💬 à côté d’un poto pour écrire.</li>`;
+    return;
+  }
+  list.innerHTML = peers
+    .map((p) => `
+      <li class="messages-inbox-item${p.unread ? " has-unread" : ""}" data-chat-member="${escapeHtml(p.id)}">
+        <span class="online-avatar">${escapeHtml(typeof getInitials === "function" ? getInitials(p.name) : "?")}</span>
+        <div class="messages-inbox-text">
+          <strong>${escapeHtml(p.name)}</strong>
+          <span class="messages-inbox-preview">${escapeHtml((p.lastText || "").slice(0, 60))}</span>
+        </div>
+        ${p.unread ? `<span class="chat-unread-badge">${p.unread > 9 ? "9+" : p.unread}</span>` : ""}
+      </li>`)
+    .join("");
+}
+
 function renderOnlineList() {
+  if (typeof renderMessagesInbox === "function") {
+    try { renderMessagesInbox(); } catch { /* ignore */ }
+  }
   if (onlineCount) onlineCount.textContent = String(onlineMembers.length);
   if (!onlineList) return;
 

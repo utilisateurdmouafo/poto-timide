@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,500;1,9..144,600&family=Outfit:wght@600;700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet" media="(min-width: 768px)" />
-  <link rel="stylesheet" href="styles.css?v=pwa-168" />
+  <link rel="stylesheet" href="styles.css?v=pwa-169" />
 </head>
 <body>
   <div class="app" id="app">
@@ -165,6 +165,15 @@
             <span class="online-count" id="onlineCount">0</span>
           </div>
           <ul class="online-list" id="onlineList"></ul>
+        </section>
+
+        <section class="panel messages-inbox-panel" aria-label="Messages">
+          <div class="bureau-head">
+            <h2>Messages</h2>
+            <span class="online-count" id="messagesInboxCount">0</span>
+          </div>
+          <p class="panel-desc">Clique sur un poto pour ouvrir la discussion (même s’il n’est pas en ligne).</p>
+          <ul class="messages-inbox-list" id="messagesInbox"></ul>
         </section>
 
         <section class="panel bureau-panel" aria-label="Équipe administrative">
@@ -1234,16 +1243,16 @@
 
   <div id="toastHost" class="toast-host" aria-live="polite" aria-relevant="additions"></div>
 
-    <script src="api-client.js?v=pwa-168"></script>
-  <script src="api-auth.js?v=pwa-168"></script>
-  <script src="api-sync.js?v=pwa-168"></script>
-  <script src="js/01-core.js?v=pwa-168"></script>
-  <script src="js/02-admin-auth.js?v=pwa-168"></script>
-  <script src="js/03-membres-tournee.js?v=pwa-168"></script>
-  <script src="js/04-amendes.js?v=pwa-168"></script>
-  <script src="js/05-prets.js?v=pwa-168"></script>
-  <script src="js/06-evenements-comm.js?v=pwa-168"></script>
-  <script src="js/07-boot.js?v=pwa-168"></script>
+    <script src="api-client.js?v=pwa-169"></script>
+  <script src="api-auth.js?v=pwa-169"></script>
+  <script src="api-sync.js?v=pwa-169"></script>
+  <script src="js/01-core.js?v=pwa-169"></script>
+  <script src="js/02-admin-auth.js?v=pwa-169"></script>
+  <script src="js/03-membres-tournee.js?v=pwa-169"></script>
+  <script src="js/04-amendes.js?v=pwa-169"></script>
+  <script src="js/05-prets.js?v=pwa-169"></script>
+  <script src="js/06-evenements-comm.js?v=pwa-169"></script>
+  <script src="js/07-boot.js?v=pwa-169"></script>
 
   <!-- Messagerie privée -->
   <div id="chatModal" class="chat-modal" hidden>

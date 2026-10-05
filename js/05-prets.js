@@ -228,7 +228,8 @@ function renderNotificationsPage() {
           data-type="${escapeHtml(notif.type || "")}"
           data-tab="${escapeHtml(tab)}"
           data-admin="${escapeHtml(notif.admin || "")}"
-          data-item="${escapeHtml(notif.item || "")}">
+          data-item="${escapeHtml(notif.item || "")}"
+          data-peer="${escapeHtml(notif.type === "message" ? (notif.admin || "") : "")}">
         <div class="pret-notif-body">
           ${notif.title ? `<strong class="pret-notif-title">${escapeHtml(notif.title)}</strong>` : ""}
           <p>${escapeHtml(notif.message)}</p>
