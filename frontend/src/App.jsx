@@ -1,9 +1,42 @@
-﻿import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+﻿import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { KEYS, NAV, APP_TABS, EMPTY, active, list, request, allowedAdminSections, Button, Form } from "./shared.jsx";
 import { MeetingPage, MembersPage, TourneePage, FundPage, LoansPage, EventsPage, DebtsPage, FinancePage, CommunicationPage, NotificationsPage, ReferencePage } from "./pages.jsx";
 
 const AdminPage = lazy(() => import("./AdminSection.jsx").then((module) => ({ default: module.AdminPage })));
 
+function UserMenu({ name, isAdmin, isDeveloper, devMode, toggleDevMode, logout }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => { if (!ref.current?.contains(event.target)) setOpen(false); };
+    const key = (event) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("pointerdown", close);
+    document.addEventListener("keydown", key);
+    return () => { document.removeEventListener("pointerdown", close); document.removeEventListener("keydown", key); };
+  }, [open]);
+  const initial = (name || "?").trim().charAt(0).toUpperCase();
+  return (
+    <div className="user-menu" ref={ref}>
+      <button type="button" className="user-trigger" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+        <span className="user-avatar" aria-hidden="true">{initial}</span>
+        <span className="user-id"><strong>{name}</strong><small>{isAdmin ? "Administrateur" : "Membre"}</small></span>
+        {isDeveloper && <span className={`user-mode ${devMode ? "is-on" : ""}`} aria-hidden="true" />}
+        <span className="user-caret" aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div className="user-dropdown" role="menu">
+          {isDeveloper && (
+            <button type="button" role="menuitemcheckbox" aria-checked={devMode} className="user-item" onClick={toggleDevMode}>
+              <span>Mode développeur</span><span className={`switch ${devMode ? "is-on" : ""}`} aria-hidden="true" />
+            </button>
+          )}
+          <button type="button" role="menuitem" className="user-item user-logout" onClick={logout}><span>Se déconnecter</span><span aria-hidden="true">↪</span></button>
+        </div>
+      )}
+    </div>
+  );
+}
 export default function App() {
   const [session, setSession] = useState(null);
   const [data, setData] = useState(EMPTY);
@@ -228,7 +261,7 @@ export default function App() {
             <button key={id} className={selectedTab === id ? "nav-item selected" : "nav-item"} onClick={() => navigate(id)}><span aria-hidden="true">{icon}</span>{label}{id === "notifications" && unreadCount > 0 && <span className="nav-badge">{unreadCount}</span>}</button>
           )))}
         </nav>
-        <div className={`user-box ${isAdmin ? "user-admin" : ""}`}><span className="user-status">{isAdmin ? "👑 Administrateur" : session.name}{isAdmin && <small> · {session.name}</small>}</span>{isDeveloper && <button type="button" className={`dev-badge ${devMode ? "is-on" : "is-off"}`} onClick={toggleDevMode} title={devMode ? "Mode Dev ON — accès total (cliquer pour mode normal)" : "Mode Normal — accès de rôle seulement (cliquer pour mode dev)"}>{devMode ? "Dev ON" : "Normal"}</button>}<Button className="logout-button" onClick={logout}>Se déconnecter&nbsp; ↪</Button></div>
+        <UserMenu name={session.name} isAdmin={isAdmin} isDeveloper={isDeveloper} devMode={devMode} toggleDevMode={toggleDevMode} logout={logout} />
       </header>
       <main className="page-main">
         {(error || notice) && <div className={`notice ${error ? "notice-error" : noticeIsWarning ? "notice-warning" : "notice-success"}`} role="status">{error || notice}<button aria-label="Fermer" onClick={() => { setError(""); setNotice(""); }}>×</button></div>}
