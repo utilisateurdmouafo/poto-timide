@@ -1,6 +1,39 @@
 ﻿import { useState } from "react";
 import { KEYS, cashFigures, loanDueLabel, memberEventRows, loanCapital, isEventFine, TOURNEE_MONTHS, LOAN_RESERVE_PER_MEMBER, COMMUNICATION_CATEGORIES, communicationCategoryOf, money, formatIban, wholeMoney, date, active, list, byNewest, loanPaid, loanRemaining, fineOriginal, request, Button, Form, Table, Stat, MemberChips, ROLE_NAMES, FINE_NAMES, MiniAmountAction, PromptNumberAction, LoanDateAction, PageHeading, PanelTitle, Status, EmptyPanel } from "./shared.jsx";
 
+/** Carte KPI cliquable — style Prêts (fond blanc, bordure colorée) */
+function ReunionStripButton({ label, value, tone = "navy", onClick }) {
+  return (
+    <button
+      type="button"
+      className={`reunion-card reunion-card--kpi reunion-card--${tone}`}
+      title={`Ouvrir ${label}`}
+      onClick={onClick}
+    >
+      <span className="reunion-card__label">{label}</span>
+      <strong className="reunion-card__value">{value}</strong>
+    </button>
+  );
+}
+
+/** Menu section cliquable — même style carte React que Prêts */
+function ReunionHubButton({ label, tone = "navy", badge, onClick }) {
+  return (
+    <button
+      type="button"
+      className={`reunion-card reunion-card--hub reunion-card--${tone}`}
+      onClick={onClick}
+    >
+      <span className="reunion-card__label">{label}</span>
+      {badge != null && badge > 0 && (
+        <span className="reunion-card__badge" aria-label={`${badge} non lues`}>
+          {badge > 99 ? "99+" : badge}
+        </span>
+      )}
+    </button>
+  );
+}
+
 export function MeetingPage({ data, member, members, names, online, onlineMembers, isAdmin, can, unreadCount, navigate }) {
   const { available, activeLoans, total: totalCash, borrowable } = cashFigures(data, members);
   const myFines = list(data, KEYS.fines).filter((fine) => active(fine) && String(fine.memberId) === String(member.id)).reduce((sum, fine) => sum + Math.max(0, Number(fine.amount) || 0), 0);
@@ -11,35 +44,65 @@ export function MeetingPage({ data, member, members, names, online, onlineMember
   const annual = data[KEYS.annualFund]?.years?.[year] || {};
   const fundPaid = Number(annual.payments?.[member.id]?.paidAmount) || 0;
   const fundDue = Math.max(0, (Number(annual.amountPerMember) || 0) - fundPaid);
-  const strip = [
-    ["Empruntable", wholeMoney(borrowable), "prets", "navy"],
-    ["Disponible", wholeMoney(available), "finance", "navy"],
-    ["Totale", wholeMoney(totalCash), "finance", "navy"],
-    ["Prêts", String(activeLoans.length), "finance", "navy"],
-    ["À verser", wholeMoney(personalDue), "amendes", "navy"],
-    ["Fond caisse", fundDue > 0 ? wholeMoney(fundDue) : annual.amountPerMember ? "OK" : "—", "fond-caisse", "fund"],
-    ["En ligne", `${online} / ${members.length}`, "membres", "navy"],
+
+  const stripItems = [
+    { label: "Empruntable", value: wholeMoney(borrowable), target: "prets", tone: "cyan" },
+    { label: "Disponible", value: wholeMoney(available), target: "finance", tone: "sky" },
+    { label: "Totale", value: wholeMoney(totalCash), target: "finance", tone: "indigo" },
+    { label: "Prêts", value: String(activeLoans.length), target: "prets", tone: "green" },
+    { label: "À verser", value: wholeMoney(personalDue), target: "amendes", tone: "rose" },
+    { label: "Fond caisse", value: fundDue > 0 ? wholeMoney(fundDue) : annual.amountPerMember ? "OK" : "—", target: "fond-caisse", tone: "fund" },
+    { label: "En ligne", value: `${online} / ${members.length}`, target: "membres", tone: "slate" },
   ];
-  const menu = [
-    ["communication", "Communication", "navy"],
-    ["membres", "Membres & Bureau", "teal"],
-    ["tournee", "Tournée", "green"],
-    ["prets", "Prêts", "orange"],
-    ["fond-caisse", "Fond de caisse", "fund"],
-    ["evenements", "Événements", "warn"],
-    ["amendes", "Dettes & amendes", "danger"],
-    ["finance", "Finance", "blue"],
-    ["loi", "La loi", "purple"],
-    ["notifications", "Notifications", "notif"],
-    ...(isAdmin ? [["admin", "Admin", "navy"]] : []),
+
+  const menuItems = [
+    { target: "communication", label: "Communication", tone: "navy" },
+    { target: "membres", label: "Membres & Bureau", tone: "teal" },
+    { target: "tournee", label: "Tournée", tone: "emerald" },
+    { target: "prets", label: "Prêts", tone: "green" },
+    { target: "fond-caisse", label: "Fond de caisse", tone: "fund" },
+    { target: "evenements", label: "Événements", tone: "warn" },
+    { target: "amendes", label: "Dettes & amendes", tone: "danger" },
+    { target: "finance", label: "Finance", tone: "blue" },
+    { target: "loi", label: "La loi", tone: "purple" },
+    { target: "notifications", label: "Notifications", tone: "notif", badge: unreadCount },
+    ...(isAdmin ? [{ target: "admin", label: "Admin", tone: "slate" }] : []),
   ];
-  return <div className="page-content reunion-page">
-    <section className="panel reunion-panel">
-      <header className="reunion-heading"><h1>Réunion</h1><p>Tous les menus du site — clique pour ouvrir une section.</p></header>
-      <div className="reunion-strip">{strip.map(([label, value, target, tone]) => <button className={`reunion-strip-item${tone === "fund" ? " reunion-strip-item-fund" : ""}`} key={label} title={`Ouvrir ${label}`} onClick={() => navigate(target)}><span>{label}</span><strong>{value}</strong></button>)}</div>
-      <nav className="reunion-menu-hub" aria-label="Sections du groupe">{menu.map(([target, label, tone]) => <button className={`reunion-hub-button reunion-hub-${tone}`} key={target} onClick={() => navigate(target)}>{label}{target === "notifications" && unreadCount > 0 && <span className="reunion-notif-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}</button>)}</nav>
-    </section>
-  </div>;
+
+  return (
+    <div className="page-content reunion-page">
+      <section className="panel reunion-panel">
+        <header className="reunion-heading">
+          <h1>Réunion</h1>
+          <p>Tous les menus du site — clique pour ouvrir une section.</p>
+        </header>
+
+        <div className="reunion-strip stats-grid compact" role="group" aria-label="Indicateurs rapides">
+          {stripItems.map((item) => (
+            <ReunionStripButton
+              key={item.label}
+              label={item.label}
+              value={item.value}
+              tone={item.tone}
+              onClick={() => navigate(item.target)}
+            />
+          ))}
+        </div>
+
+        <nav className="reunion-menu-hub" aria-label="Sections du groupe">
+          {menuItems.map((item) => (
+            <ReunionHubButton
+              key={item.target}
+              label={item.label}
+              tone={item.tone}
+              badge={item.badge}
+              onClick={() => navigate(item.target)}
+            />
+          ))}
+        </nav>
+      </section>
+    </div>
+  );
 }
 
 export function MembersPage({ data, members, roles, online, onlineMembers, member, navigate }) {
