@@ -499,3 +499,6 @@ button.meeting-message { cursor: pointer; }
   .table-wrap { -webkit-overflow-scrolling: touch; }
   .table-wrap th, .table-wrap td { white-space: nowrap; }
 }
+.login-screen { background: linear-gradient(180deg, #e8f4fc, #cfe6f4); }
+.login-brand { display: flex; margin: calc(-1 * clamp(25px, 6vw, 42px)) calc(-1 * clamp(25px, 6vw, 42px)) 28px; padding: 22px clamp(25px, 6vw, 42px); border-radius: 20px 20px 0 0; background: linear-gradient(135deg, #06243a, #0b3a57); }
+.login-card { overflow: hidden; }

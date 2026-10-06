@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+﻿import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { KEYS, NAV, APP_TABS, EMPTY, active, list, request, allowedAdminSections, Button, Form } from "./shared.jsx";
 import { MeetingPage, MembersPage, TourneePage, FundPage, LoansPage, EventsPage, DebtsPage, FinancePage, CommunicationPage, NotificationsPage, ReferencePage } from "./pages.jsx";
 
@@ -248,7 +248,7 @@ function Login({ onLogin, error }) {
   return (
     <main className="login-screen">
       <section className="login-card">
-        <a className="brand login-brand" href="#"><span className="brand-mark">PT</span><span><strong>Poto Timide</strong><small>Groupe · espace privé</small></span></a>
+        <a className="brand login-brand" href="#"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="12" fill="#0284C7"/><circle cx="27.5" cy="12" r="5.2" fill="#67E8F9"/><path d="M7 22.5c6.2-10.2 11.2-10.2 18.2 0 7 10.2 11.4 10.2 20.4 0" stroke="#fff" strokeWidth="3.1" strokeLinecap="round"/><path d="M9 29.2c5.2-8 9.4-8 16.2 0" stroke="#7DD3FC" strokeWidth="2.6" strokeLinecap="round"/></svg></span><span><strong>Poto Timide</strong><small>GROUPE · ESPACE PRIVÉ</small></span></a>
         <span className="eyebrow">Bienvenue</span><h1>Connectez-vous à votre groupe</h1>
         <p>Accédez aux réunions, aux prêts et aux finances de Poto Timide.</p>
         {error && <div className="notice notice-error">{error}</div>}
