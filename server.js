@@ -1,6 +1,7 @@
 require("./lib/load-env").loadEnvFile();
 
 const express = require("express");
+const compression = require("compression");
 const session = require("express-session");
 const { createServer } = require("http");
 const { Server } = require("socket.io");
@@ -22,6 +23,7 @@ const {
 } = require("./lib/sync-permissions");
 
 const PORT = process.env.PORT || 8080;
+const HOST = process.env.HOST || "0.0.0.0";
 const DEFAULT_PASSWORD = "1234";
 const DATA_DIR = process.env.POTO_DATA_DIR
   ? path.resolve(process.env.POTO_DATA_DIR)
@@ -1277,6 +1279,7 @@ function createApp() {
     app.set("trust proxy", 1);
   }
 
+  app.use(compression());
   app.use(express.json({ limit: "15mb" }));
 
   const sessionStore = new SqliteSessionStore();
@@ -2136,7 +2139,9 @@ async function syncPresenceLogFromOnline(onlineList) {
       etag: false,
       lastModified: false,
       setHeaders(res, filePath) {
-        if (/\.(html|js|css)$/i.test(filePath)) {
+        if (/[\\/]assets[\\/]/.test(filePath)) {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        } else if (/\.(html|js|css)$/i.test(filePath)) {
           res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
         }
       },
@@ -2225,7 +2230,7 @@ async function main() {
   }, 10_000);
   loanStatusTimer.unref();
 
-  httpServer.listen(PORT, "0.0.0.0", () => {
+  httpServer.listen(PORT, HOST, () => {
     console.log(`Poto Timide — http://localhost:${PORT}`);
     console.log(`Base de données : ${db.getConnectionLabel()}`);
   });

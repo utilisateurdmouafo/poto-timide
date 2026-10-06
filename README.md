@@ -2,7 +2,7 @@
 
 Application de gestion du groupe **Potos Timides** (membres, tournée, amendes, prêts, événements, finance).
 
-Prod : https://poto-timide.onrender.com
+Prod : https://pototimide.com
 
 ## Stack
 
@@ -11,8 +11,9 @@ Prod : https://poto-timide.onrender.com
 - SQLite locale via `@libsql/client` (ou Turso en prod)
 - Temps réel : Socket.IO, avec l'API REST et SSE conservées pour compatibilité
 - Entrée frontend : React + Vite + Tailwind
-- La coque React monte actuellement le DOM et les scripts de `legacy.html` dans la page principale (sans iframe), afin de conserver l'interface et les parcours pendant le remplacement progressif des vues impératives par des composants React
-- Interface et règles métier historiques en cours de conversion : `legacy.html`, les modules `js/` et `styles.css`
+- Les écrans servis à la racine sont des composants React : réunion, membres, tournée, prêts, événements, dettes et amendes, finance, fond de caisse, communication, notifications, documents de référence et administration
+- Les actions métier utilisent `POST /api/actions`; les changements synchronisés autorisés utilisent `PUT /api/data`. Le client écoute Socket.IO et actualise aussi les données périodiquement comme solution de repli
+- `legacy.html`, les modules `js/` et `styles.css` restent dans le dépôt comme référence de compatibilité pendant la vérification de parité fonctionnelle
 
 Les opérations principales de prêts (demande, vote, décision, remboursement,
 annulation, suppression et changement de date) ainsi que celles des amendes
@@ -54,11 +55,9 @@ npm run dev:react
 ```
 
 Ouvrir **http://localhost:5173**. Le serveur Express doit rester démarré sur le
-port 8080. La vue historique est montée dans le document principal par React et
-utilise la même session, la même base et le canal Socket.IO. Après build,
-Express sert le bundle React à la racine et conserve `legacy.html` comme source
-de compatibilité temporaire. Les écrans et traitements n'ont pas encore tous
-été réécrits en composants React et actions métier serveur.
+port 8080. React utilise la session Express et les mêmes données, actions métier
+et événements Socket.IO. Après build, Express sert le bundle React à la racine ;
+`legacy.html` n'est pas monté dans l'application React.
 
 Pour vérifier le bundle React/Vite/Tailwind :
 
@@ -94,6 +93,7 @@ poto-timide/
 
 ```
 PORT=8080
+HOST=0.0.0.0
 POTO_DATA_DIR=
 NODE_ENV=development
 SESSION_SECRET=poto-local-dev-secret
@@ -104,6 +104,8 @@ TURSO_AUTH_TOKEN=...
 
 `POTO_DATA_DIR` est facultatif ; il permet de placer la base SQLite locale et
 ses sauvegardes dans un répertoire séparé.
+`HOST` est facultatif et contrôle l’adresse d’écoute du serveur (par défaut
+`0.0.0.0`, toutes les interfaces réseau).
 
 ## Base de données et changement d'hébergeur
 

@@ -1,88 +1,276 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { KEYS, NAV, APP_TABS, EMPTY, active, list, request, allowedAdminSections, Button, Form } from "./shared.jsx";
+import { MeetingPage, MembersPage, TourneePage, FundPage, LoansPage, EventsPage, DebtsPage, FinancePage, CommunicationPage, NotificationsPage, ReferencePage } from "./pages.jsx";
+
+const AdminPage = lazy(() => import("./AdminSection.jsx").then((module) => ({ default: module.AdminPage })));
 
 export default function App() {
-  const appRef = useRef(null);
+  const [session, setSession] = useState(null);
+  const [data, setData] = useState(EMPTY);
+  const initialTab = location.hash.slice(1).split("/")[0];
+  const [activeTab, setActiveTab] = useState(APP_TABS.includes(initialTab) ? initialTab : "reunion");
+  const [adminSection, setAdminSection] = useState(location.hash.split("/")[1] || "membres");
+  const [devMode, setDevMode] = useState(() => localStorage.getItem("poto-timide-dev-mode") !== "0");
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [online, setOnline] = useState(0);
+  const [onlineMembers, setOnlineMembers] = useState([]);
+  const [mustChangePassword, setMustChangePassword] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    const loadedScripts = [];
-    const loadedStyles = [];
-
-    async function mountApplication() {
-      try {
-        const response = await fetch(`/legacy.html${window.location.search}${window.location.hash}`, {
-          credentials: "same-origin",
-        });
-        if (!response.ok) throw new Error(`Chargement de l’application impossible (${response.status}).`);
-        const html = await response.text();
-        const parsed = new DOMParser().parseFromString(html, "text/html");
-        const app = appRef.current;
-        if (!app || cancelled) return;
-
-        document.title = parsed.title || "Poto Timide";
-        document.documentElement.lang = parsed.documentElement.lang || "fr";
-        let hasSession = false;
-        try {
-          hasSession = Boolean(JSON.parse(localStorage.getItem("poto-timide-session") || "null")?.memberId);
-        } catch {
-          hasSession = false;
-        }
-        document.documentElement.classList.toggle("has-session", hasSession);
-        document.documentElement.classList.toggle("needs-login", !hasSession);
-
-        for (const source of parsed.head.querySelectorAll("meta, link[rel], style")) {
-          if (
-            source.tagName === "META" &&
-            (source.hasAttribute("charset") ||
-              (source.name && document.head.querySelector(`meta[name="${CSS.escape(source.name)}"]`)))
-          ) {
-            continue;
-          }
-          const resource = document.createElement(source.tagName.toLowerCase());
-          for (const attribute of source.attributes) resource.setAttribute(attribute.name, attribute.value);
-          resource.textContent = source.textContent;
-          document.head.append(resource);
-          loadedStyles.push(resource);
-        }
-
-        app.innerHTML = parsed.body.innerHTML;
-        for (const source of app.querySelectorAll("script")) {
-          const clone = document.createElement("script");
-          for (const attribute of source.attributes) clone.setAttribute(attribute.name, attribute.value);
-          if (!source.src) clone.textContent = source.textContent;
-          source.replaceWith(clone);
-          loadedScripts.push(clone);
-          if (clone.src) {
-            await new Promise((resolve, reject) => {
-              clone.onload = resolve;
-              clone.onerror = () => reject(new Error(`Impossible de charger ${clone.src}`));
-            });
-          }
-          if (cancelled) return;
-        }
-      } catch (reason) {
-        if (!cancelled) setError(reason instanceof Error ? reason.message : "Erreur de chargement.");
-      }
-    }
-
-    mountApplication();
-    return () => {
-      cancelled = true;
-      for (const script of loadedScripts) script.remove();
-      for (const link of loadedStyles) link.remove();
-    };
+  const refresh = useCallback(async () => {
+    const latest = await request("/api/data");
+    setData((previous) => ({ ...previous, ...latest }));
   }, []);
 
-  if (error) {
-    return (
-      <main className="load-error" role="alert">
-        <h1>Poto Timide</h1>
-        <p>{error}</p>
-        <button onClick={() => window.location.reload()} type="button">Recharger</button>
-      </main>
-    );
+  useEffect(() => {
+    let mounted = true;
+    request("/api/auth/session")
+      .then(async (state) => {
+        if (!mounted) return;
+        if (state.loggedIn) {
+          setSession(state.member);
+          setMustChangePassword(Boolean(state.mustChangePassword));
+          const latest = await request("/api/data");
+          if (mounted) setData((previous) => ({ ...previous, ...latest }));
+        }
+      })
+      .catch((reason) => mounted && setError(reason.message))
+      .finally(() => mounted && setLoading(false));
+    return () => { mounted = false; };
+  }, []);
+
+  useEffect(() => {
+    const onHash = () => {
+      const [tab, sub] = location.hash.slice(1).split("/");
+      if (APP_TABS.includes(tab)) setActiveTab(tab);
+      if (tab === "admin") setAdminSection(sub || "membres");
+    };
+    addEventListener("hashchange", onHash);
+    return () => removeEventListener("hashchange", onHash);
+  }, []);
+
+  useEffect(() => {
+    if (!session) return undefined;
+    let socket;
+    let stopped = false;
+    const connect = () => {
+      if (typeof window.io !== "function" || stopped) return;
+      socket = window.io({ withCredentials: true });
+      socket.on("data", () => refresh().catch((reason) => setError(reason.message)));
+      socket.on("connect_error", () => setNotice("Connexion temps réel interrompue ; actualisation de secours active."));
+    };
+    let socketScript;
+    if (typeof window.io === "function") {
+      connect();
+    } else {
+      fetch("/socket.io/socket.io.js", { credentials: "same-origin" })
+        .then((response) => {
+          if (stopped) return;
+          if (!response.ok || !response.headers.get("content-type")?.includes("javascript")) {
+            setNotice("Socket.IO est indisponible ; les données seront actualisées automatiquement.");
+            return;
+          }
+          socketScript = document.createElement("script");
+          socketScript.src = "/socket.io/socket.io.js";
+          socketScript.dataset.socketClient = "true";
+          socketScript.onload = connect;
+          socketScript.onerror = () => setNotice("Socket.IO est indisponible ; les données seront actualisées automatiquement.");
+          document.head.append(socketScript);
+        })
+        .catch(() => setNotice("Socket.IO est indisponible ; les données seront actualisées automatiquement."));
+    }
+    const pollPresence = () => request("/api/auth/online").then((result) => {
+      setOnline(result.count);
+      setOnlineMembers(Array.isArray(result.online) ? result.online : []);
+    }).catch(() => {});
+    const pollData = () => refresh().catch((reason) => setError(reason.message));
+    pollPresence();
+    const timer = setInterval(pollPresence, 30000);
+    const dataTimer = setInterval(pollData, 5000);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+      clearInterval(dataTimer);
+      socket?.disconnect();
+      socketScript?.remove();
+    };
+  }, [session, refresh]);
+
+  const members = useMemo(() => list(data, KEYS.members).filter((member) => member.kind !== "nouveau"), [data]);
+  const memberNames = useMemo(() => Object.fromEntries(list(data, KEYS.members).map((member) => [member.id, member.name])), [data]);
+  const isDeveloper = Boolean(session?.isAdmin);
+  const isAdmin = isDeveloper && devMode;
+  function toggleDevMode() {
+    const next = !devMode;
+    localStorage.setItem("poto-timide-dev-mode", next ? "1" : "0");
+    setDevMode(next);
+    if (!next && activeTab === "admin" && !allowedAdminSections(data, session, false).some((id) => id !== "connexions")) navigate("reunion");
+    setNotice(next ? "Mode Dev : accès total, sans notifications." : "Mode Normal : uniquement vos accès de rôle.");
+  }
+  const roles = data[KEYS.roles] || {};
+  const roleIds = Object.entries(roles).filter(([, memberId]) => String(memberId) === String(session?.id)).map(([roleId]) => roleId);
+  const permissionMap = data[KEYS.permissions] || {};
+  const unreadCount = list(data, KEYS.notifications).filter((row) => String(row.memberId) === String(session?.id) && !row.read && !row.deletedAt).length;
+  const noticeIsWarning = /indisponible|interrompue|actualisation de secours/i.test(notice);
+  const adminSections = allowedAdminSections(data, session, isAdmin);
+  const canOpenAdmin = adminSections.some((id) => id !== "connexions");
+  const can = (tab) => isAdmin || roleIds.some((roleId) => Array.isArray(permissionMap[tab]) && permissionMap[tab].includes(roleId));
+
+  async function runAction(action, success = "Action enregistrée.") {
+    setError("");
+    setNotice("");
+    try {
+      const result = await request("/api/actions", { method: "POST", body: JSON.stringify(action) });
+      if (result.data) setData((previous) => ({ ...previous, ...result.data }));
+      else await refresh();
+      setNotice(success);
+      return result.result;
+    } catch (reason) {
+      setError(reason.message);
+      return false;
+    }
   }
 
-  return <div className="application-host" ref={appRef} />;
+  async function saveData(payload, success = "Modification enregistrée.") {
+    setError("");
+    setNotice("");
+    try {
+      const result = await request("/api/data", { method: "PUT", body: JSON.stringify(payload) });
+      setData((previous) => ({ ...previous, ...payload }));
+      setNotice(success);
+      return result;
+    } catch (reason) {
+      setError(reason.message);
+      return false;
+    }
+  }
+
+  async function login(values) {
+    setError("");
+    try {
+      const result = await request("/api/auth/login", { method: "POST", body: JSON.stringify(values) });
+      setSession(result.member);
+      setMustChangePassword(Boolean(result.mustChangePassword));
+      const latest = await request("/api/data");
+      setData((previous) => ({ ...previous, ...latest }));
+      navigate("reunion");
+    } catch (reason) {
+      setError(reason.message);
+    }
+  }
+
+  async function logout() {
+    try {
+      await request("/api/auth/logout", { method: "POST", body: "{}" });
+      setSession(null);
+      setData(EMPTY);
+      setMustChangePassword(false);
+    } catch (reason) {
+      setError(reason.message);
+    }
+  }
+
+  async function changePassword(values) {
+    try {
+      await request("/api/auth/change-password", { method: "POST", body: JSON.stringify(values) });
+      setMustChangePassword(false);
+      setNotice("Mot de passe modifié.");
+    } catch (reason) {
+      setError(reason.message);
+    }
+  }
+
+  function navigate(tab, section) {
+    setActiveTab(tab);
+    const adminTarget = tab === "admin" ? section || "membres" : "";
+    if (adminTarget) setAdminSection(adminTarget);
+    location.hash = adminTarget ? `${tab}/${adminTarget}` : tab;
+    setError("");
+    setNotice("");
+  }
+
+  async function confirmAction(action, message) {
+    if (!confirm(message)) return;
+    await runAction(action, "Suppression effectuée.");
+  }
+
+  if (loading) return <main className="center-screen"><div className="spinner" /><p>Chargement de Poto Timide…</p></main>;
+  if (!session) return <Login onLogin={login} error={error} />;
+  if (mustChangePassword) return <PasswordChange onSubmit={changePassword} error={error} />;
+
+  const page = (() => {
+    switch (activeTab) {
+      case "membres": return <MembersPage data={data} members={members} roles={roles} online={online} onlineMembers={onlineMembers} member={session} navigate={navigate} />;
+      case "tournee": return <TourneePage data={data} members={members}       canManage={false} saveData={saveData} />;
+            case "prets": return <LoansPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
+      case "evenements": return <EventsPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
+      case "communication": return <CommunicationPage data={data} member={session} members={members}       canManage={false} saveData={saveData} />;
+            case "loi": return <ReferencePage data={data} canManageLaw={false} canManageGuide={false} saveData={saveData} />;
+      case "notifications": return <NotificationsPage data={data} member={session} saveData={saveData} />;
+      case "amendes": return <DebtsPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
+      case "finance": return <FinancePage data={data} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} saveData={saveData} />;
+      case "fond-caisse": return <FundPage data={data} members={members} member={session} />;
+      case "admin": return canOpenAdmin
+        ? <Suspense fallback={<div className="page-content"><p className="muted">Chargement…</p></div>}><AdminPage section={adminSection} sections={adminSections} setSection={(section) => navigate("admin", section)} data={data} member={session} members={members} names={memberNames} runAction={runAction} confirmAction={confirmAction} saveData={saveData} /></Suspense>
+        : <NoAccess />;
+      default: return <MeetingPage data={data} member={session} members={members} names={memberNames} online={online} onlineMembers={onlineMembers} isAdmin={canOpenAdmin} can={can} unreadCount={unreadCount} navigate={navigate} />;
+    }
+  })();
+  const selectedTab = activeTab;
+
+  return (
+    <div className="app-shell">
+      <header className="topbar">
+        <a className="brand" href="#reunion" onClick={() => navigate("reunion")} aria-label="Poto Timide, accueil"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="12" fill="#0284C7"/><circle cx="27.5" cy="12" r="5.2" fill="#67E8F9"/><path d="M7 22.5c6.2-10.2 11.2-10.2 18.2 0 7 10.2 11.4 10.2 20.4 0" stroke="#fff" strokeWidth="3.1" strokeLinecap="round"/><path d="M9 29.2c5.2-8 9.4-8 16.2 0" stroke="#7DD3FC" strokeWidth="2.6" strokeLinecap="round"/></svg></span><span><strong>Poto Timide</strong><small>GROUPE · ESPACE PRIVÉ</small></span></a>
+        <nav className="main-nav" aria-label="Navigation principale">
+          {NAV.map(([id, label, icon]) => ((id !== "admin" || canOpenAdmin) && (
+            <button key={id} className={selectedTab === id ? "nav-item selected" : "nav-item"} onClick={() => navigate(id)}><span aria-hidden="true">{icon}</span>{label}{id === "notifications" && unreadCount > 0 && <span className="nav-badge">{unreadCount}</span>}</button>
+          )))}
+        </nav>
+        <div className={`user-box ${isAdmin ? "user-admin" : ""}`}><span className="user-status">{isAdmin ? "👑 Administrateur" : session.name}{isAdmin && <small> · {session.name}</small>}</span>{isDeveloper && <button type="button" className={`dev-badge ${devMode ? "is-on" : "is-off"}`} onClick={toggleDevMode} title={devMode ? "Mode Dev ON — accès total (cliquer pour mode normal)" : "Mode Normal — accès de rôle seulement (cliquer pour mode dev)"}>{devMode ? "Dev ON" : "Normal"}</button>}<Button className="logout-button" onClick={logout}>Se déconnecter&nbsp; ↪</Button></div>
+      </header>
+      <main className="page-main">
+        {(error || notice) && <div className={`notice ${error ? "notice-error" : noticeIsWarning ? "notice-warning" : "notice-success"}`} role="status">{error || notice}<button aria-label="Fermer" onClick={() => { setError(""); setNotice(""); }}>×</button></div>}
+        {selectedTab !== "reunion" && <div className="reunion-back-bar"><Button onClick={() => navigate("reunion")}>← Réunion</Button></div>}
+        {page}
+      </main>
+      <footer className="app-footer"><span>Poto Timide · Espace privé du groupe</span><span>{online} membre{online > 1 ? "s" : ""} en ligne · synchronisation temps réel</span></footer>
+    </div>
+  );
+
+  function NoAccess() {
+    return <section className="page-heading"><span className="eyebrow">Accès restreint</span><h1>Administration</h1><p>Cette section est réservée aux administrateurs du groupe.</p></section>;
+  }
+}
+
+function Login({ onLogin, error }) {
+  return (
+    <main className="login-screen">
+      <section className="login-card">
+        <a className="brand login-brand" href="#"><span className="brand-mark">PT</span><span><strong>Poto Timide</strong><small>Groupe · espace privé</small></span></a>
+        <span className="eyebrow">Bienvenue</span><h1>Connectez-vous à votre groupe</h1>
+        <p>Accédez aux réunions, aux prêts et aux finances de Poto Timide.</p>
+        {error && <div className="notice notice-error">{error}</div>}
+        <Form fields={[
+          { name: "username", label: "Identifiant", placeholder: "Votre identifiant" },
+          { name: "password", label: "Mot de passe", type: "password", placeholder: "Votre mot de passe" },
+        ]} submitLabel="Se connecter" onSubmit={onLogin} />
+      </section>
+    </main>
+  );
+}
+
+function PasswordChange({ onSubmit, error }) {
+  return (
+    <main className="login-screen"><section className="login-card">
+      <span className="eyebrow">Sécurité du compte</span><h1>Choisissez un nouveau mot de passe</h1>
+      <p>Pour continuer, veuillez remplacer le mot de passe provisoire de votre compte.</p>
+      {error && <div className="notice notice-error">{error}</div>}
+      <Form fields={[
+        { name: "currentPassword", label: "Mot de passe actuel", type: "password" },
+        { name: "newPassword", label: "Nouveau mot de passe", type: "password" },
+      ]} submitLabel="Modifier le mot de passe" onSubmit={onSubmit} />
+    </section></main>
+  );
 }
