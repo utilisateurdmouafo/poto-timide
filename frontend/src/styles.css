@@ -741,3 +741,75 @@ button.meeting-message { cursor: pointer; }
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+
+/* Navigation haute — cartes style Réunion, palette d’origine (cyan) */
+.main-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.nav-item--card {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  border-top-width: 3px;
+  border-top-color: transparent;
+  color: #c5d4de;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: transform .12s ease, background .12s ease, border-color .12s ease, color .12s ease;
+}
+.nav-item--card:hover {
+  transform: translateY(-1px);
+  color: #f0f9ff;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.nav-item--card.selected {
+  color: #0b2435;
+  background: #fff;
+  border-color: #e5edf2;
+  border-top-color: #22d3ee;
+  box-shadow: 0 8px 18px rgba(14, 165, 233, 0.18);
+}
+.nav-item--card.selected .nav-item__icon {
+  color: #0891b2;
+}
+.nav-item--card.selected .nav-item__label {
+  color: #0b2435;
+  font-weight: 800;
+}
+.nav-item__icon {
+  color: #8aa0ad;
+  font-size: 14px;
+  line-height: 1;
+}
+.nav-item__label {
+  line-height: 1.2;
+}
+.nav-item--card .nav-badge {
+  position: static;
+  margin-left: 2px;
+}
+@media (max-width: 700px) {
+  .nav-item--card {
+    min-height: 36px;
+    padding: 7px 11px;
+    font-size: 11px;
+    border-radius: 10px;
+  }
+}

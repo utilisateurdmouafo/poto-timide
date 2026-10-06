@@ -37,6 +37,25 @@ function UserMenu({ name, isAdmin, isDeveloper, devMode, toggleDevMode, logout }
     </div>
   );
 }
+
+/** Onglet navigation haute — style carte (même esprit que Réunion), couleurs d’origine */
+function NavItem({ id, label, icon, selected, badge, onClick }) {
+  return (
+    <button
+      type="button"
+      className={selected ? "nav-item nav-item--card selected" : "nav-item nav-item--card"}
+      onClick={onClick}
+      aria-current={selected ? "page" : undefined}
+    >
+      {icon ? <span className="nav-item__icon" aria-hidden="true">{icon}</span> : null}
+      <span className="nav-item__label">{label}</span>
+      {badge != null && badge > 0 ? (
+        <span className="nav-badge" aria-label={`${badge} non lues`}>{badge > 99 ? "99+" : badge}</span>
+      ) : null}
+    </button>
+  );
+}
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [data, setData] = useState(EMPTY);
@@ -258,7 +277,15 @@ export default function App() {
         <a className="brand" href="#reunion" onClick={() => navigate("reunion")} aria-label="Poto Timide, accueil"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="12" fill="#0284C7"/><circle cx="27.5" cy="12" r="5.2" fill="#67E8F9"/><path d="M7 22.5c6.2-10.2 11.2-10.2 18.2 0 7 10.2 11.4 10.2 20.4 0" stroke="#fff" strokeWidth="3.1" strokeLinecap="round"/><path d="M9 29.2c5.2-8 9.4-8 16.2 0" stroke="#7DD3FC" strokeWidth="2.6" strokeLinecap="round"/></svg></span><span><strong>Poto Timide</strong><small>GROUPE · ESPACE PRIVÉ</small></span></a>
         <nav className="main-nav" aria-label="Navigation principale">
           {NAV.map(([id, label, icon]) => ((id !== "admin" || canOpenAdmin) && (
-            <button key={id} className={selectedTab === id ? "nav-item selected" : "nav-item"} onClick={() => navigate(id)}><span aria-hidden="true">{icon}</span>{label}{id === "notifications" && unreadCount > 0 && <span className="nav-badge">{unreadCount}</span>}</button>
+            <NavItem
+              key={id}
+              id={id}
+              label={label}
+              icon={icon}
+              selected={selectedTab === id}
+              badge={id === "notifications" ? unreadCount : 0}
+              onClick={() => navigate(id)}
+            />
           )))}
         </nav>
         <UserMenu name={session.name} isAdmin={isAdmin} isDeveloper={isDeveloper} devMode={devMode} toggleDevMode={toggleDevMode} logout={logout} />
