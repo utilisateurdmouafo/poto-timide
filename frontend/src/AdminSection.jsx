@@ -164,9 +164,9 @@ export function TourneeAdmin({ data, members, saveData }) {
     </section>
     <section className="panel inset-panel">
       <h3>2. Ristourne</h3>
-      <p className="muted">Montant annuel = cotisation × 12. Cochez « Déjà bouffé » quand c’est réglé.</p>
+      <p className="muted">Montant annuel = cotisation × 10 (septembre → juin). Cochez « Déjà bouffé » quand c’est réglé.</p>
       <div className="order-items">{ristourne.map((id, index) => <div className="order-item" key={id}>
-        <span className="order-rank">{index + 1}</span><strong>{nameOf(id)}</strong><small>{money((Number(cotisations[id]) || 0) * 12)}</small>
+        <span className="order-rank">{index + 1}</span><strong>{nameOf(id)}</strong><small>{money((Number(cotisations[id]) || 0) * 10)}</small>
         <label className="inline-check"><input type="checkbox" checked={isOk("ristourneOk", id)} onChange={(event) => setOk("ristourneOk", id, event.target.checked)} /> Déjà bouffé</label>
         <div className="row-actions"><Button aria-label="Monter" disabled={index === 0} onClick={() => move(ristourne, index, -1, "ristourne")}>↑</Button><Button aria-label="Descendre" disabled={index === ristourne.length - 1} onClick={() => move(ristourne, index, 1, "ristourne")}>↓</Button><Button variant="danger" aria-label="Retirer" onClick={() => setOrder("ristourne", ristourne.filter((value) => value !== id))}>×</Button></div>
       </div>)}{!ristourne.length && <span className="muted">Personne pour l’instant.</span>}</div>

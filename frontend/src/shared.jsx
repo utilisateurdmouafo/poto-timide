@@ -312,7 +312,7 @@ export function MemberChips({ ids, members, flags = {}, amounts, empty }) {
   if (!ids?.length) return <span className="muted">{empty}</span>;
   return <div className="member-chips">{ids.map((id) => {
     const person = members.find((member) => String(member.id) === String(id));
-    return <span className="member-chip" key={id}>{person?.name || "Membre"}{(flags?.[id] === true || flags?.[id]?.ok) && <small>Validé</small>}{amounts && <small>{money((Number(amounts[id]) || 0) * 12)}</small>}</span>;
+    return <span className="member-chip" key={id}>{person?.name || "Membre"}{(flags?.[id] === true || flags?.[id]?.ok) && <small>Validé</small>}{amounts && <small>{money((Number(amounts[id]) || 0) * 10)}</small>}</span>;
   })}</div>;
 }
 
@@ -339,12 +339,12 @@ export function OrderEditor({ label, idSuffix, ids, members, amounts, onChange }
       if (memberId && !selected.has(memberId)) onChange([...ids, memberId]);
     }}>
       <option value="">Ajouter un membre…</option>
-      {members.filter((member) => !selected.has(member.id)).map((member) => <option key={member.id} value={member.id}>{member.name}{amounts ? ` · ${money((Number(amounts[member.id]) || 0) * 12)}` : ""}</option>)}
+      {members.filter((member) => !selected.has(member.id)).map((member) => <option key={member.id} value={member.id}>{member.name}{amounts ? ` · ${money((Number(amounts[member.id]) || 0) * 10)}` : ""}</option>)}
     </select>
     <div className="order-items">{ids.map((id, index) => {
       const person = members.find((member) => String(member.id) === String(id));
       return <div className="order-item" key={id}>
-        <span className="order-rank">{index + 1}</span><strong>{person?.name || "Membre"}</strong>{amounts && <small>{money((Number(amounts[id]) || 0) * 12)}</small>}
+        <span className="order-rank">{index + 1}</span><strong>{person?.name || "Membre"}</strong>{amounts && <small>{money((Number(amounts[id]) || 0) * 10)}</small>}
         <div className="row-actions">
           <Button aria-label={`Monter ${person?.name || "le membre"}`} disabled={index === 0} onClick={() => { const next = [...ids]; [next[index - 1], next[index]] = [next[index], next[index - 1]]; onChange(next); }}>↑</Button>
           <Button aria-label={`Descendre ${person?.name || "le membre"}`} disabled={index === ids.length - 1} onClick={() => { const next = [...ids]; [next[index + 1], next[index]] = [next[index], next[index + 1]]; onChange(next); }}>↓</Button>
