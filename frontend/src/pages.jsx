@@ -702,11 +702,7 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
 
   return (
     <div className="page-content communication-page">
-      <PageHeading
-        eyebrow="Vie du groupe"
-        title="Communication"
-        description="Communiqués, ordres du jour, rapports, guide et loi — recherchez un mot dans chaque rubrique."
-      />
+      {/* Pas de grand titre « Communication » : les sous-onglets suffisent */}
 
       {canManage && category !== "loi" && category !== "guide-site" && (
         <Form
