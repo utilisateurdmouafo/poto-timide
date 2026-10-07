@@ -2,7 +2,7 @@
 
 :root {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #172b3a;
+  color: #0b1f2c;
   background: #f4f7f9;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -11,7 +11,7 @@
   --blue-light: #e9f5fa;
   --gold: #c98920;
   --red: #bd4652;
-  --muted: #71808b;
+  --muted: #4a5d6a;
   --line: #e3e9ed;
   --shadow: 0 12px 35px rgba(12, 38, 54, .055);
 }
@@ -1036,4 +1036,87 @@ button.meeting-message { cursor: pointer; }
 .communication-panel .row-actions {
   margin-top: 14px;
   gap: 8px;
+}
+
+
+/* ========== Lisibilité globale : texte plus visible ========== */
+:root {
+  --muted: #3f5461;
+  color: #0a1c28;
+}
+body {
+  color: #0a1c28 !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.muted,
+.panel-desc,
+.empty-cell,
+td.empty-cell {
+  color: #3f5461 !important;
+  opacity: 1 !important;
+}
+p, td, th, label, .field > span, .year-select label,
+.announcement-card p, .announcement-body,
+.reference-item p, .notification-copy p,
+.activity-item small, .notification-copy small,
+.user-box small, .brand small {
+  opacity: 1 !important;
+}
+p, .announcement-card p, .announcement-body, .reference-item p {
+  color: #123042 !important;
+}
+td {
+  color: #1a3344 !important;
+}
+th {
+  color: #243b4a !important;
+}
+.stat > span, .eyebrow, .panel-heading > span {
+  color: #3a5363 !important;
+  opacity: 1 !important;
+}
+.stat > strong, h1, h2, h3, .page-heading h1, .panel-heading h2, .panel h3 {
+  color: #071a26 !important;
+  opacity: 1 !important;
+}
+.button {
+  color: #1e3544 !important;
+  font-weight: 750;
+}
+.button-primary {
+  color: #fff !important;
+}
+.button-danger {
+  color: #9a2f3a !important;
+}
+.nav-item {
+  color: rgba(240, 249, 255, 0.92) !important;
+}
+.nav-item.selected {
+  color: #072033 !important;
+}
+.page-heading p, .reunion-heading p {
+  color: #2c4a5c !important;
+  opacity: 1 !important;
+}
+table {
+  font-size: 14px;
+}
+.member-chip {
+  color: #1a3d4f !important;
+}
+.status {
+  color: #2f404c !important;
+}
+.app-footer, .app-footer span {
+  color: #2c4a5c !important;
+  opacity: 1 !important;
+}
+input, select, textarea {
+  color: #0a1c28 !important;
+}
+input::placeholder, textarea::placeholder {
+  color: #5a7180 !important;
+  opacity: 1 !important;
 }
