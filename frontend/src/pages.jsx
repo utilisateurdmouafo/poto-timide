@@ -619,7 +619,6 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
   const [category, setCategory] = useState("communique");
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState(null);
-  const [expandedId, setExpandedId] = useState(null);
   const [focusPhrase, setFocusPhrase] = useState("");
   const q = query.trim().toLowerCase();
 
@@ -695,7 +694,12 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
     let key = 0;
     while (found >= 0) {
       if (found > cursor) nodes.push(<span key={key++}>{source.slice(cursor, found)}</span>);
-      nodes.push(<mark className="search-hit" key={key++}>{source.slice(found, found + needle.length)}</mark>);
+      const markId = key === 1 ? `comm-hit-first` : undefined;
+      nodes.push(
+        <mark className="search-hit" key={key++} id={markId}>
+          {source.slice(found, found + needle.length)}
+        </mark>
+      );
       cursor = found + needle.length;
       found = lower.indexOf(qn, cursor);
     }
@@ -703,54 +707,24 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
     return nodes;
   };
 
-  /** Niveau 1 : élargir l'extrait autour de la phrase */
-  const expandExcerpt = (id, phrase) => {
-    const p = phrase || query.trim();
-    // 2e clic sur le même résultat → article complet
-    if (expandedId === id) {
-      openFullArticle(id, p);
-      return;
-    }
-    setExpandedId(id);
+  /** Clic résultat → article entier, scroll sur le mot surligné */
+  const goToMatch = (id, phrase = "") => {
+    const p = (phrase || query.trim()).trim();
     setFocusPhrase(p);
-    setOpenId(null);
-  };
-
-  /** Niveau 2 : article complet */
-  const openFullArticle = (id, phrase = "") => {
-    const p = phrase || focusPhrase || query.trim();
-    setFocusPhrase(p);
-    setExpandedId(null);
     setOpenId(id);
     setQuery("");
-    // Attendre le re-render (sortie du mode recherche) avant de scroller
     window.setTimeout(() => {
+      const mark = document.querySelector(`#comm-card-${id} mark.search-hit`);
       const el = document.getElementById(`comm-card-${id}`);
-      if (!el) return;
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-      el.classList.add("comm-card-focus");
-      window.setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
-    }, 120);
+      const target = mark || el;
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (el) {
+        el.classList.add("comm-card-focus");
+        window.setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
+      }
+    }, 150);
   };
-
-  const contextAround = (body, phrase, radius = 120) => {
-    const text = String(body || "");
-    if (!phrase) return text;
-    const at = text.toLowerCase().indexOf(phrase.toLowerCase());
-    if (at < 0) return text;
-    let start = Math.max(0, at - radius);
-    let end = Math.min(text.length, at + phrase.length + radius);
-    // élargir aux limites de phrase si possible
-    const before = text.slice(0, at);
-    const after = text.slice(at);
-    const lastBreak = Math.max(before.lastIndexOf(". "), before.lastIndexOf("\n"), before.lastIndexOf("; "));
-    if (lastBreak >= 0 && at - lastBreak < 200) start = lastBreak + (before[lastBreak] === "\n" ? 1 : 2);
-    const nextBreak = after.search(/[.!?\n]/);
-    if (nextBreak > 0 && nextBreak < 200) end = at + nextBreak + 1;
-    const slice = text.slice(start, end).trim();
-    return (start > 0 ? "… " : "") + slice + (end < text.length ? " …" : "");
-  };
-
 
   const countFor = (id) => itemsFor(id).length;
 
@@ -801,8 +775,6 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 setCategory(tab.id);
                 setQuery("");
                 setOpenId(null);
-                setExpandedId(null);
-                setFocusPhrase("");
               }}
             >
               {tab.label}
@@ -836,68 +808,32 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
 
         {searchResults ? (
           <div className="announcement-list">
-            {searchResults.map(({ item, titleMatch, phrases }) => {
-              const mainPhrase = phrases[0] || item.title || "";
-              const isExpanded = expandedId === item.id;
-              return (
-                <article className={`announcement announcement-card announcement-search${isExpanded ? " is-expanded" : ""}`} key={item.id}>
-                  <div className="announcement-meta">
-                    <time>{item.createdAt || item.updatedAt ? date(item.updatedAt || item.createdAt) : "—"}</time>
-                  </div>
-                  <h3>{titleMatch ? highlight(item.title || "Sans titre") : (item.title || "Sans titre")}</h3>
-                  <div className="search-excerpts">
-                    {isExpanded ? (
-                      <p
-                        className="excerpt-context excerpt-clickable"
-                        role="button"
-                        tabIndex={0}
-                        title="Cliquer pour ouvrir l’article complet"
-                        onClick={() => openFullArticle(item.id, focusPhrase || mainPhrase)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            openFullArticle(item.id, focusPhrase || mainPhrase);
-                          }
-                        }}
-                      >
-                        {highlightWith(focusPhrase || query.trim(), contextAround(item.body, focusPhrase || mainPhrase, 180))}
-                      </p>
-                    ) : phrases.length ? (
-                      phrases.map((phrase, index) => (
-                        <p
-                          key={index}
-                          className="excerpt-clickable"
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => expandExcerpt(item.id, phrase)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") {
-                              event.preventDefault();
-                              expandExcerpt(item.id, phrase);
-                            }
-                          }}
-                        >
-                          {highlight(phrase)}
-                        </p>
-                      ))
-                    ) : (
-                      titleMatch && <p className="muted">Mot trouvé dans le titre.</p>
-                    )}
-                  </div>
-                  <div className="search-actions">
-                    {!isExpanded && phrases.length > 0 && (
-                      <Button type="button" onClick={() => expandExcerpt(item.id, mainPhrase)}>1. Élargir l’extrait</Button>
-                    )}
-                    {isExpanded && (
-                      <Button type="button" onClick={() => openFullArticle(item.id, focusPhrase || mainPhrase)}>2. Article complet</Button>
-                    )}
-                    {!isExpanded && (
-                      <Button type="button" onClick={() => openFullArticle(item.id, mainPhrase)}>Article complet</Button>
-                    )}
-                  </div>
-                </article>
-              );
-            })}
+            {searchResults.map(({ item, titleMatch, phrases }) => (
+              <article
+                className="announcement announcement-card announcement-search"
+                key={item.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => goToMatch(item.id, phrases[0] || query.trim())}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    goToMatch(item.id, phrases[0] || query.trim());
+                  }
+                }}
+              >
+                <div className="announcement-meta">
+                  <time>{item.createdAt || item.updatedAt ? date(item.updatedAt || item.createdAt) : "—"}</time>
+                </div>
+                <h3>{titleMatch ? highlight(item.title || "Sans titre") : (item.title || "Sans titre")}</h3>
+                <div className="search-excerpts">
+                  {phrases.length
+                    ? phrases.map((phrase, index) => <p key={index}>{highlight(phrase)}</p>)
+                    : titleMatch && <p className="muted">Mot trouvé dans le titre.</p>}
+                </div>
+                <p className="search-open-hint">Cliquer → aller au passage dans l’article →</p>
+              </article>
+            ))}
           </div>
         ) : (
           <div className="announcement-list">
@@ -915,9 +851,7 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 </div>
                 <h3>{item.title || "Sans titre"}</h3>
                 <p className="announcement-body">
-                  {openId === item.id && focusPhrase
-                    ? highlightWith(focusPhrase, item.body || "")
-                    : (item.body || "")}
+                  {openId === item.id && focusPhrase ? highlightWith(focusPhrase, item.body || "") : (item.body || "")}
                 </p>
                 {canManage && !item._source && (item.category || item.kind || category !== "loi") && category !== "loi" && (
                   <div className="row-actions">
@@ -1023,7 +957,7 @@ export function ReferencePage({ data, canManageLaw, canManageGuide, saveData }) 
 export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState(null);
-  const [expandedId, setExpandedId] = useState(null);
+  const [focusPhrase, setFocusPhrase] = useState("");
   const q = query.trim().toLowerCase();
   const items = rows.filter(active).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
 
@@ -1078,7 +1012,11 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
     let key = 0;
     while (found >= 0) {
       if (found > cursor) nodes.push(<span key={key++}>{source.slice(cursor, found)}</span>);
-      nodes.push(<mark className="search-hit" key={key++}>{source.slice(found, found + needle.length)}</mark>);
+      nodes.push(
+        <mark className="search-hit" key={key++}>
+          {source.slice(found, found + needle.length)}
+        </mark>
+      );
       cursor = found + needle.length;
       found = lower.indexOf(qn, cursor);
     }
@@ -1086,21 +1024,25 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
     return nodes;
   };
 
-  const contextAround = (body, phrase, radius = 180) => {
-    const text = String(body || "");
-    if (!phrase) return text;
-    const at = text.toLowerCase().indexOf(phrase.toLowerCase());
-    if (at < 0) return text;
-    const before = text.slice(0, at);
-    const after = text.slice(at);
-    let start = Math.max(0, at - radius);
-    let end = Math.min(text.length, at + phrase.length + radius);
-    const lastBreak = Math.max(before.lastIndexOf(". "), before.lastIndexOf("\n"));
-    if (lastBreak >= 0 && at - lastBreak < 220) start = lastBreak + 2;
-    const nextBreak = after.search(/[.!?\n]/);
-    if (nextBreak > 0 && nextBreak < 220) end = at + nextBreak + 1;
-    const slice = text.slice(start, end).trim();
-    return (start > 0 ? "… " : "") + slice + (end < text.length ? " …" : "");
+  const goToMatch = (id, phrase = "") => {
+    const p = (phrase || query.trim()).trim();
+    setFocusPhrase(p);
+    setOpenId(id);
+    setQuery("");
+    window.setTimeout(() => {
+      const mark = document.querySelector(`#ref-card-${dataKey}-${id} mark.search-hit`);
+      const el = document.getElementById(`ref-card-${dataKey}-${id}`);
+      const target = mark || el;
+      if (!target) return;
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+      if (el) {
+        el.classList.add("comm-card-focus");
+        window.setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
+      }
+    }, 150);
+  };
+
+  return (start > 0 ? "… " : "") + slice + (end < text.length ? " …" : "");
   };
 
   const expandExcerpt = (id, phrase) => {
@@ -1212,65 +1154,29 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
 
       {searchResults ? (
         <div className="announcement-list">
-          {searchResults.map(({ item, titleMatch, phrases }) => {
-            const mainPhrase = phrases[0] || item.title || "";
-            const isExpanded = expandedId === item.id;
-            return (
-              <article className={`announcement announcement-card announcement-search${isExpanded ? " is-expanded" : ""}`} key={item.id}>
-                <h3>{titleMatch ? highlight(item.title || "Sans titre") : item.title || "Sans titre"}</h3>
-                <div className="search-excerpts">
-                  {isExpanded ? (
-                    <p
-                      className="excerpt-context excerpt-clickable"
-                      role="button"
-                      tabIndex={0}
-                      title="Cliquer pour ouvrir l’article complet"
-                      onClick={() => openFullArticle(item.id, focusPhrase || mainPhrase)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter" || event.key === " ") {
-                          event.preventDefault();
-                          openFullArticle(item.id, focusPhrase || mainPhrase);
-                        }
-                      }}
-                    >
-                      {highlightWith(focusPhrase || query.trim(), contextAround(item.body, focusPhrase || mainPhrase, 180))}
-                    </p>
-                  ) : phrases.length ? (
-                    phrases.map((phrase, index) => (
-                      <p
-                        key={index}
-                        className="excerpt-clickable"
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => expandExcerpt(item.id, phrase)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            expandExcerpt(item.id, phrase);
-                          }
-                        }}
-                      >
-                        {highlight(phrase)}
-                      </p>
-                    ))
-                  ) : (
-                    titleMatch && <p className="muted">Mot trouvé dans le titre.</p>
-                  )}
-                </div>
-                <div className="search-actions">
-                  {!isExpanded && phrases.length > 0 && (
-                    <Button type="button" onClick={() => expandExcerpt(item.id, mainPhrase)}>1. Élargir l’extrait</Button>
-                  )}
-                  {isExpanded && (
-                    <Button type="button" onClick={() => openFullArticle(item.id, focusPhrase || mainPhrase)}>2. Article complet</Button>
-                  )}
-                  {!isExpanded && (
-                    <Button type="button" onClick={() => openFullArticle(item.id, mainPhrase)}>Article complet</Button>
-                  )}
-                </div>
-              </article>
-            );
-          })}
+          {searchResults.map(({ item, titleMatch, phrases }) => (
+            <article
+              className="announcement announcement-card announcement-search"
+              key={item.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => goToMatch(item.id, phrases[0] || query.trim())}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  goToMatch(item.id, phrases[0] || query.trim());
+                }
+              }}
+            >
+              <h3>{titleMatch ? highlight(item.title || "Sans titre") : item.title || "Sans titre"}</h3>
+              <div className="search-excerpts">
+                {phrases.length
+                  ? phrases.map((phrase, index) => <p key={index}>{highlight(phrase)}</p>)
+                  : titleMatch && <p className="muted">Mot trouvé dans le titre.</p>}
+              </div>
+              <p className="search-open-hint">Cliquer → aller au passage dans l’article →</p>
+            </article>
+          ))}
         </div>
       ) : (
         <div className="announcement-list reference-list">
@@ -1282,9 +1188,7 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
             >
               <h3>{row.title}</h3>
               <p className="announcement-body">
-                {openId === row.id && focusPhrase
-                  ? highlightWith(focusPhrase, row.body || "")
-                  : row.body}
+                {openId === row.id && focusPhrase ? highlightWith(focusPhrase, row.body || "") : row.body}
               </p>
               {canManage && (
                 <div className="row-actions">
