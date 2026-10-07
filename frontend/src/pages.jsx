@@ -619,6 +619,7 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
   const [category, setCategory] = useState("communique");
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
   const [focusPhrase, setFocusPhrase] = useState("");
   const q = query.trim().toLowerCase();
 
@@ -702,39 +703,47 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
     return nodes;
   };
 
-  const renderBodyFromPhrase = (body, phrase, id) => {
-    const text = String(body || "");
-    if (!phrase) return <p className="announcement-body">{text}</p>;
-    const at = text.toLowerCase().indexOf(phrase.toLowerCase());
-    if (at < 0) return <p className="announcement-body">{text}</p>;
-    const from = text.slice(at);
-    return (
-      <>
-        {at > 0 && <p className="search-before-hint">… suite de l’article</p>}
-        <p id={`comm-hit-${id}`} className="announcement-body announcement-body-focus">
-          {highlightWith(phrase, from)}
-        </p>
-      </>
-    );
+  /** Niveau 1 : élargir l'extrait autour de la phrase */
+  const expandExcerpt = (id, phrase) => {
+    setExpandedId(id);
+    setFocusPhrase(phrase || query.trim());
+    setOpenId(null);
   };
 
-  const openFull = (id, phrase = "") => {
+  /** Niveau 2 : article complet */
+  const openFullArticle = (id, phrase = "") => {
     setOpenId(id);
-    setFocusPhrase(phrase || query.trim());
+    setFocusPhrase(phrase || focusPhrase || query.trim());
+    setExpandedId(null);
     setQuery("");
     requestAnimationFrame(() => {
-      const mark = document.getElementById(`comm-hit-${id}`);
       const el = document.getElementById(`comm-card-${id}`);
-      const target = mark || el;
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-        if (el) {
-          el.classList.add("comm-card-focus");
-          setTimeout(() => el.classList.remove("comm-card-focus"), 2800);
-        }
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.classList.add("comm-card-focus");
+        setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
       }
     });
   };
+
+  const contextAround = (body, phrase, radius = 120) => {
+    const text = String(body || "");
+    if (!phrase) return text;
+    const at = text.toLowerCase().indexOf(phrase.toLowerCase());
+    if (at < 0) return text;
+    let start = Math.max(0, at - radius);
+    let end = Math.min(text.length, at + phrase.length + radius);
+    // élargir aux limites de phrase si possible
+    const before = text.slice(0, at);
+    const after = text.slice(at);
+    const lastBreak = Math.max(before.lastIndexOf(". "), before.lastIndexOf("\n"), before.lastIndexOf("; "));
+    if (lastBreak >= 0 && at - lastBreak < 200) start = lastBreak + (before[lastBreak] === "\n" ? 1 : 2);
+    const nextBreak = after.search(/[.!?\n]/);
+    if (nextBreak > 0 && nextBreak < 200) end = at + nextBreak + 1;
+    const slice = text.slice(start, end).trim();
+    return (start > 0 ? "… " : "") + slice + (end < text.length ? " …" : "");
+  };
+
 
   const countFor = (id) => itemsFor(id).length;
 
@@ -785,6 +794,8 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 setCategory(tab.id);
                 setQuery("");
                 setOpenId(null);
+                setExpandedId(null);
+                setFocusPhrase("");
               }}
             >
               {tab.label}
@@ -818,32 +829,49 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
 
         {searchResults ? (
           <div className="announcement-list">
-            {searchResults.map(({ item, titleMatch, phrases }) => (
-              <article
-                className="announcement announcement-card announcement-search"
-                key={item.id}
-                role="button"
-                tabIndex={0}
-                onClick={() => openFull(item.id, phrases[0] || item.title || "")}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    openFull(item.id, phrases[0] || item.title || "");
-                  }
-                }}
-              >
-                <div className="announcement-meta">
-                  <time>{item.createdAt || item.updatedAt ? date(item.updatedAt || item.createdAt) : "—"}</time>
-                </div>
-                <h3>{titleMatch ? highlight(item.title || "Sans titre") : (item.title || "Sans titre")}</h3>
-                <div className="search-excerpts">
-                  {phrases.length
-                    ? phrases.map((phrase, index) => <p key={index}>{highlight(phrase)}</p>)
-                    : titleMatch && <p className="muted">Mot trouvé dans le titre.</p>}
-                </div>
-                <p className="search-open-hint">Cliquer pour voir l’article entier →</p>
-              </article>
-            ))}
+            {searchResults.map(({ item, titleMatch, phrases }) => {
+              const mainPhrase = phrases[0] || item.title || "";
+              const isExpanded = expandedId === item.id;
+              return (
+                <article className={`announcement announcement-card announcement-search${isExpanded ? " is-expanded" : ""}`} key={item.id}>
+                  <div className="announcement-meta">
+                    <time>{item.createdAt || item.updatedAt ? date(item.updatedAt || item.createdAt) : "—"}</time>
+                  </div>
+                  <h3>{titleMatch ? highlight(item.title || "Sans titre") : (item.title || "Sans titre")}</h3>
+                  <div className="search-excerpts">
+                    {isExpanded ? (
+                      <p className="excerpt-context">{highlightWith(focusPhrase || query.trim(), contextAround(item.body, focusPhrase || mainPhrase, 180))}</p>
+                    ) : phrases.length ? (
+                      phrases.map((phrase, index) => (
+                        <p
+                          key={index}
+                          className="excerpt-clickable"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => expandExcerpt(item.id, phrase)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              expandExcerpt(item.id, phrase);
+                            }
+                          }}
+                        >
+                          {highlight(phrase)}
+                        </p>
+                      ))
+                    ) : (
+                      titleMatch && <p className="muted">Mot trouvé dans le titre.</p>
+                    )}
+                  </div>
+                  <div className="search-actions">
+                    {!isExpanded && phrases.length > 0 && (
+                      <Button onClick={() => expandExcerpt(item.id, mainPhrase)}>Élargir l’extrait</Button>
+                    )}
+                    <Button onClick={() => openFullArticle(item.id, mainPhrase)}>Article complet</Button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         ) : (
           <div className="announcement-list">
@@ -860,9 +888,11 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                   </time>
                 </div>
                 <h3>{item.title || "Sans titre"}</h3>
-                {openId === item.id && focusPhrase
-                  ? renderBodyFromPhrase(item.body, focusPhrase, item.id)
-                  : <p className="announcement-body">{item.body || ""}</p>}
+                <p className="announcement-body">
+                  {openId === item.id && focusPhrase
+                    ? highlightWith(focusPhrase, item.body || "")
+                    : (item.body || "")}
+                </p>
                 {canManage && !item._source && (item.category || item.kind || category !== "loi") && category !== "loi" && (
                   <div className="row-actions">
                     <Button
@@ -967,6 +997,7 @@ export function ReferencePage({ data, canManageLaw, canManageGuide, saveData }) 
 export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
   const q = query.trim().toLowerCase();
   const items = rows.filter(active).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
 
@@ -1029,15 +1060,45 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
     return nodes;
   };
 
-  const renderBodyFromPhrase = (body, phrase, id) => {
+  const contextAround = (body, phrase, radius = 180) => {
     const text = String(body || "");
-    if (!phrase) return <p className="announcement-body">{text}</p>;
-    const lower = text.toLowerCase();
-    const needle = phrase.toLowerCase();
-    const at = lower.indexOf(needle);
-    if (at < 0) return <p className="announcement-body">{text}</p>;
-    const from = text.slice(at);
-    return (
+    if (!phrase) return text;
+    const at = text.toLowerCase().indexOf(phrase.toLowerCase());
+    if (at < 0) return text;
+    const before = text.slice(0, at);
+    const after = text.slice(at);
+    let start = Math.max(0, at - radius);
+    let end = Math.min(text.length, at + phrase.length + radius);
+    const lastBreak = Math.max(before.lastIndexOf(". "), before.lastIndexOf("\n"));
+    if (lastBreak >= 0 && at - lastBreak < 220) start = lastBreak + 2;
+    const nextBreak = after.search(/[.!?\n]/);
+    if (nextBreak > 0 && nextBreak < 220) end = at + nextBreak + 1;
+    const slice = text.slice(start, end).trim();
+    return (start > 0 ? "… " : "") + slice + (end < text.length ? " …" : "");
+  };
+
+  const expandExcerpt = (id, phrase) => {
+    setExpandedId(id);
+    setFocusPhrase(phrase || query.trim());
+    setOpenId(null);
+  };
+
+  const openFullArticle = (id, phrase = "") => {
+    setOpenId(id);
+    setFocusPhrase(phrase || focusPhrase || query.trim());
+    setExpandedId(null);
+    setQuery("");
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`ref-card-${dataKey}-${id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.classList.add("comm-card-focus");
+        setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
+      }
+    });
+  };
+
+  return (
       <>
         {at > 0 && <p className="search-before-hint">… suite de l’article</p>}
         <p id={`ref-hit-${dataKey}-${id}`} className="announcement-body announcement-body-focus">
@@ -1120,29 +1181,46 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
 
       {searchResults ? (
         <div className="announcement-list">
-          {searchResults.map(({ item, titleMatch, phrases }) => (
-            <article
-              className="announcement announcement-card announcement-search"
-              key={item.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => openFull(item.id, phrases[0] || item.title || "")}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  openFull(item.id, phrases[0] || item.title || "");
-                }
-              }}
-            >
-              <h3>{titleMatch ? highlight(item.title || "Sans titre") : item.title || "Sans titre"}</h3>
-              <div className="search-excerpts">
-                {phrases.length
-                  ? phrases.map((phrase, index) => <p key={index}>{highlight(phrase)}</p>)
-                  : titleMatch && <p className="muted">Mot trouvé dans le titre.</p>}
-              </div>
-              <p className="search-open-hint">Cliquer pour voir l’article entier →</p>
-            </article>
-          ))}
+          {searchResults.map(({ item, titleMatch, phrases }) => {
+            const mainPhrase = phrases[0] || item.title || "";
+            const isExpanded = expandedId === item.id;
+            return (
+              <article className={`announcement announcement-card announcement-search${isExpanded ? " is-expanded" : ""}`} key={item.id}>
+                <h3>{titleMatch ? highlight(item.title || "Sans titre") : item.title || "Sans titre"}</h3>
+                <div className="search-excerpts">
+                  {isExpanded ? (
+                    <p className="excerpt-context">{highlightWith(focusPhrase || query.trim(), contextAround(item.body, focusPhrase || mainPhrase, 180))}</p>
+                  ) : phrases.length ? (
+                    phrases.map((phrase, index) => (
+                      <p
+                        key={index}
+                        className="excerpt-clickable"
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => expandExcerpt(item.id, phrase)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            expandExcerpt(item.id, phrase);
+                          }
+                        }}
+                      >
+                        {highlight(phrase)}
+                      </p>
+                    ))
+                  ) : (
+                    titleMatch && <p className="muted">Mot trouvé dans le titre.</p>
+                  )}
+                </div>
+                <div className="search-actions">
+                  {!isExpanded && phrases.length > 0 && (
+                    <Button onClick={() => expandExcerpt(item.id, mainPhrase)}>Élargir l’extrait</Button>
+                  )}
+                  <Button onClick={() => openFullArticle(item.id, mainPhrase)}>Article complet</Button>
+                </div>
+              </article>
+            );
+          })}
         </div>
       ) : (
         <div className="announcement-list reference-list">
@@ -1153,9 +1231,11 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
               key={row.id}
             >
               <h3>{row.title}</h3>
-              {openId === row.id && focusPhrase
-                ? renderBodyFromPhrase(row.body, focusPhrase, row.id)
-                : <p className="announcement-body">{row.body}</p>}
+              <p className="announcement-body">
+                {openId === row.id && focusPhrase
+                  ? highlightWith(focusPhrase, row.body || "")
+                  : row.body}
+              </p>
               {canManage && (
                 <div className="row-actions">
                   <Button
