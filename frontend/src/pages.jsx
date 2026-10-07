@@ -999,9 +999,7 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
     return nodes;
   };
 
-  const [focusPhrase, setFocusPhrase] = useState("");
-
-  const highlightWith = (needle, text) => {
+   const highlightWith = (needle, text) => {
     if (!needle || !text) return text;
     const source = String(text);
     const lower = source.toLowerCase();
