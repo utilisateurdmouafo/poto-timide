@@ -795,7 +795,6 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 }}
               >
                 <div className="announcement-meta">
-                  <span className="announcement-source">{tabMeta.label}</span>
                   <time>{item.createdAt || item.updatedAt ? date(item.updatedAt || item.createdAt) : "—"}</time>
                 </div>
                 <h3>{titleMatch ? highlight(item.title || "Sans titre") : (item.title || "Sans titre")}</h3>
@@ -817,7 +816,6 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 key={item.id}
               >
                 <div className="announcement-meta">
-                  <span className="announcement-source">{tabMeta.label}</span>
                   <time>
                     {item.createdAt || item.updatedAt ? date(item.updatedAt || item.createdAt) : "—"}
                     {item.createdBy && names[item.createdBy] ? ` · ${names[item.createdBy]}` : ""}
