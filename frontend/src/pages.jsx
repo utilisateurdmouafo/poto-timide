@@ -619,6 +619,7 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
   const [category, setCategory] = useState("communique");
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState(null);
+  const [focusPhrase, setFocusPhrase] = useState("");
   const q = query.trim().toLowerCase();
 
   const names = Object.fromEntries((members || []).map((person) => [String(person.id), person.name]));
@@ -682,15 +683,55 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
     return nodes;
   };
 
-  const openFull = (id) => {
-    setQuery("");
+  const highlightWith = (needle, text) => {
+    if (!needle || !text) return text;
+    const source = String(text);
+    const lower = source.toLowerCase();
+    const qn = needle.toLowerCase();
+    const nodes = [];
+    let cursor = 0;
+    let found = lower.indexOf(qn, cursor);
+    let key = 0;
+    while (found >= 0) {
+      if (found > cursor) nodes.push(<span key={key++}>{source.slice(cursor, found)}</span>);
+      nodes.push(<mark className="search-hit" key={key++}>{source.slice(found, found + needle.length)}</mark>);
+      cursor = found + needle.length;
+      found = lower.indexOf(qn, cursor);
+    }
+    if (cursor < source.length) nodes.push(<span key={key++}>{source.slice(cursor)}</span>);
+    return nodes;
+  };
+
+  const renderBodyFromPhrase = (body, phrase, id) => {
+    const text = String(body || "");
+    if (!phrase) return <p className="announcement-body">{text}</p>;
+    const at = text.toLowerCase().indexOf(phrase.toLowerCase());
+    if (at < 0) return <p className="announcement-body">{text}</p>;
+    const from = text.slice(at);
+    return (
+      <>
+        {at > 0 && <p className="search-before-hint">… suite de l’article</p>}
+        <p id={`comm-hit-${id}`} className="announcement-body announcement-body-focus">
+          {highlightWith(phrase, from)}
+        </p>
+      </>
+    );
+  };
+
+  const openFull = (id, phrase = "") => {
     setOpenId(id);
+    setFocusPhrase(phrase || query.trim());
+    setQuery("");
     requestAnimationFrame(() => {
+      const mark = document.getElementById(`comm-hit-${id}`);
       const el = document.getElementById(`comm-card-${id}`);
-      if (el) {
-        el.classList.add("comm-card-focus");
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
+      const target = mark || el;
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (el) {
+          el.classList.add("comm-card-focus");
+          setTimeout(() => el.classList.remove("comm-card-focus"), 2800);
+        }
       }
     });
   };
@@ -783,11 +824,11 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 key={item.id}
                 role="button"
                 tabIndex={0}
-                onClick={() => openFull(item.id)}
+                onClick={() => openFull(item.id, phrases[0] || item.title || "")}
                 onKeyDown={(event) => {
                   if (event.key === "Enter" || event.key === " ") {
                     event.preventDefault();
-                    openFull(item.id);
+                    openFull(item.id, phrases[0] || item.title || "");
                   }
                 }}
               >
@@ -819,7 +860,9 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                   </time>
                 </div>
                 <h3>{item.title || "Sans titre"}</h3>
-                <p className="announcement-body">{item.body || ""}</p>
+                {openId === item.id && focusPhrase
+                  ? renderBodyFromPhrase(item.body, focusPhrase, item.id)
+                  : <p className="announcement-body">{item.body || ""}</p>}
                 {canManage && !item._source && (item.category || item.kind || category !== "loi") && category !== "loi" && (
                   <div className="row-actions">
                     <Button
@@ -965,15 +1008,59 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
     return nodes;
   };
 
-  const openFull = (id) => {
-    setQuery("");
+  const [focusPhrase, setFocusPhrase] = useState("");
+
+  const highlightWith = (needle, text) => {
+    if (!needle || !text) return text;
+    const source = String(text);
+    const lower = source.toLowerCase();
+    const qn = needle.toLowerCase();
+    const nodes = [];
+    let cursor = 0;
+    let found = lower.indexOf(qn, cursor);
+    let key = 0;
+    while (found >= 0) {
+      if (found > cursor) nodes.push(<span key={key++}>{source.slice(cursor, found)}</span>);
+      nodes.push(<mark className="search-hit" key={key++}>{source.slice(found, found + needle.length)}</mark>);
+      cursor = found + needle.length;
+      found = lower.indexOf(qn, cursor);
+    }
+    if (cursor < source.length) nodes.push(<span key={key++}>{source.slice(cursor)}</span>);
+    return nodes;
+  };
+
+  const renderBodyFromPhrase = (body, phrase, id) => {
+    const text = String(body || "");
+    if (!phrase) return <p className="announcement-body">{text}</p>;
+    const lower = text.toLowerCase();
+    const needle = phrase.toLowerCase();
+    const at = lower.indexOf(needle);
+    if (at < 0) return <p className="announcement-body">{text}</p>;
+    const from = text.slice(at);
+    return (
+      <>
+        {at > 0 && <p className="search-before-hint">… suite de l’article</p>}
+        <p id={`ref-hit-${dataKey}-${id}`} className="announcement-body announcement-body-focus">
+          {highlightWith(phrase, from)}
+        </p>
+      </>
+    );
+  };
+
+  const openFull = (id, phrase = "") => {
     setOpenId(id);
+    setFocusPhrase(phrase || query.trim());
+    setQuery("");
     requestAnimationFrame(() => {
+      const mark = document.getElementById(`ref-hit-${dataKey}-${id}`);
       const el = document.getElementById(`ref-card-${dataKey}-${id}`);
-      if (el) {
-        el.classList.add("comm-card-focus");
-        el.scrollIntoView({ behavior: "smooth", block: "center" });
-        setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
+      const target = mark || el;
+      if (target) {
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        if (el) {
+          el.classList.add("comm-card-focus");
+          setTimeout(() => el.classList.remove("comm-card-focus"), 2800);
+        }
       }
     });
   };
@@ -1039,11 +1126,11 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
               key={item.id}
               role="button"
               tabIndex={0}
-              onClick={() => openFull(item.id)}
+              onClick={() => openFull(item.id, phrases[0] || item.title || "")}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
                   event.preventDefault();
-                  openFull(item.id);
+                  openFull(item.id, phrases[0] || item.title || "");
                 }
               }}
             >
@@ -1066,7 +1153,9 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
               key={row.id}
             >
               <h3>{row.title}</h3>
-              <p className="announcement-body">{row.body}</p>
+              {openId === row.id && focusPhrase
+                ? renderBodyFromPhrase(row.body, focusPhrase, row.id)
+                : <p className="announcement-body">{row.body}</p>}
               {canManage && (
                 <div className="row-actions">
                   <Button

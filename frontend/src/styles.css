@@ -1023,3 +1023,19 @@ input::placeholder, textarea::placeholder {
   color: #5a7180 !important;
   opacity: 1 !important;
 }
+
+
+.search-before-hint {
+  margin: 0 0 6px !important;
+  color: #5a7180 !important;
+  font-size: 12px !important;
+  font-style: italic;
+  font-weight: 600 !important;
+}
+.announcement-body-focus {
+  scroll-margin-top: 96px;
+  padding: 10px 12px !important;
+  border-left: 3px solid #22d3ee;
+  border-radius: 0 10px 10px 0;
+  background: #f0f9ff !important;
+}
