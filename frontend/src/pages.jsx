@@ -628,12 +628,9 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
     { id: "agenda", label: "Ordre du jour", singular: "ordre du jour" },
     { id: "rapport", label: "Rapports de réunions", singular: "rapport" },
     { id: "guide-site", label: "Guide site", singular: "article du guide" },
-    { id: "divers", label: "Divers potos", singular: "message" },
-    { id: "loi", label: "La loi", singular: "article" },
   ];
 
   const itemsFor = (id) => {
-    if (id === "loi") return list(data, KEYS.law).filter(active);
     if (id === "guide-site") {
       const fromGuide = list(data, KEYS.guide).filter(active).map((row) => ({ ...row, _source: "guide" }));
       const fromComm = list(data, KEYS.communication).filter((row) => active(row) && communicationCategoryOf(row) === "guide-site");
@@ -916,24 +913,207 @@ export function NotificationsPage({ data, member, saveData }) {
 }
 
 export function ReferencePage({ data, canManageLaw, canManageGuide, saveData }) {
-  return <div className="page-content">
-    <PageHeading eyebrow="Documents de référence" title="La loi" description="Règles et guide du groupe." />
-    <ReferenceList label="La loi" dataKey={KEYS.law} rows={list(data, KEYS.law)} canManage={canManageLaw} saveData={saveData} />
-    <ReferenceList label="Le guide" dataKey={KEYS.guide} rows={list(data, KEYS.guide)} canManage={canManageGuide} saveData={saveData} />
-  </div>;
+  return (
+    <div className="page-content reference-page">
+      <ReferenceList label="La loi" dataKey={KEYS.law} rows={list(data, KEYS.law)} canManage={canManageLaw} saveData={saveData} />
+      <ReferenceList label="Le guide" dataKey={KEYS.guide} rows={list(data, KEYS.guide)} canManage={canManageGuide} saveData={saveData} />
+    </div>
+  );
 }
 
 export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
-  return <section className="panel">
-    <PanelTitle title={label} meta={`${rows.filter(active).length} rubriques`} />
-    {canManage && <Form className="subform" fields={[
-      { name: "title", label: "Titre" },
-      { name: "body", label: "Contenu", type: "textarea" },
-    ]} submitLabel={`Ajouter à ${label.toLowerCase()}`} onSubmit={(values) => saveData({ [dataKey]: [{ id: crypto.randomUUID(), title: values.title.trim(), body: values.body.trim(), order: rows.length, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }, ...rows] }, "Rubrique ajoutée.")} />}
-    {!rows.some(active) && <p className="muted">Aucun contenu disponible.</p>}
-    <div className="reference-list">{rows.filter(active).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0)).map((row) => <article className="reference-item" key={row.id}>
-      <div><h3>{row.title}</h3><p>{row.body}</p></div>
-      {canManage && <div className="row-actions"><Button onClick={async () => { const title = prompt("Modifier le titre :", row.title || ""); if (title === null) return; const body = prompt("Modifier le contenu :", row.body || ""); if (body === null) return; await saveData({ [dataKey]: rows.map((item) => item.id === row.id ? { ...item, title: title.trim(), body: body.trim(), updatedAt: new Date().toISOString() } : item) }, "Rubrique modifiée."); }}>Modifier</Button><Button variant="danger" onClick={() => saveData({ [dataKey]: rows.map((item) => item.id === row.id ? { ...item, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : item) }, "Rubrique supprimée.")}>Supprimer</Button></div>}
-    </article>)}</div>
-  </section>;
+  const [query, setQuery] = useState("");
+  const [openId, setOpenId] = useState(null);
+  const q = query.trim().toLowerCase();
+  const items = rows.filter(active).sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+
+  const splitSentences = (body) =>
+    String(body || "")
+      .split(/(?<=[.!?;:\n])\s+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+  const searchResults = (() => {
+    if (!q) return null;
+    return items
+      .map((item) => {
+        const title = String(item.title || "");
+        const body = String(item.body || "");
+        const titleMatch = title.toLowerCase().includes(q);
+        const phrases = splitSentences(body).filter((sentence) => sentence.toLowerCase().includes(q));
+        if (!titleMatch && !phrases.length) return null;
+        return { item, titleMatch, phrases };
+      })
+      .filter(Boolean);
+  })();
+
+  const highlight = (text) => {
+    if (!q || !text) return text;
+    const source = String(text);
+    const lower = source.toLowerCase();
+    const nodes = [];
+    let cursor = 0;
+    let found = lower.indexOf(q, cursor);
+    let key = 0;
+    while (found >= 0) {
+      if (found > cursor) nodes.push(<span key={key++}>{source.slice(cursor, found)}</span>);
+      nodes.push(<mark className="search-hit" key={key++}>{source.slice(found, found + q.length)}</mark>);
+      cursor = found + q.length;
+      found = lower.indexOf(q, cursor);
+    }
+    if (cursor < source.length) nodes.push(<span key={key++}>{source.slice(cursor)}</span>);
+    return nodes;
+  };
+
+  const openFull = (id) => {
+    setQuery("");
+    setOpenId(id);
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`ref-card-${dataKey}-${id}`);
+      if (el) {
+        el.classList.add("comm-card-focus");
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
+      }
+    });
+  };
+
+  return (
+    <section className="panel communication-panel">
+      <PanelTitle title={label} meta={`${items.length} article${items.length === 1 ? "" : "s"}`} />
+      {canManage && (
+        <Form
+          className="subform"
+          fields={[
+            { name: "title", label: "Titre" },
+            { name: "body", label: "Contenu", type: "textarea" },
+          ]}
+          submitLabel={`Ajouter à ${label.toLowerCase()}`}
+          onSubmit={(values) =>
+            saveData(
+              {
+                [dataKey]: [
+                  {
+                    id: crypto.randomUUID(),
+                    title: values.title.trim(),
+                    body: values.body.trim(),
+                    order: rows.length,
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                  },
+                  ...rows,
+                ],
+              },
+              "Rubrique ajoutée.",
+            )
+          }
+        />
+      )}
+
+      <label className="communication-search">
+        <span>Recherche dans {label}</span>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={`Mot-clé dans ${label.toLowerCase()}…`}
+          autoComplete="off"
+        />
+      </label>
+
+      {searchResults && (
+        <p className="communication-search-meta">
+          {searchResults.length === 0
+            ? `Aucun résultat pour « ${query.trim()} »`
+            : `${searchResults.reduce((n, row) => n + row.phrases.length + (row.titleMatch ? 1 : 0), 0)} phrase(s) dans ${searchResults.length} article${searchResults.length > 1 ? "s" : ""}`}
+        </p>
+      )}
+
+      {!searchResults && !items.length && <p className="muted communication-empty">Aucun contenu disponible.</p>}
+
+      {searchResults ? (
+        <div className="announcement-list">
+          {searchResults.map(({ item, titleMatch, phrases }) => (
+            <article
+              className="announcement announcement-card announcement-search"
+              key={item.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => openFull(item.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  openFull(item.id);
+                }
+              }}
+            >
+              <h3>{titleMatch ? highlight(item.title || "Sans titre") : item.title || "Sans titre"}</h3>
+              <div className="search-excerpts">
+                {phrases.length
+                  ? phrases.map((phrase, index) => <p key={index}>{highlight(phrase)}</p>)
+                  : titleMatch && <p className="muted">Mot trouvé dans le titre.</p>}
+              </div>
+              <p className="search-open-hint">Cliquer pour voir l’article entier →</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="announcement-list reference-list">
+          {items.map((row) => (
+            <article
+              className={`announcement announcement-card reference-item${openId === row.id ? " comm-card-focus" : ""}`}
+              id={`ref-card-${dataKey}-${row.id}`}
+              key={row.id}
+            >
+              <h3>{row.title}</h3>
+              <p className="announcement-body">{row.body}</p>
+              {canManage && (
+                <div className="row-actions">
+                  <Button
+                    onClick={async () => {
+                      const title = prompt("Modifier le titre :", row.title || "");
+                      if (title === null) return;
+                      const body = prompt("Modifier le contenu :", row.body || "");
+                      if (body === null) return;
+                      await saveData(
+                        {
+                          [dataKey]: rows.map((item) =>
+                            item.id === row.id
+                              ? { ...item, title: title.trim(), body: body.trim(), updatedAt: new Date().toISOString() }
+                              : item,
+                          ),
+                        },
+                        "Rubrique modifiée.",
+                      );
+                    }}
+                  >
+                    Modifier
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      if (!confirm("Supprimer cette rubrique ?")) return;
+                      saveData(
+                        {
+                          [dataKey]: rows.map((item) =>
+                            item.id === row.id
+                              ? { ...item, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+                              : item,
+                          ),
+                        },
+                        "Rubrique supprimée.",
+                      );
+                    }}
+                  >
+                    Supprimer
+                  </Button>
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
+
