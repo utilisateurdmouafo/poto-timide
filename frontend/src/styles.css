@@ -1004,3 +1004,36 @@ button.meeting-message { cursor: pointer; }
   box-shadow: 0 0 0 6px rgba(34, 211, 238, 0.2) !important;
   transition: box-shadow 0.3s ease;
 }
+
+
+/* Communication — contenu plus visible */
+.communication-panel .announcement-card {
+  padding: 18px 16px 16px !important;
+  border: 1px solid #c5d9e6 !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 22px rgba(12, 38, 54, 0.07) !important;
+}
+.communication-panel .announcement-card h3 {
+  margin: 6px 0 12px !important;
+  color: #072033 !important;
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  line-height: 1.35 !important;
+}
+.communication-panel .announcement-body,
+.communication-panel .announcement-card p {
+  color: #1a3344 !important;
+  font-size: 15px !important;
+  line-height: 1.7 !important;
+  white-space: pre-wrap !important;
+}
+.communication-panel .announcement-meta time {
+  color: #4a6575 !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+}
+.communication-panel .row-actions {
+  margin-top: 14px;
+  gap: 8px;
+}

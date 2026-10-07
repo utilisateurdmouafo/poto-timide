@@ -822,12 +822,59 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                   </time>
                 </div>
                 <h3>{item.title || "Sans titre"}</h3>
-                <p>{item.body || ""}</p>
-                {canManage && item.category && !item._source && (
+                <p className="announcement-body">{item.body || ""}</p>
+                {canManage && !item._source && (item.category || item.kind || category !== "loi") && category !== "loi" && (
                   <div className="row-actions">
                     <Button
+                      onClick={async () => {
+                        const title = prompt("Modifier le titre :", item.title || "");
+                        if (title === null) return;
+                        const body = prompt("Modifier le contenu :", item.body || "");
+                        if (body === null) return;
+                        if (item._source === "guide" || (category === "guide-site" && !item.category && !item.kind)) {
+                          await saveData(
+                            {
+                              [KEYS.guide]: list(data, KEYS.guide).map((row) =>
+                                row.id === item.id
+                                  ? { ...row, title: title.trim(), body: body.trim(), updatedAt: new Date().toISOString() }
+                                  : row,
+                              ),
+                            },
+                            "Article modifié.",
+                          );
+                          return;
+                        }
+                        await saveData(
+                          {
+                            [KEYS.communication]: list(data, KEYS.communication).map((row) =>
+                              row.id === item.id
+                                ? { ...row, title: title.trim(), body: body.trim(), updatedAt: new Date().toISOString() }
+                                : row,
+                            ),
+                          },
+                          "Publication modifiée.",
+                        );
+                      }}
+                    >
+                      Modifier
+                    </Button>
+                    <Button
                       variant="danger"
-                      onClick={() =>
+                      onClick={() => {
+                        if (!confirm("Supprimer cette publication ?")) return;
+                        if (item._source === "guide") {
+                          saveData(
+                            {
+                              [KEYS.guide]: list(data, KEYS.guide).map((row) =>
+                                row.id === item.id
+                                  ? { ...row, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+                                  : row,
+                              ),
+                            },
+                            "Article supprimé.",
+                          );
+                          return;
+                        }
                         saveData(
                           {
                             [KEYS.communication]: list(data, KEYS.communication).map((row) =>
@@ -837,8 +884,8 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                             ),
                           },
                           "Publication supprimée.",
-                        )
-                      }
+                        );
+                      }}
                     >
                       Supprimer
                     </Button>
