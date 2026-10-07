@@ -27,11 +27,15 @@ export const KEYS = {
 
 export const NAV = [
   ["reunion", "Réunion", "▣"],
+  ["communication", "Communication", "✉"],
+  ["membres", "Membres & Bureau", "☺"],
+  ["tournee", "Tournée", "↻"],
   ["prets", "Prêts", "↔"],
+  ["fond-caisse", "Fond de caisse", "◈"],
   ["evenements", "Événements", "✦"],
   ["amendes", "Dettes & amendes", "≡"],
-  ["finance", "Finance", "€"],
-  ["admin", "Admin", "⛨"],
+  ["loi", "La loi", "§"],
+  ["notifications", "Notifications", "◎"],
 ];
 export const APP_TABS = ["reunion", "membres", "tournee", "prets", "evenements", "communication", "notifications", "loi", "amendes", "finance", "fond-caisse", "admin"];
 export const AdminTableContext = createContext(false);
