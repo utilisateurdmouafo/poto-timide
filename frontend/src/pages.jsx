@@ -705,25 +705,32 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
 
   /** Niveau 1 : élargir l'extrait autour de la phrase */
   const expandExcerpt = (id, phrase) => {
+    const p = phrase || query.trim();
+    // 2e clic sur le même résultat → article complet
+    if (expandedId === id) {
+      openFullArticle(id, p);
+      return;
+    }
     setExpandedId(id);
-    setFocusPhrase(phrase || query.trim());
+    setFocusPhrase(p);
     setOpenId(null);
   };
 
   /** Niveau 2 : article complet */
   const openFullArticle = (id, phrase = "") => {
-    setOpenId(id);
-    setFocusPhrase(phrase || focusPhrase || query.trim());
+    const p = phrase || focusPhrase || query.trim();
+    setFocusPhrase(p);
     setExpandedId(null);
+    setOpenId(id);
     setQuery("");
-    requestAnimationFrame(() => {
+    // Attendre le re-render (sortie du mode recherche) avant de scroller
+    window.setTimeout(() => {
       const el = document.getElementById(`comm-card-${id}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-        el.classList.add("comm-card-focus");
-        setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
-      }
-    });
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("comm-card-focus");
+      window.setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
+    }, 120);
   };
 
   const contextAround = (body, phrase, radius = 120) => {
@@ -840,7 +847,21 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                   <h3>{titleMatch ? highlight(item.title || "Sans titre") : (item.title || "Sans titre")}</h3>
                   <div className="search-excerpts">
                     {isExpanded ? (
-                      <p className="excerpt-context">{highlightWith(focusPhrase || query.trim(), contextAround(item.body, focusPhrase || mainPhrase, 180))}</p>
+                      <p
+                        className="excerpt-context excerpt-clickable"
+                        role="button"
+                        tabIndex={0}
+                        title="Cliquer pour ouvrir l’article complet"
+                        onClick={() => openFullArticle(item.id, focusPhrase || mainPhrase)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            openFullArticle(item.id, focusPhrase || mainPhrase);
+                          }
+                        }}
+                      >
+                        {highlightWith(focusPhrase || query.trim(), contextAround(item.body, focusPhrase || mainPhrase, 180))}
+                      </p>
                     ) : phrases.length ? (
                       phrases.map((phrase, index) => (
                         <p
@@ -865,9 +886,14 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                   </div>
                   <div className="search-actions">
                     {!isExpanded && phrases.length > 0 && (
-                      <Button onClick={() => expandExcerpt(item.id, mainPhrase)}>Élargir l’extrait</Button>
+                      <Button type="button" onClick={() => expandExcerpt(item.id, mainPhrase)}>1. Élargir l’extrait</Button>
                     )}
-                    <Button onClick={() => openFullArticle(item.id, mainPhrase)}>Article complet</Button>
+                    {isExpanded && (
+                      <Button type="button" onClick={() => openFullArticle(item.id, focusPhrase || mainPhrase)}>2. Article complet</Button>
+                    )}
+                    {!isExpanded && (
+                      <Button type="button" onClick={() => openFullArticle(item.id, mainPhrase)}>Article complet</Button>
+                    )}
                   </div>
                 </article>
               );
@@ -1078,24 +1104,29 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
   };
 
   const expandExcerpt = (id, phrase) => {
+    const p = phrase || query.trim();
+    if (expandedId === id) {
+      openFullArticle(id, p);
+      return;
+    }
     setExpandedId(id);
-    setFocusPhrase(phrase || query.trim());
+    setFocusPhrase(p);
     setOpenId(null);
   };
 
   const openFullArticle = (id, phrase = "") => {
-    setOpenId(id);
-    setFocusPhrase(phrase || focusPhrase || query.trim());
+    const p = phrase || focusPhrase || query.trim();
+    setFocusPhrase(p);
     setExpandedId(null);
+    setOpenId(id);
     setQuery("");
-    requestAnimationFrame(() => {
+    window.setTimeout(() => {
       const el = document.getElementById(`ref-card-${dataKey}-${id}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-        el.classList.add("comm-card-focus");
-        setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
-      }
-    });
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "start" });
+      el.classList.add("comm-card-focus");
+      window.setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
+    }, 120);
   };
 
   return (
@@ -1189,7 +1220,21 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
                 <h3>{titleMatch ? highlight(item.title || "Sans titre") : item.title || "Sans titre"}</h3>
                 <div className="search-excerpts">
                   {isExpanded ? (
-                    <p className="excerpt-context">{highlightWith(focusPhrase || query.trim(), contextAround(item.body, focusPhrase || mainPhrase, 180))}</p>
+                    <p
+                      className="excerpt-context excerpt-clickable"
+                      role="button"
+                      tabIndex={0}
+                      title="Cliquer pour ouvrir l’article complet"
+                      onClick={() => openFullArticle(item.id, focusPhrase || mainPhrase)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          openFullArticle(item.id, focusPhrase || mainPhrase);
+                        }
+                      }}
+                    >
+                      {highlightWith(focusPhrase || query.trim(), contextAround(item.body, focusPhrase || mainPhrase, 180))}
+                    </p>
                   ) : phrases.length ? (
                     phrases.map((phrase, index) => (
                       <p
@@ -1214,9 +1259,14 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
                 </div>
                 <div className="search-actions">
                   {!isExpanded && phrases.length > 0 && (
-                    <Button onClick={() => expandExcerpt(item.id, mainPhrase)}>Élargir l’extrait</Button>
+                    <Button type="button" onClick={() => expandExcerpt(item.id, mainPhrase)}>1. Élargir l’extrait</Button>
                   )}
-                  <Button onClick={() => openFullArticle(item.id, mainPhrase)}>Article complet</Button>
+                  {isExpanded && (
+                    <Button type="button" onClick={() => openFullArticle(item.id, focusPhrase || mainPhrase)}>2. Article complet</Button>
+                  )}
+                  {!isExpanded && (
+                    <Button type="button" onClick={() => openFullArticle(item.id, mainPhrase)}>Article complet</Button>
+                  )}
                 </div>
               </article>
             );
