@@ -617,41 +617,182 @@ export function FinancePage({ data, members, names, canManage, runAction, confir
 
 export function CommunicationPage({ data, member, members = [], canManage, saveData }) {
   const entries = list(data, KEYS.communication).filter(active).sort(byNewest);
-  const messages = list(data, KEYS.messages).filter((row) => row.fromId === member?.id || row.toId === member?.id).sort(byNewest);
-  const [category, setCategory] = useState("communique");
-  const categoryLabel = COMMUNICATION_CATEGORIES.find(([id]) => id === category)?.[1] || "Communiqué";
-  const categorizedEntries = [
-    ...entries.filter((entry) => communicationCategoryOf(entry) === category),
-    ...(category === "guide-site" ? list(data, KEYS.guide).filter(active).map((entry) => ({ ...entry, readOnly: true })) : []),
+  const lawRows = list(data, KEYS.law).filter(active);
+  const guideRows = list(data, KEYS.guide).filter(active);
+  const [category, setCategory] = useState("all");
+  const [query, setQuery] = useState("");
+  const q = query.trim().toLowerCase();
+
+  const matchesQuery = (title, body) => {
+    if (!q) return true;
+    const hay = `${title || ""} ${body || ""}`.toLowerCase();
+    return hay.includes(q);
+  };
+
+  const highlight = (text) => {
+    if (!q || !text) return text;
+    const source = String(text);
+    const lower = source.toLowerCase();
+    const nodes = [];
+    let cursor = 0;
+    let found = lower.indexOf(q, cursor);
+    let key = 0;
+    while (found >= 0) {
+      if (found > cursor) nodes.push(<span key={key++}>{source.slice(cursor, found)}</span>);
+      nodes.push(<mark className="search-hit" key={key++}>{source.slice(found, found + q.length)}</mark>);
+      cursor = found + q.length;
+      found = lower.indexOf(q, cursor);
+    }
+    if (cursor < source.length) nodes.push(<span key={key++}>{source.slice(cursor)}</span>);
+    return nodes;
+  };
+
+  const categoryDefs = [
+    ["all", "Tout"],
+    ...COMMUNICATION_CATEGORIES,
+    ["loi", "La loi"],
   ];
-  const categoryCount = (id) => entries.filter((entry) => communicationCategoryOf(entry) === id).length +
-    (id === "guide-site" ? list(data, KEYS.guide).filter(active).length : 0);
-  return <div className="page-content">
-    <PageHeading eyebrow="Vie et échanges du groupe" title="Communication" description="Consultez les annonces du groupe et échangez directement avec un membre." />
-    {canManage && <Form className="inline-form" title="Publier dans Communication" fields={[
-      { name: "category", label: "Rubrique", options: COMMUNICATION_CATEGORIES },
-      { name: "title", label: "Titre" },
-      { name: "body", label: "Message", type: "textarea" },
-    ]} submitLabel="Publier" onSubmit={(values) => saveData({ [KEYS.communication]: [{ id: crypto.randomUUID(), kind: values.category, category: values.category, title: values.title.trim(), body: values.body.trim(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), createdBy: member?.id }, ...list(data, KEYS.communication)] }, "Publication ajoutée.")} />}
-    <section className="panel"><PanelTitle title={categoryLabel} meta={`${categorizedEntries.length} publication${categorizedEntries.length === 1 ? "" : "s"}`} />
-      <nav className="communication-categories" aria-label="Rubriques de communication">{COMMUNICATION_CATEGORIES.map(([id, label]) => <button type="button" className={category === id ? "communication-category selected" : "communication-category"} key={id} onClick={() => setCategory(id)}>{label}<span>{categoryCount(id)}</span></button>)}</nav>
-      {!categorizedEntries.length && <p className="muted">Aucune publication dans cette rubrique.</p>}
-      <div className="announcement-list">{categorizedEntries.map((entry) => <article className="announcement" key={entry.id}>
-        <div className="announcement-meta"><span className="eyebrow">{categoryLabel} · {date(entry.createdAt)}</span>{canManage && !entry.readOnly && <div className="row-actions"><Button onClick={async () => { const title = prompt("Modifier le titre :", entry.title || ""); if (title === null) return; const body = prompt("Modifier le message :", entry.body || ""); if (body === null) return; await saveData({ [KEYS.communication]: list(data, KEYS.communication).map((row) => row.id === entry.id ? { ...row, title: title.trim(), body: body.trim(), updatedAt: new Date().toISOString(), updatedBy: member?.id } : row) }, "Publication modifiée."); }}>Modifier</Button><Button variant="danger" onClick={() => saveData({ [KEYS.communication]: list(data, KEYS.communication).map((row) => row.id === entry.id ? { ...row, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() } : row) }, "Publication supprimée.")}>Supprimer</Button></div>}</div>
-        <h3>{entry.title}</h3><p>{entry.body}</p>
-      </article>)}</div>
-    </section>
-    {member?.id && <section className="panel"><PanelTitle title="Messages privés" meta={`${messages.filter((row) => row.toId === member.id && !row.readAt).length} non lus`} />
-      <Form className="subform" fields={[
-        { name: "toId", label: "Destinataire", options: members.filter((row) => row.id !== member.id).map((row) => [row.id, row.name]) },
-        { name: "text", label: "Message", type: "textarea" },
-      ]} submitLabel="Envoyer le message" onSubmit={(values) => saveData({ [KEYS.messages]: [{ id: crypto.randomUUID(), fromId: member.id, toId: values.toId, text: values.text.trim(), createdAt: new Date().toISOString(), readAt: null }, ...list(data, KEYS.messages)] }, "Message envoyé.")} />
-      <div className="message-list">{messages.map((row) => <article className={row.fromId === member.id ? "message-item message-outgoing" : "message-item"} key={row.id}>
-        <div><strong>{row.fromId === member.id ? "Vous" : row.fromName || "Membre"} → {row.toId === member.id ? "Vous" : row.toName || "Membre"}</strong><small>{date(row.createdAt)}</small></div><p>{row.text}</p>
-        {row.toId === member.id && !row.readAt && <Button onClick={() => saveData({ [KEYS.messages]: list(data, KEYS.messages).map((message) => message.id === row.id ? { ...message, readAt: new Date().toISOString() } : message) }, "Message marqué comme lu.")}>Marquer comme lu</Button>}
-      </article>)}</div>
-    </section>}
-  </div>;
+
+  const pool = [];
+  if (category === "all" || category === "loi") {
+    lawRows.forEach((row) => pool.push({ id: `law-${row.id}`, source: "La loi", title: row.title, body: row.body, createdAt: row.updatedAt || row.createdAt, readOnly: true }));
+  }
+  if (category === "all" || category === "guide-site") {
+    guideRows.forEach((row) => pool.push({ id: `guide-${row.id}`, source: "Guide site", title: row.title, body: row.body, createdAt: row.updatedAt || row.createdAt, readOnly: true }));
+  }
+  entries.forEach((entry) => {
+    const cat = communicationCategoryOf(entry);
+    if (category === "all" || category === cat) {
+      pool.push({
+        id: entry.id,
+        source: COMMUNICATION_CATEGORIES.find(([id]) => id === cat)?.[1] || "Communiqué",
+        title: entry.title,
+        body: entry.body,
+        createdAt: entry.createdAt,
+        entry,
+        readOnly: false,
+      });
+    }
+  });
+
+  const visible = pool
+    .filter((row) => matchesQuery(row.title, row.body))
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+
+  const categoryCount = (id) => {
+    if (id === "all") return entries.length + lawRows.length + guideRows.length;
+    if (id === "loi") return lawRows.length;
+    if (id === "guide-site") return guideRows.length + entries.filter((e) => communicationCategoryOf(e) === "guide-site").length;
+    return entries.filter((e) => communicationCategoryOf(e) === id).length;
+  };
+
+  return (
+    <div className="page-content communication-page">
+      <PageHeading
+        eyebrow="Vie du groupe"
+        title="Communication"
+        description="Annonces, rapports, guide et loi — recherchez un mot pour le retrouver rapidement."
+      />
+
+      {canManage && (
+        <Form
+          className="inline-form"
+          title="Publier dans Communication"
+          fields={[
+            { name: "category", label: "Rubrique", options: COMMUNICATION_CATEGORIES },
+            { name: "title", label: "Titre" },
+            { name: "body", label: "Message", type: "textarea" },
+          ]}
+          submitLabel="Publier"
+          onSubmit={(values) =>
+            saveData(
+              {
+                [KEYS.communication]: [
+                  {
+                    id: crypto.randomUUID(),
+                    kind: values.category,
+                    category: values.category,
+                    title: values.title.trim(),
+                    body: values.body.trim(),
+                    createdAt: new Date().toISOString(),
+                    updatedAt: new Date().toISOString(),
+                    createdBy: member?.id,
+                  },
+                  ...list(data, KEYS.communication),
+                ],
+              },
+              "Publication ajoutée.",
+            )
+          }
+        />
+      )}
+
+      <section className="panel communication-panel">
+        <PanelTitle title="Publications" meta={`${visible.length} résultat${visible.length === 1 ? "" : "s"}`} />
+
+        <label className="communication-search">
+          <span>Recherche</span>
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Mot-clé (rapport, loi, amende…)"
+            autoComplete="off"
+          />
+        </label>
+
+        <nav className="communication-categories" aria-label="Rubriques de communication">
+          {categoryDefs.map(([id, label]) => (
+            <button
+              type="button"
+              className={category === id ? "communication-category selected" : "communication-category"}
+              key={id}
+              onClick={() => setCategory(id)}
+            >
+              {label}
+              <span>{categoryCount(id)}</span>
+            </button>
+          ))}
+        </nav>
+
+        {!visible.length && <p className="muted communication-empty">Aucun résultat{q ? ` pour « ${query.trim()} »` : " dans cette rubrique"}.</p>}
+
+        <div className="announcement-list">
+          {visible.map((row) => (
+            <article className="announcement announcement-card" key={row.id}>
+              <div className="announcement-meta">
+                <span className="announcement-source">{row.source}</span>
+                <time>{row.createdAt ? date(row.createdAt) : "—"}</time>
+              </div>
+              <h3>{highlight(row.title || "Sans titre")}</h3>
+              <p>{highlight(row.body || "")}</p>
+              {canManage && row.entry && !row.readOnly && (
+                <div className="row-actions">
+                  <Button
+                    variant="danger"
+                    onClick={() =>
+                      saveData(
+                        {
+                          [KEYS.communication]: list(data, KEYS.communication).map((item) =>
+                            item.id === row.entry.id
+                              ? { ...item, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+                              : item,
+                          ),
+                        },
+                        "Publication supprimée.",
+                      )
+                    }
+                  >
+                    Supprimer
+                  </Button>
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
 }
 
 export function NotificationsPage({ data, member, saveData }) {
