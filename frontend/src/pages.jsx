@@ -616,18 +616,56 @@ export function FinancePage({ data, members, names, canManage, runAction, confir
 }
 
 export function CommunicationPage({ data, member, members = [], canManage, saveData }) {
-  const entries = list(data, KEYS.communication).filter(active).sort(byNewest);
-  const lawRows = list(data, KEYS.law).filter(active);
-  const guideRows = list(data, KEYS.guide).filter(active);
-  const [category, setCategory] = useState("all");
+  const [category, setCategory] = useState("communique");
   const [query, setQuery] = useState("");
+  const [openId, setOpenId] = useState(null);
   const q = query.trim().toLowerCase();
 
-  const matchesQuery = (title, body) => {
-    if (!q) return true;
-    const hay = `${title || ""} ${body || ""}`.toLowerCase();
-    return hay.includes(q);
+  const names = Object.fromEntries((members || []).map((person) => [String(person.id), person.name]));
+
+  const tabs = [
+    { id: "communique", label: "Communiqué", singular: "communiqué" },
+    { id: "agenda", label: "Ordre du jour", singular: "ordre du jour" },
+    { id: "rapport", label: "Rapports de réunions", singular: "rapport" },
+    { id: "guide-site", label: "Guide site", singular: "article du guide" },
+    { id: "divers", label: "Divers potos", singular: "message" },
+    { id: "loi", label: "La loi", singular: "article" },
+  ];
+
+  const itemsFor = (id) => {
+    if (id === "loi") return list(data, KEYS.law).filter(active);
+    if (id === "guide-site") {
+      const fromGuide = list(data, KEYS.guide).filter(active).map((row) => ({ ...row, _source: "guide" }));
+      const fromComm = list(data, KEYS.communication).filter((row) => active(row) && communicationCategoryOf(row) === "guide-site");
+      return [...fromGuide, ...fromComm];
+    }
+    return list(data, KEYS.communication)
+      .filter((row) => active(row) && communicationCategoryOf(row) === id)
+      .sort(byNewest);
   };
+
+  const items = itemsFor(category);
+  const tabMeta = tabs.find((tab) => tab.id === category) || tabs[0];
+
+  const splitSentences = (body) =>
+    String(body || "")
+      .split(/(?<=[.!?;:\n])\s+/)
+      .map((part) => part.trim())
+      .filter(Boolean);
+
+  const searchResults = (() => {
+    if (!q) return null;
+    return items
+      .map((item) => {
+        const title = String(item.title || "");
+        const body = String(item.body || "");
+        const titleMatch = title.toLowerCase().includes(q);
+        const phrases = splitSentences(body).filter((sentence) => sentence.toLowerCase().includes(q));
+        if (!titleMatch && !phrases.length) return null;
+        return { item, titleMatch, phrases };
+      })
+      .filter(Boolean);
+  })();
 
   const highlight = (text) => {
     if (!q || !text) return text;
@@ -647,59 +685,34 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
     return nodes;
   };
 
-  const categoryDefs = [
-    ["all", "Tout"],
-    ...COMMUNICATION_CATEGORIES,
-    ["loi", "La loi"],
-  ];
-
-  const pool = [];
-  if (category === "all" || category === "loi") {
-    lawRows.forEach((row) => pool.push({ id: `law-${row.id}`, source: "La loi", title: row.title, body: row.body, createdAt: row.updatedAt || row.createdAt, readOnly: true }));
-  }
-  if (category === "all" || category === "guide-site") {
-    guideRows.forEach((row) => pool.push({ id: `guide-${row.id}`, source: "Guide site", title: row.title, body: row.body, createdAt: row.updatedAt || row.createdAt, readOnly: true }));
-  }
-  entries.forEach((entry) => {
-    const cat = communicationCategoryOf(entry);
-    if (category === "all" || category === cat) {
-      pool.push({
-        id: entry.id,
-        source: COMMUNICATION_CATEGORIES.find(([id]) => id === cat)?.[1] || "Communiqué",
-        title: entry.title,
-        body: entry.body,
-        createdAt: entry.createdAt,
-        entry,
-        readOnly: false,
-      });
-    }
-  });
-
-  const visible = pool
-    .filter((row) => matchesQuery(row.title, row.body))
-    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
-
-  const categoryCount = (id) => {
-    if (id === "all") return entries.length + lawRows.length + guideRows.length;
-    if (id === "loi") return lawRows.length;
-    if (id === "guide-site") return guideRows.length + entries.filter((e) => communicationCategoryOf(e) === "guide-site").length;
-    return entries.filter((e) => communicationCategoryOf(e) === id).length;
+  const openFull = (id) => {
+    setQuery("");
+    setOpenId(id);
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`comm-card-${id}`);
+      if (el) {
+        el.classList.add("comm-card-focus");
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
+      }
+    });
   };
+
+  const countFor = (id) => itemsFor(id).length;
 
   return (
     <div className="page-content communication-page">
       <PageHeading
         eyebrow="Vie du groupe"
         title="Communication"
-        description="Annonces, rapports, guide et loi — recherchez un mot pour le retrouver rapidement."
+        description="Communiqués, ordres du jour, rapports, guide et loi — recherchez un mot dans chaque rubrique."
       />
 
-      {canManage && (
+      {canManage && category !== "loi" && category !== "guide-site" && (
         <Form
           className="inline-form"
-          title="Publier dans Communication"
+          title={`Publier — ${tabMeta.label}`}
           fields={[
-            { name: "category", label: "Rubrique", options: COMMUNICATION_CATEGORIES },
             { name: "title", label: "Titre" },
             { name: "body", label: "Message", type: "textarea" },
           ]}
@@ -710,8 +723,8 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 [KEYS.communication]: [
                   {
                     id: crypto.randomUUID(),
-                    kind: values.category,
-                    category: values.category,
+                    kind: category,
+                    category,
                     title: values.title.trim(),
                     body: values.body.trim(),
                     createdAt: new Date().toISOString(),
@@ -728,68 +741,119 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
       )}
 
       <section className="panel communication-panel">
-        <PanelTitle title="Publications" meta={`${visible.length} résultat${visible.length === 1 ? "" : "s"}`} />
-
-        <label className="communication-search">
-          <span>Recherche</span>
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Mot-clé (rapport, loi, amende…)"
-            autoComplete="off"
-          />
-        </label>
-
         <nav className="communication-categories" aria-label="Rubriques de communication">
-          {categoryDefs.map(([id, label]) => (
+          {tabs.map((tab) => (
             <button
               type="button"
-              className={category === id ? "communication-category selected" : "communication-category"}
-              key={id}
-              onClick={() => setCategory(id)}
+              key={tab.id}
+              className={category === tab.id ? "communication-category selected" : "communication-category"}
+              onClick={() => {
+                setCategory(tab.id);
+                setQuery("");
+                setOpenId(null);
+              }}
             >
-              {label}
-              <span>{categoryCount(id)}</span>
+              {tab.label}
+              <span>{countFor(tab.id)}</span>
             </button>
           ))}
         </nav>
 
-        {!visible.length && <p className="muted communication-empty">Aucun résultat{q ? ` pour « ${query.trim()} »` : " dans cette rubrique"}.</p>}
+        <label className="communication-search">
+          <span>Recherche dans {tabMeta.label}</span>
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={`Mot-clé dans ${tabMeta.singular}…`}
+            autoComplete="off"
+          />
+        </label>
 
-        <div className="announcement-list">
-          {visible.map((row) => (
-            <article className="announcement announcement-card" key={row.id}>
-              <div className="announcement-meta">
-                <span className="announcement-source">{row.source}</span>
-                <time>{row.createdAt ? date(row.createdAt) : "—"}</time>
-              </div>
-              <h3>{highlight(row.title || "Sans titre")}</h3>
-              <p>{highlight(row.body || "")}</p>
-              {canManage && row.entry && !row.readOnly && (
-                <div className="row-actions">
-                  <Button
-                    variant="danger"
-                    onClick={() =>
-                      saveData(
-                        {
-                          [KEYS.communication]: list(data, KEYS.communication).map((item) =>
-                            item.id === row.entry.id
-                              ? { ...item, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-                              : item,
-                          ),
-                        },
-                        "Publication supprimée.",
-                      )
-                    }
-                  >
-                    Supprimer
-                  </Button>
+        {searchResults && (
+          <p className="communication-search-meta">
+            {searchResults.length === 0
+              ? `Aucun résultat pour « ${query.trim()} »`
+              : `${searchResults.reduce((n, row) => n + row.phrases.length + (row.titleMatch ? 1 : 0), 0)} phrase(s) dans ${searchResults.length} ${tabMeta.singular}${searchResults.length > 1 ? "s" : ""}`}
+          </p>
+        )}
+
+        {!searchResults && !items.length && (
+          <p className="muted communication-empty">Aucun {tabMeta.singular} publié pour le moment.</p>
+        )}
+
+        {searchResults ? (
+          <div className="announcement-list">
+            {searchResults.map(({ item, titleMatch, phrases }) => (
+              <article
+                className="announcement announcement-card announcement-search"
+                key={item.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => openFull(item.id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openFull(item.id);
+                  }
+                }}
+              >
+                <div className="announcement-meta">
+                  <span className="announcement-source">{tabMeta.label}</span>
+                  <time>{item.createdAt || item.updatedAt ? date(item.updatedAt || item.createdAt) : "—"}</time>
                 </div>
-              )}
-            </article>
-          ))}
-        </div>
+                <h3>{titleMatch ? highlight(item.title || "Sans titre") : (item.title || "Sans titre")}</h3>
+                <div className="search-excerpts">
+                  {phrases.length
+                    ? phrases.map((phrase, index) => <p key={index}>{highlight(phrase)}</p>)
+                    : titleMatch && <p className="muted">Mot trouvé dans le titre.</p>}
+                </div>
+                <p className="search-open-hint">Cliquer pour voir l’article entier →</p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="announcement-list">
+            {items.map((item) => (
+              <article
+                className={`announcement announcement-card${openId === item.id ? " comm-card-focus" : ""}`}
+                id={`comm-card-${item.id}`}
+                key={item.id}
+              >
+                <div className="announcement-meta">
+                  <span className="announcement-source">{tabMeta.label}</span>
+                  <time>
+                    {item.createdAt || item.updatedAt ? date(item.updatedAt || item.createdAt) : "—"}
+                    {item.createdBy && names[item.createdBy] ? ` · ${names[item.createdBy]}` : ""}
+                  </time>
+                </div>
+                <h3>{item.title || "Sans titre"}</h3>
+                <p>{item.body || ""}</p>
+                {canManage && item.category && !item._source && (
+                  <div className="row-actions">
+                    <Button
+                      variant="danger"
+                      onClick={() =>
+                        saveData(
+                          {
+                            [KEYS.communication]: list(data, KEYS.communication).map((row) =>
+                              row.id === item.id
+                                ? { ...row, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
+                                : row,
+                            ),
+                          },
+                          "Publication supprimée.",
+                        )
+                      }
+                    >
+                      Supprimer
+                    </Button>
+                  </div>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
       </section>
     </div>
   );

@@ -962,3 +962,45 @@ button.meeting-message { cursor: pointer; }
   font-size: 12px !important;
   padding: 9px 12px !important;
 }
+
+
+/* Communication — recherche style La loi (phrases) */
+.communication-search-meta {
+  margin: 0 0 12px;
+  color: #3d6a85;
+  font-size: 13px;
+  font-weight: 700;
+}
+.search-excerpts {
+  display: grid;
+  gap: 8px;
+  margin: 8px 0;
+}
+.search-excerpts p {
+  margin: 0 !important;
+  padding: 8px 10px;
+  border-left: 3px solid #22d3ee;
+  border-radius: 0 8px 8px 0;
+  background: #f0f9ff;
+  color: #0b2435 !important;
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+}
+.search-open-hint {
+  margin: 8px 0 0 !important;
+  color: #087ca9 !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+}
+.announcement-search {
+  cursor: pointer;
+}
+.announcement-search:hover {
+  border-color: #7dd3fc !important;
+  box-shadow: 0 8px 20px rgba(14, 165, 233, 0.12);
+}
+.comm-card-focus {
+  outline: 3px solid #22d3ee;
+  box-shadow: 0 0 0 6px rgba(34, 211, 238, 0.2) !important;
+  transition: box-shadow 0.3s ease;
+}
