@@ -1042,63 +1042,6 @@ export function ReferenceList({ label, dataKey, rows, canManage, saveData }) {
     }, 150);
   };
 
-  return (start > 0 ? "… " : "") + slice + (end < text.length ? " …" : "");
-  };
-
-  const expandExcerpt = (id, phrase) => {
-    const p = phrase || query.trim();
-    if (expandedId === id) {
-      openFullArticle(id, p);
-      return;
-    }
-    setExpandedId(id);
-    setFocusPhrase(p);
-    setOpenId(null);
-  };
-
-  const openFullArticle = (id, phrase = "") => {
-    const p = phrase || focusPhrase || query.trim();
-    setFocusPhrase(p);
-    setExpandedId(null);
-    setOpenId(id);
-    setQuery("");
-    window.setTimeout(() => {
-      const el = document.getElementById(`ref-card-${dataKey}-${id}`);
-      if (!el) return;
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-      el.classList.add("comm-card-focus");
-      window.setTimeout(() => el.classList.remove("comm-card-focus"), 2500);
-    }, 120);
-  };
-
-  return (
-      <>
-        {at > 0 && <p className="search-before-hint">… suite de l’article</p>}
-        <p id={`ref-hit-${dataKey}-${id}`} className="announcement-body announcement-body-focus">
-          {highlightWith(phrase, from)}
-        </p>
-      </>
-    );
-  };
-
-  const openFull = (id, phrase = "") => {
-    setOpenId(id);
-    setFocusPhrase(phrase || query.trim());
-    setQuery("");
-    requestAnimationFrame(() => {
-      const mark = document.getElementById(`ref-hit-${dataKey}-${id}`);
-      const el = document.getElementById(`ref-card-${dataKey}-${id}`);
-      const target = mark || el;
-      if (target) {
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-        if (el) {
-          el.classList.add("comm-card-focus");
-          setTimeout(() => el.classList.remove("comm-card-focus"), 2800);
-        }
-      }
-    });
-  };
-
   return (
     <section className="panel communication-panel">
       <PanelTitle title={label} meta={`${items.length} article${items.length === 1 ? "" : "s"}`} />
