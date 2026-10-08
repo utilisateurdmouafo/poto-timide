@@ -52,9 +52,21 @@ export default function App() {
   const [onlineMembers, setOnlineMembers] = useState([]);
   const [mustChangePassword, setMustChangePassword] = useState(false);
 
+  const dataFingerprintRef = useRef("");
+  const refreshInFlight = useRef(false);
   const refresh = useCallback(async () => {
-    const latest = await request("/api/data");
-    setData((previous) => ({ ...previous, ...latest }));
+    if (refreshInFlight.current) return;
+    refreshInFlight.current = true;
+    try {
+      const latest = await request("/api/data");
+      // Évite de re-rendre toute la page si rien n'a changé (cause des freezes/frisures)
+      const fingerprint = JSON.stringify(latest);
+      if (fingerprint === dataFingerprintRef.current) return;
+      dataFingerprintRef.current = fingerprint;
+      setData((previous) => ({ ...previous, ...latest }));
+    } finally {
+      refreshInFlight.current = false;
+    }
   }, []);
 
   useEffect(() => {
@@ -88,11 +100,25 @@ export default function App() {
     if (!session) return undefined;
     let socket;
     let stopped = false;
+    let socketOk = false;
+    let dataDebounce = null;
+    const scheduleRefresh = () => {
+      // Regroupe les événements socket rapprochés (évite les à-coups)
+      clearTimeout(dataDebounce);
+      dataDebounce = setTimeout(() => {
+        refresh().catch((reason) => setError(reason.message));
+      }, 400);
+    };
     const connect = () => {
       if (typeof window.io !== "function" || stopped) return;
       socket = window.io({ withCredentials: true });
-      socket.on("data", () => refresh().catch((reason) => setError(reason.message)));
-      socket.on("connect_error", () => setNotice("Connexion temps réel interrompue ; actualisation de secours active."));
+      socket.on("connect", () => { socketOk = true; });
+      socket.on("disconnect", () => { socketOk = false; });
+      socket.on("data", scheduleRefresh);
+      socket.on("connect_error", () => {
+        socketOk = false;
+        setNotice("Connexion temps réel interrompue ; actualisation de secours active.");
+      });
     };
     let socketScript;
     if (typeof window.io === "function") {
@@ -114,16 +140,26 @@ export default function App() {
         })
         .catch(() => setNotice("Socket.IO est indisponible ; les données seront actualisées automatiquement."));
     }
+    let lastOnlineKey = "";
     const pollPresence = () => request("/api/auth/online").then((result) => {
+      const list = Array.isArray(result.online) ? result.online : [];
+      const key = `${result.count}|${list.map((row) => row.id || row).join(",")}`;
+      if (key === lastOnlineKey) return;
+      lastOnlineKey = key;
       setOnline(result.count);
-      setOnlineMembers(Array.isArray(result.online) ? result.online : []);
+      setOnlineMembers(list);
     }).catch(() => {});
-    const pollData = () => refresh().catch((reason) => setError(reason.message));
+    // Secours lent si le socket marche ; plus fréquent seulement sans socket
+    const pollData = () => {
+      if (socketOk) return; // le temps réel suffit
+      refresh().catch((reason) => setError(reason.message));
+    };
     pollPresence();
-    const timer = setInterval(pollPresence, 30000);
-    const dataTimer = setInterval(pollData, 5000);
+    const timer = setInterval(pollPresence, 45000);
+    const dataTimer = setInterval(pollData, 20000);
     return () => {
       stopped = true;
+      clearTimeout(dataDebounce);
       clearInterval(timer);
       clearInterval(dataTimer);
       socket?.disconnect();
@@ -255,7 +291,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="topbar">
+      <header className="topbar topbar--underline">
         <a className="brand" href="#reunion" onClick={() => navigate("reunion")} aria-label="Poto Timide, accueil"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="12" fill="#0284C7"/><circle cx="27.5" cy="12" r="5.2" fill="#67E8F9"/><path d="M7 22.5c6.2-10.2 11.2-10.2 18.2 0 7 10.2 11.4 10.2 20.4 0" stroke="#fff" strokeWidth="3.1" strokeLinecap="round"/><path d="M9 29.2c5.2-8 9.4-8 16.2 0" stroke="#7DD3FC" strokeWidth="2.6" strokeLinecap="round"/></svg></span><span><strong>Poto Timide</strong><small>GROUPE · ESPACE PRIVÉ</small></span></a>
         <nav className="main-nav" aria-label="Navigation principale">
           {NAV.map(([id, label, icon]) => ((id !== "admin" || canOpenAdmin) && (
