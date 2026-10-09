@@ -1818,18 +1818,21 @@ async function syncPresenceLogFromOnline(onlineList) {
         await enforceOwnerSafeguards();
       }
       // Push téléphone pour les notifs créées par l’action métier
-      if (applied.changedKeys.includes("poto-timide-notifications") && !action.silent) {
+      if (applied.changedKeys.includes("poto-timide-notifications")) {
         try {
           const notifs = Array.isArray(applied.data["poto-timide-notifications"])
             ? applied.data["poto-timide-notifications"]
             : [];
           const recent = notifs.slice(0, 80);
           const byUser = new Map();
+          const actorId = String(member.id);
           for (const n of recent) {
             if (!n?.memberId || n.read) continue;
             // n’envoyer que les toutes nouvelles (créées dans les 2 dernières minutes)
             const age = Date.now() - new Date(n.createdAt || 0).getTime();
             if (age > 120000) continue;
+            // Mode silent : uniquement l’auteur (pour tester)
+            if (action.silent && String(n.memberId) !== actorId) continue;
             if (!byUser.has(n.memberId)) byUser.set(n.memberId, n);
           }
           await Promise.all(
@@ -1889,11 +1892,15 @@ async function syncPresenceLogFromOnline(onlineList) {
   };
 
   async function notifyAllMembers({ actor, type, title, message, tab, item, loanId, silent }) {
-    if (silent) return { created: 0, pushed: 0 };
     const membersRaw = unwrapStored(await getData(MEMBERS_KEY)) || [];
-    const members = (Array.isArray(membersRaw) ? membersRaw : []).filter(
+    let members = (Array.isArray(membersRaw) ? membersRaw : []).filter(
       (m) => m && m.kind !== "nouveau" && m.id,
     );
+    // Mode silent (Dev) : on notifie quand même l’auteur pour qu’il puisse vérifier
+    // qu’une notification est bien créée ; les autres membres ne sont pas notifiés.
+    if (silent) {
+      members = members.filter((m) => String(m.id) === String(actor?.id || ""));
+    }
     if (!members.length) return { created: 0, pushed: 0 };
     const now = new Date().toISOString();
     const existing = unwrapStored(await getData("poto-timide-notifications")) || [];
@@ -1935,10 +1942,9 @@ async function syncPresenceLogFromOnline(onlineList) {
   }
 
   async function notifyFromChangedKeys(actor, changedKeys, silent) {
-    if (silent || !changedKeys?.length) return null;
+    if (!changedKeys?.length) return null;
     const domains = changedKeys.filter((k) => NOTIFY_DOMAINS[k]);
     if (!domains.length) return null;
-    // Une seule notif regroupée si plusieurs clés d’un coup
     const primary = NOTIFY_DOMAINS[domains[0]];
     const extra = domains.length > 1 ? ` (+${domains.length - 1})` : "";
     const message = `${actor?.name || "Un membre"} a modifié ${primary.label}${extra}.`;
@@ -1948,7 +1954,7 @@ async function syncPresenceLogFromOnline(onlineList) {
       title: primary.title,
       message,
       tab: primary.tab,
-      silent: false,
+      silent: Boolean(silent),
     });
   }
 
