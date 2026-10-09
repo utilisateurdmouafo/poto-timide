@@ -84,6 +84,45 @@ export default function App() {
     return () => removeEventListener("hashchange", onHash);
   }, []);
 
+  // Notifications push (comme une vraie app)
+  useEffect(() => {
+    if (!session) return undefined;
+    let cancelled = false;
+    async function setupPush() {
+      try {
+        if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+        const reg = await navigator.serviceWorker.register("/sw.js");
+        await navigator.serviceWorker.ready;
+        if (cancelled) return;
+        if (typeof Notification !== "undefined" && Notification.permission === "default") {
+          // Demande une fois ; l’utilisateur peut accepter
+          await Notification.requestPermission();
+        }
+        if (cancelled || Notification.permission !== "granted") return;
+        const keyRes = await request("/api/push/public-key");
+        const publicKey = keyRes?.publicKey;
+        if (!publicKey) return;
+        const existing = await reg.pushManager.getSubscription();
+        if (existing) {
+          await request("/api/push/subscribe", { method: "POST", body: JSON.stringify(existing.toJSON()) });
+          return;
+        }
+        const padding = "=".repeat((4 - (publicKey.length % 4)) % 4);
+        const base64 = (publicKey + padding).replace(/-/g, "+").replace(/_/g, "/");
+        const rawStr = atob(base64);
+        const raw = new Uint8Array(rawStr.length);
+        for (let i = 0; i < rawStr.length; i += 1) raw[i] = rawStr.charCodeAt(i);
+        const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: raw });
+        await request("/api/push/subscribe", { method: "POST", body: JSON.stringify(sub.toJSON()) });
+      } catch (err) {
+        console.warn("Push setup:", err);
+      }
+    }
+    setupPush();
+    return () => { cancelled = true; };
+  }, [session]);
+
+
   useEffect(() => {
     if (!session) return undefined;
     let socket;
@@ -164,7 +203,11 @@ export default function App() {
     setError("");
     setNotice("");
     try {
-      const result = await request("/api/actions", { method: "POST", body: JSON.stringify(action) });
+      const silent = Boolean(session?.isAdmin && devMode);
+      const result = await request("/api/actions", {
+        method: "POST",
+        body: JSON.stringify({ ...action, silent }),
+      });
       if (result.data) setData((previous) => ({ ...previous, ...result.data }));
       else await refresh();
       setNotice(success);
@@ -179,8 +222,18 @@ export default function App() {
     setError("");
     setNotice("");
     try {
-      const result = await request("/api/data", { method: "PUT", body: JSON.stringify(payload) });
-      setData((previous) => ({ ...previous, ...payload }));
+      // Mode Dev (Dario) : pas de notifications pour les autres
+      const silent = Boolean(session?.isAdmin && devMode);
+      const result = await request("/api/data", {
+        method: "PUT",
+        body: JSON.stringify(payload),
+        headers: silent ? { "X-Poto-Silent": "1" } : undefined,
+      });
+      setData((previous) => ({
+        ...previous,
+        ...payload,
+        ...(result?.data || {}),
+      }));
       setNotice(success);
       return result;
     } catch (reason) {

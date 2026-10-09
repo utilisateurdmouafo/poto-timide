@@ -1052,6 +1052,7 @@ function sortMembers(members) {
 
 async function sanitizePayloadForOwner(payload) {
   const sanitized = { ...payload };
+  delete sanitized.__silent;
   const ownerFallback = getOwnerFallbackMember();
 
   if (Array.isArray(sanitized[MEMBERS_KEY]) && ownerFallback) {
@@ -1816,6 +1817,38 @@ async function syncPresenceLogFromOnline(onlineList) {
         await syncUsersFromMembers(applied.data[MEMBERS_KEY]);
         await enforceOwnerSafeguards();
       }
+      // Push téléphone pour les notifs créées par l’action métier
+      if (applied.changedKeys.includes("poto-timide-notifications") && !action.silent) {
+        try {
+          const notifs = Array.isArray(applied.data["poto-timide-notifications"])
+            ? applied.data["poto-timide-notifications"]
+            : [];
+          const recent = notifs.slice(0, 80);
+          const byUser = new Map();
+          for (const n of recent) {
+            if (!n?.memberId || n.read) continue;
+            // n’envoyer que les toutes nouvelles (créées dans les 2 dernières minutes)
+            const age = Date.now() - new Date(n.createdAt || 0).getTime();
+            if (age > 120000) continue;
+            if (!byUser.has(n.memberId)) byUser.set(n.memberId, n);
+          }
+          await Promise.all(
+            [...byUser.entries()].map(([memberId, n]) =>
+              push.sendToUserIds([memberId], {
+                title: n.title || "Poto Timide",
+                body: n.message || "Nouvelle activité",
+                url: `/?tab=${encodeURIComponent(n.tab || "reunion")}`,
+                tab: n.tab || "reunion",
+                loanId: n.loanId || "",
+                item: n.item || "",
+                tag: `poto-action-${n.id || Date.now()}`,
+              }).catch(() => {}),
+            ),
+          );
+        } catch (err) {
+          console.warn("Push action:", err.message || err);
+        }
+      }
       await backupDatabase();
       broadcastLive("data", {
         keys: applied.changedKeys,
@@ -1838,6 +1871,87 @@ async function syncPresenceLogFromOnline(onlineList) {
       res.status(status).json({ error: status === 500 ? "Erreur serveur" : err.message });
     }
   });
+
+
+  const NOTIFY_DOMAINS = {
+    "poto-timide-communication": { title: "Communication", tab: "communication", label: "une publication" },
+    "poto-timide-evenements": { title: "Événements", tab: "evenements", label: "un événement / cotisation" },
+    "poto-timide-amendes": { title: "Dettes & amendes", tab: "amendes", label: "une amende ou dette" },
+    "poto-timide-ancienne-tournee-dettes": { title: "Ex tournée", tab: "amendes", label: "une dette d’ex tournée" },
+    "poto-timide-prets": { title: "Prêts", tab: "prets", label: "un prêt" },
+    "poto-timide-finance": { title: "Finance", tab: "finance", label: "une opération de caisse" },
+    "poto-timide-fond-caisse-annuel": { title: "Fond de caisse", tab: "fond-caisse", label: "le fond de caisse" },
+    "poto-timide-fond-caisse": { title: "Fond de caisse", tab: "fond-caisse", label: "le fond de caisse" },
+    "poto-timide-tournee": { title: "Tournée", tab: "tournee", label: "la tournée" },
+    "poto-timide-loi": { title: "La loi", tab: "loi", label: "La loi" },
+    "poto-timide-guide": { title: "Guide", tab: "communication", label: "le guide du site" },
+    "poto-timide-cotisations": { title: "Tournée", tab: "tournee", label: "les cotisations" },
+  };
+
+  async function notifyAllMembers({ actor, type, title, message, tab, item, loanId, silent }) {
+    if (silent) return { created: 0, pushed: 0 };
+    const membersRaw = unwrapStored(await getData(MEMBERS_KEY)) || [];
+    const members = (Array.isArray(membersRaw) ? membersRaw : []).filter(
+      (m) => m && m.kind !== "nouveau" && m.id,
+    );
+    if (!members.length) return { created: 0, pushed: 0 };
+    const now = new Date().toISOString();
+    const existing = unwrapStored(await getData("poto-timide-notifications")) || [];
+    const list = Array.isArray(existing) ? existing : [];
+    const rows = members.map((member) => ({
+      id: crypto.randomUUID(),
+      memberId: member.id,
+      type: type || "activity",
+      title: title || "Poto Timide",
+      message: message || "Nouvelle activité sur le site.",
+      tab: tab || "reunion",
+      item: item || "",
+      loanId: loanId || "",
+      read: false,
+      createdAt: now,
+      updatedAt: now,
+    }));
+    const next = [...rows, ...list].slice(0, 1000);
+    await setData("poto-timide-notifications", next);
+    let pushed = 0;
+    try {
+      const result = await push.sendToUserIds(
+        members.map((m) => m.id),
+        {
+          title: title || "Poto Timide",
+          body: message || "Nouvelle activité",
+          url: `/?tab=${encodeURIComponent(tab || "reunion")}`,
+          tab: tab || "reunion",
+          item: item || "",
+          loanId: loanId || "",
+          tag: `poto-${type || "activity"}-${Date.now()}`,
+        },
+      );
+      pushed = Number(result?.sent || 0);
+    } catch (err) {
+      console.warn("Push notification:", err.message || err);
+    }
+    return { created: rows.length, pushed, notifications: next };
+  }
+
+  async function notifyFromChangedKeys(actor, changedKeys, silent) {
+    if (silent || !changedKeys?.length) return null;
+    const domains = changedKeys.filter((k) => NOTIFY_DOMAINS[k]);
+    if (!domains.length) return null;
+    // Une seule notif regroupée si plusieurs clés d’un coup
+    const primary = NOTIFY_DOMAINS[domains[0]];
+    const extra = domains.length > 1 ? ` (+${domains.length - 1})` : "";
+    const message = `${actor?.name || "Un membre"} a modifié ${primary.label}${extra}.`;
+    return notifyAllMembers({
+      actor,
+      type: domains[0].replace("poto-timide-", ""),
+      title: primary.title,
+      message,
+      tab: primary.tab,
+      silent: false,
+    });
+  }
+
 
   app.put("/api/data", requireAuth, async (req, res) => {
     const runSync = async () => {
@@ -1930,15 +2044,30 @@ async function syncPresenceLogFromOnline(onlineList) {
 
       // Notifier tous les clients connectés (votes, prêts, etc.)
       const changedKeys = persistedKeys;
+      const silent = Boolean(payload.__silent || req.body?.__silent || req.headers["x-poto-silent"] === "1");
+      let notifResult = null;
+      try {
+        notifResult = await notifyFromChangedKeys(actor, changedKeys, silent);
+        if (notifResult?.notifications) {
+          changedKeys.push("poto-timide-notifications");
+        }
+      } catch (err) {
+        console.warn("Notifications auto:", err.message || err);
+      }
       if (changedKeys.length) {
         broadcastLive("data", {
-          keys: changedKeys,
+          keys: [...new Set(changedKeys)],
           at: new Date().toISOString(),
           prets: changedKeys.includes("poto-timide-prets"),
         });
       }
 
-      res.json({ ok: true });
+      res.json({
+        ok: true,
+        data: notifResult?.notifications
+          ? { "poto-timide-notifications": notifResult.notifications }
+          : undefined,
+      });
     };
     const queued = groupActionQueue.then(runSync, runSync);
     groupActionQueue = queued.then(
