@@ -1,4 +1,4 @@
-const CACHE_NAME = "poto-timide-app-v47";
+const CACHE_NAME = "poto-timide-app-v48";
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -111,7 +111,21 @@ self.addEventListener("push", (event) => {
     },
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil((async () => {
+    await self.registration.showNotification(title, options);
+    try {
+      const count = Number(data.badgeCount || data.unread || 0);
+      if (self.navigator && self.navigator.setAppBadge) {
+        if (count > 0) await self.navigator.setAppBadge(count);
+        else await self.navigator.setAppBadge();
+      } else if (self.registration && self.registration.setAppBadge) {
+        if (count > 0) await self.registration.setAppBadge(count);
+        else await self.registration.setAppBadge();
+      }
+    } catch (e) {
+      /* badge non supporté */
+    }
+  })());
 });
 
 self.addEventListener("notificationclick", (event) => {

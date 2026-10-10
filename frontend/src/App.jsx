@@ -194,6 +194,23 @@ export default function App() {
   const roleIds = Object.entries(roles).filter(([, memberId]) => String(memberId) === String(session?.id)).map(([roleId]) => roleId);
   const permissionMap = data[KEYS.permissions] || {};
   const unreadCount = list(data, KEYS.notifications).filter((row) => String(row.memberId) === String(session?.id) && !row.read && !row.deletedAt).length;
+
+  // Badge rouge sur l’icône de l’application (PWA / Android / Chrome)
+  useEffect(() => {
+    if (!session) {
+      if (navigator.clearAppBadge) navigator.clearAppBadge().catch(() => {});
+      return;
+    }
+    try {
+      if (unreadCount > 0 && navigator.setAppBadge) {
+        navigator.setAppBadge(unreadCount).catch(() => {});
+      } else if (navigator.clearAppBadge) {
+        navigator.clearAppBadge().catch(() => {});
+      }
+    } catch {
+      /* non supporté */
+    }
+  }, [session, unreadCount]);
   const noticeIsWarning = /indisponible|interrompue|actualisation de secours/i.test(notice);
   const adminSections = allowedAdminSections(data, session, isAdmin);
   const canOpenAdmin = adminSections.some((id) => id !== "connexions");

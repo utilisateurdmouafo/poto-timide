@@ -1845,6 +1845,8 @@ async function syncPresenceLogFromOnline(onlineList) {
                 loanId: n.loanId || "",
                 item: n.item || "",
                 tag: `poto-action-${n.id || Date.now()}`,
+                badgeCount: 1,
+                unread: 1,
               }).catch(() => {}),
             ),
           );
@@ -1932,6 +1934,8 @@ async function syncPresenceLogFromOnline(onlineList) {
           item: item || "",
           loanId: loanId || "",
           tag: `poto-${type || "activity"}-${Date.now()}`,
+          badgeCount: 1,
+          unread: 1,
         },
       );
       pushed = Number(result?.sent || 0);
