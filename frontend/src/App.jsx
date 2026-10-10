@@ -315,14 +315,14 @@ export default function App() {
   const page = (() => {
     switch (activeTab) {
       case "membres": return <MembersPage data={data} members={members} roles={roles} online={online} onlineMembers={onlineMembers} member={session} navigate={navigate} />;
-      case "tournee": return <TourneePage data={data} members={members}       canManage={false} saveData={saveData} />;
-            case "prets": return <LoansPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
-      case "evenements": return <EventsPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
-      case "communication": return <CommunicationPage data={data} member={session} members={members}       canManage={false} saveData={saveData} />;
-            case "loi": return <ReferencePage data={data} canManageLaw={false} canManageGuide={false} saveData={saveData} />;
+      case "tournee": return <TourneePage data={data} members={members} canManage={can("tournee") || isAdmin} saveData={saveData} />;
+            case "prets": return <LoansPage data={data} member={session} members={members} names={memberNames} canManage={can("prets") || isAdmin} runAction={runAction} confirmAction={confirmAction} />;
+      case "evenements": return <EventsPage data={data} member={session} members={members} names={memberNames} canManage={can("evenements") || isAdmin} runAction={runAction} confirmAction={confirmAction} />;
+      case "communication": return <CommunicationPage data={data} member={session} members={members} canManage={can("communication") || isAdmin} saveData={saveData} />;
+            case "loi": return <ReferencePage data={data} canManageLaw={can("loi") || isAdmin} canManageGuide={can("communication") || isAdmin} saveData={saveData} />;
       case "notifications": return <NotificationsPage data={data} member={session} saveData={saveData} />;
-      case "amendes": return <DebtsPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
-      case "finance": return <FinancePage data={data} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} saveData={saveData} />;
+      case "amendes": return <DebtsPage data={data} member={session} members={members} names={memberNames} canManage={can("amendes") || isAdmin} runAction={runAction} confirmAction={confirmAction} />;
+      case "finance": return <FinancePage data={data} members={members} names={memberNames} canManage={can("caisse") || isAdmin} runAction={runAction} confirmAction={confirmAction} saveData={saveData} />;
       case "fond-caisse": return <FundPage data={data} members={members} member={session} />;
       case "admin": return canOpenAdmin
         ? <Suspense fallback={<div className="page-content"><p className="muted">Chargement…</p></div>}><AdminPage section={adminSection} sections={adminSections} setSection={(section) => navigate("admin", section)} data={data} member={session} members={members} names={memberNames} runAction={runAction} confirmAction={confirmAction} saveData={saveData} /></Suspense>
