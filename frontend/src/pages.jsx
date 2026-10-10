@@ -736,37 +736,46 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
       {/* Pas de grand titre « Communication » : les sous-onglets suffisent */}
 
       {canManage && category !== "loi" && category !== "guide-site" && (
+              {canManage && category !== "loi" && (
         <form
           className="panel form-panel inline-form"
           id="communication-composer"
           onSubmit={async (event) => {
             event.preventDefault();
-            const form = event.currentTarget;
-            const values = Object.fromEntries(new FormData(form));
-            const title = String(values.title || "").trim();
-            const body = String(values.body || "").trim();
-            if (!title || !body) return;
+            const title = String(draftTitle || "").trim();
+            const body = String(draftBody || "").trim();
+            if (!title || !body) {
+              alert("Titre et message sont obligatoires.");
+              return;
+            }
+            const all = list(data, KEYS.communication);
             if (editingId) {
-              const isGuide = category === "guide-site";
-              const source = list(data, isGuide ? KEYS.guide : KEYS.communication);
-              const key = isGuide ? KEYS.guide : KEYS.communication;
-              await saveData(
-                {
-                  [key]: source.map((row) =>
-                    row.id === editingId
-                      ? { ...row, title, body, updatedAt: new Date().toISOString(), kind: row.kind || category, category: row.category || category }
-                      : row,
-                  ),
-                },
-                "Publication modifiée.",
-              );
+              const targetId = String(editingId);
+              let found = false;
+              const next = all.map((row) => {
+                if (String(row.id) !== targetId) return row;
+                found = true;
+                return {
+                  ...row,
+                  title,
+                  body,
+                  kind: row.kind || category,
+                  category: row.category || category,
+                  updatedAt: new Date().toISOString(),
+                };
+              });
+              if (!found) {
+                alert("Publication introuvable — réessaie.");
+                return;
+              }
+              const ok = await saveData({ [KEYS.communication]: next }, "Publication modifiée.");
+              if (ok === false) return;
               setEditingId(null);
               setDraftTitle("");
               setDraftBody("");
-              form.reset();
               return;
             }
-            await saveData(
+            const ok = await saveData(
               {
                 [KEYS.communication]: [
                   {
@@ -779,12 +788,12 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                     updatedAt: new Date().toISOString(),
                     createdBy: member?.id,
                   },
-                  ...list(data, KEYS.communication),
+                  ...all,
                 ],
               },
               "Publication ajoutée.",
             );
-            form.reset();
+            if (ok === false) return;
             setDraftTitle("");
             setDraftBody("");
           }}
@@ -796,8 +805,8 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
               <input
                 name="title"
                 required
-                key={`title-${editingId || "new"}`}
-                defaultValue={draftTitle}
+                value={draftTitle}
+                onChange={(event) => setDraftTitle(event.target.value)}
                 placeholder="Titre"
               />
             </label>
@@ -807,8 +816,8 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 name="body"
                 required
                 rows={6}
-                key={`body-${editingId || "new"}`}
-                defaultValue={draftBody}
+                value={draftBody}
+                onChange={(event) => setDraftBody(event.target.value)}
                 placeholder="Texte…"
               />
             </label>
@@ -834,7 +843,7 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
         </form>
       )}
 
-      <section className="panel communication-panel">
+<section className="panel communication-panel">
         <nav className="communication-categories" aria-label="Rubriques de communication">
           {tabs.map((tab) => (
             <button
@@ -930,10 +939,11 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                   <div className="row-actions">
                     <Button
                       onClick={() => {
-                        setEditingId(item.id);
+                        const cat = communicationCategoryOf(item);
+                        setEditingId(String(item.id));
                         setDraftTitle(item.title || "");
                         setDraftBody(item.body || "");
-                        setCategory(item.category || item.kind || category);
+                        if (cat && cat !== "guide-site") setCategory(cat);
                         window.setTimeout(() => {
                           const box = document.getElementById("communication-composer");
                           if (box) {

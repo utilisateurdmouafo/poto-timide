@@ -49,7 +49,9 @@ export const COMMUNICATION_CATEGORIES = [
   ["divers", "Divers potos"],
 ];
 export const communicationCategoryOf = (entry) => {
-  const category = entry.category || entry.kind;
+  let category = entry.category || entry.kind;
+  if (category === "ordre-du-jour") category = "agenda";
+  if (category === "guide") category = "guide-site";
   return COMMUNICATION_CATEGORIES.some(([id]) => id === category) ? category : "communique";
 };
 

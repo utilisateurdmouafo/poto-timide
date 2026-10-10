@@ -2017,6 +2017,8 @@ async function syncPresenceLogFromOnline(onlineList) {
               messages: unwrapStored(
                 payload["poto-timide-messages"] || (await getData("poto-timide-messages")),
               ),
+              canManageCommunication:
+                key === "poto-timide-communication" && hasSyncTabPermission("communication", syncActor),
             },
           )
         ) {
