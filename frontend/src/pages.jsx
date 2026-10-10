@@ -620,6 +620,9 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState(null);
   const [focusPhrase, setFocusPhrase] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [draftTitle, setDraftTitle] = useState("");
+  const [draftBody, setDraftBody] = useState("");
   const q = query.trim().toLowerCase();
 
   const names = Object.fromEntries((members || []).map((person) => [String(person.id), person.name]));
@@ -733,24 +736,45 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
       {/* Pas de grand titre « Communication » : les sous-onglets suffisent */}
 
       {canManage && category !== "loi" && category !== "guide-site" && (
-        <Form
-          className="inline-form"
-          title={`Publier — ${tabMeta.label}`}
-          fields={[
-            { name: "title", label: "Titre" },
-            { name: "body", label: "Message", type: "textarea" },
-          ]}
-          submitLabel="Publier"
-          onSubmit={(values) =>
-            saveData(
+        <form
+          className="panel form-panel inline-form"
+          id="communication-composer"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const form = event.currentTarget;
+            const values = Object.fromEntries(new FormData(form));
+            const title = String(values.title || "").trim();
+            const body = String(values.body || "").trim();
+            if (!title || !body) return;
+            if (editingId) {
+              const isGuide = category === "guide-site";
+              const source = list(data, isGuide ? KEYS.guide : KEYS.communication);
+              const key = isGuide ? KEYS.guide : KEYS.communication;
+              await saveData(
+                {
+                  [key]: source.map((row) =>
+                    row.id === editingId
+                      ? { ...row, title, body, updatedAt: new Date().toISOString(), kind: row.kind || category, category: row.category || category }
+                      : row,
+                  ),
+                },
+                "Publication modifiée.",
+              );
+              setEditingId(null);
+              setDraftTitle("");
+              setDraftBody("");
+              form.reset();
+              return;
+            }
+            await saveData(
               {
                 [KEYS.communication]: [
                   {
                     id: crypto.randomUUID(),
                     kind: category,
                     category,
-                    title: values.title.trim(),
-                    body: values.body.trim(),
+                    title,
+                    body,
                     createdAt: new Date().toISOString(),
                     updatedAt: new Date().toISOString(),
                     createdBy: member?.id,
@@ -759,9 +783,55 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 ],
               },
               "Publication ajoutée.",
-            )
-          }
-        />
+            );
+            form.reset();
+            setDraftTitle("");
+            setDraftBody("");
+          }}
+        >
+          <h3>{editingId ? `Modifier — ${tabMeta.label}` : `Publier — ${tabMeta.label}`}</h3>
+          <div className="form-grid">
+            <label className="field">
+              <span>Titre</span>
+              <input
+                name="title"
+                required
+                key={`title-${editingId || "new"}`}
+                defaultValue={draftTitle}
+                placeholder="Titre"
+              />
+            </label>
+            <label className="field">
+              <span>Message</span>
+              <textarea
+                name="body"
+                required
+                rows={6}
+                key={`body-${editingId || "new"}`}
+                defaultValue={draftBody}
+                placeholder="Texte…"
+              />
+            </label>
+          </div>
+          <div className="row-actions" style={{ marginTop: 10, gap: 8 }}>
+            <button className="button button-primary" type="submit">
+              {editingId ? "Enregistrer les modifications" : "Publier"}
+            </button>
+            {editingId && (
+              <button
+                className="button button-secondary"
+                type="button"
+                onClick={() => {
+                  setEditingId(null);
+                  setDraftTitle("");
+                  setDraftBody("");
+                }}
+              >
+                Annuler
+              </button>
+            )}
+          </div>
+        </form>
       )}
 
       <section className="panel communication-panel">
@@ -775,6 +845,9 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 setCategory(tab.id);
                 setQuery("");
                 setOpenId(null);
+                setEditingId(null);
+                setDraftTitle("");
+                setDraftBody("");
               }}
             >
               {tab.label}
@@ -856,34 +929,18 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 {canManage && !item._source && (item.category || item.kind || category !== "loi") && category !== "loi" && (
                   <div className="row-actions">
                     <Button
-                      onClick={async () => {
-                        const title = prompt("Modifier le titre :", item.title || "");
-                        if (title === null) return;
-                        const body = prompt("Modifier le contenu :", item.body || "");
-                        if (body === null) return;
-                        if (item._source === "guide" || (category === "guide-site" && !item.category && !item.kind)) {
-                          await saveData(
-                            {
-                              [KEYS.guide]: list(data, KEYS.guide).map((row) =>
-                                row.id === item.id
-                                  ? { ...row, title: title.trim(), body: body.trim(), updatedAt: new Date().toISOString() }
-                                  : row,
-                              ),
-                            },
-                            "Article modifié.",
-                          );
-                          return;
-                        }
-                        await saveData(
-                          {
-                            [KEYS.communication]: list(data, KEYS.communication).map((row) =>
-                              row.id === item.id
-                                ? { ...row, title: title.trim(), body: body.trim(), updatedAt: new Date().toISOString() }
-                                : row,
-                            ),
-                          },
-                          "Publication modifiée.",
-                        );
+                      onClick={() => {
+                        setEditingId(item.id);
+                        setDraftTitle(item.title || "");
+                        setDraftBody(item.body || "");
+                        setCategory(item.category || item.kind || category);
+                        window.setTimeout(() => {
+                          const box = document.getElementById("communication-composer");
+                          if (box) {
+                            box.scrollIntoView({ behavior: "smooth", block: "start" });
+                            box.querySelector("input[name=title]")?.focus();
+                          }
+                        }, 80);
                       }}
                     >
                       Modifier
