@@ -594,13 +594,6 @@ function objectUpdatedAt(value) {
   return Number.isFinite(time) ? time : 0;
 }
 
-const VERSIONED_OBJECT_KEYS = new Set([
-  "poto-timide-tab-permissions",
-  "poto-timide-roles",
-  "poto-timide-admin-ids",
-]);
-
-
 /** Clients SSE branchés pour la synchro quasi temps réel (votes prêts) */
 const liveClients = new Set();
 let liveSocketServer = null;
