@@ -315,10 +315,29 @@ function unwrapStored(value) {
 async function getAllStoredData() {
   if (!dataCacheHydrated) await hydrateDataCache();
   const data = {};
+  // Charge toutes les listes SQL d’un coup (source de vérité)
+  let entitiesByDomain = {};
+  try {
+    entitiesByDomain = await entities.loadAllDomains(db);
+  } catch (err) {
+    console.warn("loadAllDomains:", err.message || err);
+  }
   for (const key of STORAGE_KEYS) {
-    if (!dataCache.has(key)) continue;
-    const value = parseCachedValue(dataCache.get(key));
-    if (value !== null) data[key] = value;
+    let value = dataCache.has(key) ? parseCachedValue(dataCache.get(key)) : null;
+    value = unwrapStored(value);
+    const domain = entities.domainForKey(key);
+    if (domain && Array.isArray(entitiesByDomain[domain]) && entitiesByDomain[domain].length) {
+      value = entitiesByDomain[domain];
+    }
+    if (key === "poto-timide-tournee") {
+      try {
+        const flags = await loadTourneeFlagsFromSql();
+        value = applyTourneeFlagsToData(value || { years: {} }, flags);
+      } catch (err) {
+        console.warn("tournee flags in getAll:", err.message || err);
+      }
+    }
+    if (value !== null && value !== undefined) data[key] = value;
   }
   return data;
 }
