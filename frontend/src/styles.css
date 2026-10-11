@@ -1067,3 +1067,53 @@ input::placeholder, textarea::placeholder {
 .announcement-search.is-expanded {
   border-color: #7dd3fc !important;
 }
+
+
+/* Historique finance — même style que le tableau montants / payé / reste / statut */
+.finance-history-table th {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+  font-weight: 800;
+  color: #3d5a73;
+}
+.finance-detail {
+  color: #2a3f4f;
+  font-weight: 650;
+}
+.finance-amount {
+  color: #1e3a4c;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
+}
+.finance-paid {
+  color: #0d9488;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.finance-reste {
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.finance-reste.is-due { color: #e11d48; }
+.finance-reste.is-ok { color: #0d9488; }
+.finance-dash {
+  color: #94a3b8;
+  font-weight: 700;
+}
+.finance-history-table .status {
+  max-width: 280px;
+  white-space: normal;
+  line-height: 1.25;
+  text-align: left;
+}
+.finance-summary {
+  margin: 0 0 12px;
+  color: #3d5a73;
+  font-size: 13px;
+  font-weight: 600;
+}
+.finance-summary strong {
+  color: #0f2740;
+  font-weight: 800;
+}

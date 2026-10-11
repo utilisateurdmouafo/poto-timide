@@ -513,18 +513,32 @@ export function FinancePage({ data, members, names, canManage, runAction, confir
       detail: `${names[row.memberId] || "Le groupe"}${row.note || row.motif ? ` — ${row.note || row.motif}` : ""}`,
       amount: Math.abs(Number(row.amount) || 0),
       status: Number(row.amount) < 0 ? "Sortie" : "Entrée",
+      isLoan: false,
     })),
-    ...loans.filter((loan) => loan.status !== "rejected" && loan.status !== "voting" && loan.status !== "awaiting_financier").map((loan) => ({
-      ...loan,
-      id: `loan-${loan.id}`,
-      createdAt: loan.approvedAt || loan.createdAt,
-      kind: "Prêt",
-      detail: `${names[loan.borrowerId] || "Membre"} — ${loan.note || "Prêt"}`,
-      amount: Number(loan.amount) || 0,
-      paid: loanPaid(loan),
-      remaining: loanRemaining(loan),
-      status: loan.status === "defaulted" ? "Retard + intérêts" : loanRemaining(loan) <= 0 ? "Soldé" : "En cours",
-    })),
+    ...loans.filter((loan) => loan.status !== "rejected" && loan.status !== "voting" && loan.status !== "awaiting_financier").map((loan) => {
+      const paid = loanPaid(loan);
+      const remaining = loanRemaining(loan);
+      const due = loanDueLabel(loan);
+      let status;
+      if (remaining <= 0) status = "Soldé";
+      else if (loan.status === "defaulted") {
+        status = due ? `Retard + intérêts · ${due}` : "Retard + intérêts";
+      } else {
+        status = due ? `En cours · ${due}` : "En cours";
+      }
+      return {
+        ...loan,
+        id: `loan-${loan.id}`,
+        createdAt: loan.approvedAt || loan.createdAt,
+        kind: "Prêt",
+        detail: `${names[loan.borrowerId] || "Membre"} — ${loan.note || "Prêt"}`,
+        amount: Number(loan.amount) || 0,
+        paid,
+        remaining,
+        status,
+        isLoan: true,
+      };
+    }),
     ...finePayments.map((row) => ({
       ...row,
       id: `fine-${row.id}`,
@@ -532,6 +546,7 @@ export function FinancePage({ data, members, names, canManage, runAction, confir
       detail: `${names[row.memberId] || "Membre"} — ${row.note || ""}`,
       amount: Math.abs(Number(row.amount) || 0),
       status: "Entrée",
+      isLoan: false,
     })),
         ...events.flatMap((event) => Object.entries(event.payments || {}).filter(([, payment]) => payment?.paid).map(([memberId, payment]) => ({
       id: `event-${event.id}-${memberId}`,
@@ -542,6 +557,7 @@ export function FinancePage({ data, members, names, canManage, runAction, confir
       status: "Entrée",
       eventId: event.id,
       memberId,
+      isLoan: false,
     }))),
   ].sort(byNewest);
   const historyTotal = history.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
@@ -578,14 +594,20 @@ export function FinancePage({ data, members, names, canManage, runAction, confir
       </section>
       <section className="panel"><PanelTitle title="Historique finance" />
         <p className="finance-summary">Dons ou aides : <strong>{money(donations)}</strong> · Retraits : <strong>{money(withdrawals)}</strong> · Prêts dehors : <strong>{money(loans.filter((loan) => ["active", "defaulted"].includes(loan.status)).reduce((sum, loan) => sum + loanRemaining(loan), 0))}</strong> · Caisse disponible : <strong>{money(available)}</strong></p>
-        <Table columns={[
+        <Table className="finance-history-table" columns={[
           { key: "createdAt", label: "Date", render: (row) => date(row.createdAt || row.date || row.paidAt) },
           { key: "kind", label: "Type" },
-          { key: "detail", label: "Détail" },
-          { key: "amount", label: "Montant", render: (row) => <strong>{money(row.amount)}</strong> },
-          { key: "paid", label: "Déjà payé", render: (row) => Number.isFinite(Number(row.paid)) && row.kind === "Prêt" ? money(row.paid) : "—" },
-          { key: "remaining", label: "Reste", render: (row) => Number.isFinite(Number(row.remaining)) && row.kind === "Prêt" ? money(row.remaining) : "—" },
-          { key: "status", label: "Statut", render: (row) => <><Status value={row.status} />{row.kind === "Prêt" && row.status !== "Soldé" && <small className="loan-due">{loanDueLabel(row)}</small>}</> },
+          { key: "detail", label: "Détail", render: (row) => <span className="finance-detail">{row.detail}</span> },
+          { key: "amount", label: "Montant", align: "right", render: (row) => <strong className="finance-amount">{money(row.amount)}</strong> },
+          { key: "paid", label: "Payé", align: "right", render: (row) => row.isLoan || row.kind === "Prêt"
+            ? <span className="finance-paid">{money(row.paid)}</span>
+            : <span className="finance-dash">—</span> },
+          { key: "remaining", label: "Reste", align: "right", render: (row) => {
+            if (!(row.isLoan || row.kind === "Prêt")) return <span className="finance-dash">—</span>;
+            const rest = Number(row.remaining) || 0;
+            return <span className={rest > 0 ? "finance-reste is-due" : "finance-reste is-ok"}>{money(rest)}</span>;
+          } },
+          { key: "status", label: "Statut", render: (row) => <Status value={row.status} /> },
           ...(canManage ? [{ key: "actions", label: "Actions", render: (row) => row.entryId
             ? <Button variant="danger" onClick={() => confirmAction({ domain: "cash", type: "delete", entryId: row.entryId }, "Supprimer ce mouvement de caisse ?")}>Supprimer</Button>
             : row.sourceAmendeId
