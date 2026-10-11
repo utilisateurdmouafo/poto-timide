@@ -81,6 +81,8 @@ export function allowedAdminSections(data, session, fullAccess) {
   const financier = roleIds.includes("tresorier");
   const rules = {
     membres: hasTab("membres", "bureau"),
+    admins: isOwner,
+    acces: isOwner,
     tournee: hasTab("tournee"),
     caisse: financier || hasTab("caisse", "finance"),
     prets: financier || hasTab("prets"),
@@ -88,6 +90,7 @@ export function allowedAdminSections(data, session, fullAccess) {
     evenements: hasTab("evenements"),
     communication: hasTab("communication"),
     loi: hasTab("loi"),
+    sauvegarde: isOwner,
     connexions: isOwner,
   };
   return sections.filter((id) => rules[id]);

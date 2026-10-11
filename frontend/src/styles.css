@@ -1192,3 +1192,20 @@ input::placeholder, textarea::placeholder {
 }
 .comm-read-names, .comm-read-pending { margin: 6px 0 0; line-height: 1.4; }
 .comm-read-pending { color: #9a3412; }
+
+.access-role-head {
+  display: grid;
+  gap: 2px;
+  line-height: 1.2;
+}
+.access-role-head strong { font-size: 11px; }
+.access-role-head small {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 600;
+  max-width: 90px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

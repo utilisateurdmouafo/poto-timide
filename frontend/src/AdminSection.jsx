@@ -185,38 +185,98 @@ export function TourneeAdmin({ data, members, saveData }) {
 }
 export function AccessAdmin({ data, members, saveData }) {
   const roles = data[KEYS.roles] || {};
-  const permissions = data[KEYS.permissions] || {};
+  const rawPermissions = data[KEYS.permissions] || {};
+  // Unifie finance → caisse (même fonction)
+  const permissions = {
+    ...rawPermissions,
+    caisse: [...new Set([...(rawPermissions.caisse || []), ...(rawPermissions.finance || [])])],
+  };
+
   const sections = [
     ["membres", "Membres & Bureau"],
     ["tournee", "Tournée"],
-    ["finance", "Caisse"],
+    ["caisse", "Caisse / Finance"],
     ["prets", "Prêts"],
     ["amendes", "Dettes & amendes"],
     ["evenements", "Événements"],
     ["communication", "Communication"],
     ["loi", "La loi"],
   ];
-  const extraSections = Object.keys(permissions).filter((tab) => !sections.some(([id]) => id === tab) && !["admin", "admins", "acces"].includes(tab));
-  const permissionRows = [...sections.map(([id, label]) => ({ id, tab: id, label, ids: permissions[id] || [] })), ...extraSections.map((tab) => ({ id: tab, tab, label: tab, ids: permissions[tab] || [] }))];
+
+  const roleKeys = Object.keys(ROLE_NAMES);
+  const roleLabel = (role) => ROLE_NAMES[role] || role;
+  const roleHolder = (role) => {
+    const id = roles[role];
+    if (!id) return "Non attribué";
+    return members.find((member) => String(member.id) === String(id))?.name || "Membre inconnu";
+  };
+
+  const toggle = (tab, role, checked) => {
+    const current = Array.isArray(permissions[tab]) ? permissions[tab] : [];
+    const nextRoles = checked
+      ? [...new Set([...current, role])]
+      : current.filter((value) => value !== role);
+    const next = { ...rawPermissions, [tab]: nextRoles };
+    // Ne plus stocker l’ancienne clé finance
+    if (tab === "caisse") delete next.finance;
+    saveData({ [KEYS.permissions]: next }, "Autorisations mises à jour.");
+  };
+
+  const permissionRows = sections.map(([id, label]) => ({
+    id,
+    tab: id,
+    label,
+    ids: permissions[id] || [],
+  }));
+
   return <>
     <PanelTitle title="Accès aux fonctions" />
-    <p className="muted">Les changements sont transmis à l’API et appliqués aux prochaines actions des membres.</p>
-    <section className="panel inset-panel"><h3>Responsables actuels</h3><div className="role-grid">{Object.entries(ROLE_NAMES).map(([role, label]) => <div className="role-line" key={role}><strong>{label}</strong><span>{members.find((member) => String(member.id) === String(roles[role]))?.name || "Non attribué"}</span></div>)}</div></section>
-    <section className="panel inset-panel"><h3>Sections autorisées par fonction</h3><AdminTable
-      columns={[
-        { key: "label", label: "Onglet" },
-        ...Object.keys(ROLE_NAMES).map((role) => ({
-          key: role,
-          label: ROLE_NAMES[role],
-          render: (row) => <input aria-label={`${row.tab}: ${ROLE_NAMES[role]}`} type="checkbox" checked={Array.isArray(row.ids) && row.ids.includes(role)} onChange={(event) => {
-            const next = { ...permissions, [row.tab]: event.target.checked ? [...new Set([...(row.ids || []), role])] : (row.ids || []).filter((value) => value !== role) };
-            saveData({ [KEYS.permissions]: next }, "Autorisations mises à jour.");
-          }} />,
-        })),
-      ]}
-      rows={permissionRows}
-      empty="Aucune permission configurée."
-    /></section>
+    <p className="muted">
+      Coche un rôle pour lui donner le droit de <strong>gérer</strong> cette section dans <strong>Admin</strong>.
+      Les onglets du menu en haut restent en lecture seule pour tout le monde.
+      Le financier (trésorier) a aussi automatiquement Caisse, Prêts et Dettes.
+    </p>
+    <section className="panel inset-panel">
+      <h3>Bureau actuel</h3>
+      <div className="role-grid">
+        {roleKeys.map((role) => (
+          <div className="role-line" key={role}>
+            <strong>{roleLabel(role)}</strong>
+            <span>{roleHolder(role)}</span>
+          </div>
+        ))}
+      </div>
+      <p className="muted" style={{ marginTop: 10 }}>
+        Pour changer qui occupe un poste : Admin → Membres & Bureau.
+      </p>
+    </section>
+    <section className="panel inset-panel">
+      <h3>Qui peut gérer quoi dans Admin</h3>
+      <AdminTable
+        columns={[
+          { key: "label", label: "Section Admin" },
+          ...roleKeys.map((role) => ({
+            key: role,
+            label: (
+              <span className="access-role-head">
+                <strong>{roleLabel(role)}</strong>
+                <small>{roleHolder(role)}</small>
+              </span>
+            ),
+            render: (row) => (
+              <input
+                aria-label={`${row.label}: ${roleLabel(role)}`}
+                type="checkbox"
+                checked={Array.isArray(row.ids) && row.ids.includes(role)}
+                onChange={(event) => toggle(row.tab, role, event.target.checked)}
+              />
+            ),
+          })),
+        ]}
+        rows={permissionRows}
+        empty="Aucune permission configurée."
+      />
+    </section>
   </>;
 }
 
