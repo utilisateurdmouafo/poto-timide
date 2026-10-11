@@ -336,7 +336,17 @@ async function getRawData(key) {
 }
 
 async function getData(key) {
-  return unwrapStored(await getRawData(key));
+  const value = unwrapStored(await getRawData(key));
+  if (key === "poto-timide-tournee") {
+    try {
+      const flags = await loadTourneeFlagsFromSql();
+      return applyTourneeFlagsToData(value || { years: {} }, flags);
+    } catch (err) {
+      console.warn("Hydrate tournee flags:", err.message || err);
+      return value;
+    }
+  }
+  return value;
 }
 
 async function setData(key, value) {
@@ -586,6 +596,113 @@ function broadcastLive(eventName, payload = {}) {
   }
 }
 
+
+
+/** Flags tournée (Reçu / Bouffé) — table SQL dédiée */
+async function loadTourneeFlagsFromSql() {
+  try {
+    const rows = await db.all("SELECT * FROM tournee_flags");
+    const byYear = {};
+    for (const row of rows || []) {
+      const year = String(row.year);
+      if (!byYear[year]) byYear[year] = { receptionOk: {}, ristourneOk: {}, bouffeOk: {}, receptionDates: {} };
+      const mid = String(row.member_id);
+      if (Number(row.reception_ok)) {
+        byYear[year].receptionOk[mid] = { ok: true, at: row.reception_at || row.updated_at };
+      }
+      if (Number(row.ristourne_ok)) {
+        byYear[year].ristourneOk[mid] = { ok: true, at: row.ristourne_at || row.updated_at };
+      }
+      if (Number(row.bouffe_ok)) {
+        byYear[year].bouffeOk[mid] = { ok: true, at: row.bouffe_at || row.updated_at };
+      }
+      if (row.reception_date) {
+        byYear[year].receptionDates[mid] = row.reception_date;
+      }
+    }
+    return byYear;
+  } catch (err) {
+    console.warn("loadTourneeFlagsFromSql:", err.message || err);
+    return {};
+  }
+}
+
+async function upsertTourneeFlag({ year, memberId, field, value, dateValue }) {
+  const y = String(year);
+  const mid = String(memberId);
+  const now = new Date().toISOString();
+  const existing = await db.get(
+    "SELECT * FROM tournee_flags WHERE year = ? AND member_id = ?",
+    [y, mid],
+  );
+  const row = existing || {
+    year: y,
+    member_id: mid,
+    reception_ok: 0,
+    reception_at: null,
+    reception_date: null,
+    ristourne_ok: 0,
+    ristourne_at: null,
+    bouffe_ok: 0,
+    bouffe_at: null,
+    updated_at: now,
+  };
+  if (field === "receptionOk") {
+    row.reception_ok = value ? 1 : 0;
+    row.reception_at = value ? now : null;
+  } else if (field === "ristourneOk") {
+    row.ristourne_ok = value ? 1 : 0;
+    row.ristourne_at = value ? now : null;
+  } else if (field === "bouffeOk") {
+    row.bouffe_ok = value ? 1 : 0;
+    row.bouffe_at = value ? now : null;
+  } else if (field === "receptionDates") {
+    row.reception_date = dateValue || null;
+  }
+  row.updated_at = now;
+  await db.run(
+    `INSERT INTO tournee_flags (
+      year, member_id, reception_ok, reception_at, reception_date,
+      ristourne_ok, ristourne_at, bouffe_ok, bouffe_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(year, member_id) DO UPDATE SET
+      reception_ok = excluded.reception_ok,
+      reception_at = excluded.reception_at,
+      reception_date = excluded.reception_date,
+      ristourne_ok = excluded.ristourne_ok,
+      ristourne_at = excluded.ristourne_at,
+      bouffe_ok = excluded.bouffe_ok,
+      bouffe_at = excluded.bouffe_at,
+      updated_at = excluded.updated_at`,
+    [
+      row.year, row.member_id, row.reception_ok, row.reception_at, row.reception_date,
+      row.ristourne_ok, row.ristourne_at, row.bouffe_ok, row.bouffe_at, row.updated_at,
+    ],
+  );
+  return row;
+}
+
+function applyTourneeFlagsToData(tournee, flagsByYear) {
+  const base = tournee && typeof tournee === "object" ? { ...tournee } : { years: {} };
+  const years = { ...(base.years && typeof base.years === "object" ? base.years : {}) };
+  for (const [year, flags] of Object.entries(flagsByYear || {})) {
+    const current = { ...(years[year] || {}) };
+    if (flags.receptionOk && Object.keys(flags.receptionOk).length) {
+      current.receptionOk = { ...(current.receptionOk || {}), ...flags.receptionOk };
+    }
+    if (flags.ristourneOk && Object.keys(flags.ristourneOk).length) {
+      current.ristourneOk = { ...(current.ristourneOk || {}), ...flags.ristourneOk };
+    }
+    if (flags.bouffeOk && Object.keys(flags.bouffeOk).length) {
+      current.bouffeOk = { ...(current.bouffeOk || {}), ...flags.bouffeOk };
+    }
+    if (flags.receptionDates && Object.keys(flags.receptionDates).length) {
+      current.receptionDates = { ...(current.receptionDates || {}), ...flags.receptionDates };
+    }
+    years[year] = current;
+  }
+  return { ...base, years };
+}
 
 /** Fusion profonde tournée : ne pas perdre receptionOk / ristourneOk */
 function mergeTourneeOkMaps(a, b) {
@@ -1977,7 +2094,59 @@ async function syncPresenceLogFromOnline(onlineList) {
   // Publication communication (rapport, ordre du jour, communiqué) — fiable
   
   // Accès Admin — enregistrement fiable des cases à cocher
-  app.post("/api/permissions", requireAuth, async (req, res) => {
+  
+  // Flags tournée (Reçu / Déjà bouffé) — SQL dédié
+  app.post("/api/tournee/flag", requireAuth, async (req, res) => {
+    try {
+      const actor = await findMemberById(req.session.userId);
+      if (!actor) return res.status(403).json({ error: "Membre introuvable." });
+      const [storedRoles, storedPermissions, admin] = await Promise.all([
+        getData("poto-timide-roles"),
+        getData("poto-timide-tab-permissions"),
+        isAdminId(actor.id),
+      ]);
+      const roleIds = Object.entries(storedRoles || {})
+        .filter(([, memberId]) => String(memberId) === String(actor.id))
+        .map(([roleId]) => roleId);
+      const permissions =
+        storedPermissions && typeof storedPermissions === "object"
+          ? storedPermissions
+          : DEFAULT_TAB_PERMISSIONS;
+      const syncActor = { id: actor.id, isAdmin: admin, roleIds, permissions };
+      if (!admin && !hasSyncTabPermission("tournee", syncActor)) {
+        return res.status(403).json({ error: "Vous n’avez pas accès à la tournée." });
+      }
+      const body = req.body || {};
+      const year = String(body.year || new Date().getFullYear());
+      const memberId = String(body.memberId || "");
+      const field = String(body.field || "");
+      if (!memberId || !["receptionOk", "ristourneOk", "bouffeOk", "receptionDates"].includes(field)) {
+        return res.status(400).json({ error: "Paramètres invalides." });
+      }
+      const value = Boolean(body.value);
+      const dateValue = body.dateValue != null ? String(body.dateValue) : "";
+      await upsertTourneeFlag({
+        year,
+        memberId,
+        field,
+        value: field === "receptionDates" ? Boolean(dateValue) : value,
+        dateValue,
+      });
+      // Resync JSON app_data pour cohérence lecture
+      const tourneeRaw = await getRawData("poto-timide-tournee");
+      const tournee = unwrapStored(tourneeRaw) || { years: {} };
+      const flags = await loadTourneeFlagsFromSql();
+      const merged = applyTourneeFlagsToData(tournee, flags);
+      await setData("poto-timide-tournee", merged);
+      broadcastLive("data", { keys: ["poto-timide-tournee"], at: new Date().toISOString() });
+      res.json({ ok: true, data: { "poto-timide-tournee": merged } });
+    } catch (err) {
+      console.error("tournee flag:", err);
+      res.status(500).json({ error: "Impossible d’enregistrer le statut tournée." });
+    }
+  });
+
+app.post("/api/permissions", requireAuth, async (req, res) => {
     try {
       const actor = await findMemberById(req.session.userId);
       if (!actor) return res.status(403).json({ error: "Membre introuvable." });

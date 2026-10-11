@@ -26,7 +26,7 @@ export function AdminPage({ section, sections, setSection, data, member, members
     if (activeSection === "prets") return <LoansPage data={data} member={{ id: "" }} members={members} names={names} canManage runAction={runAction} confirmAction={confirmAction} />;
     if (activeSection === "evenements") return <EventsPage data={data} member={{ id: "" }} members={members} names={names} canManage runAction={runAction} confirmAction={confirmAction} />;
     if (activeSection === "caisse") return <><FinancePage data={data} members={members} names={names} canManage runAction={runAction} confirmAction={confirmAction} saveData={saveData} /><AnnualFundAdmin data={data} members={members} names={names} runAction={runAction} confirmAction={confirmAction} /></>;
-    if (activeSection === "tournee") return <TourneeAdmin data={data} members={members} saveData={saveData} />;
+    if (activeSection === "tournee") return <TourneeAdmin data={data} members={members} saveData={saveData} mergeData={mergeData} />;
     if (activeSection === "communication") return <CommunicationPage data={data} members={members} canManage={canCommunication || isFullAdmin} member={member} saveData={saveData} mergeData={mergeData} />;
     if (activeSection === "loi") return <ReferenceAdmin data={data} saveData={saveData} />;
     if (activeSection === "connexions") return <LoginLogAdmin />;
@@ -110,7 +110,7 @@ export function AnnualFundAdmin({ data, members, names, runAction, confirmAction
   </>;
 }
 
-export function TourneeAdmin({ data, members, saveData }) {
+export function TourneeAdmin({ data, members, saveData, mergeData }) {
   const years = data[KEYS.tournee]?.years || {};
   const yearKeys = [...new Set([...Object.keys(years), String(new Date().getFullYear())])].sort((a, b) => Number(b) - Number(a));
   const [year, setYear] = useState(yearKeys.includes(String(new Date().getFullYear())) && years[String(new Date().getFullYear())] ? String(new Date().getFullYear()) : yearKeys.find((key) => years[key]) || yearKeys[0]);
@@ -122,8 +122,41 @@ export function TourneeAdmin({ data, members, saveData }) {
   const shortMonth = (index) => new Intl.DateTimeFormat("fr-BE", { month: "short" }).format(new Date(2020, Number(index), 1));
   const saveYear = (nextYear) => saveData({ [KEYS.tournee]: { ...(data[KEYS.tournee] || {}), years: { ...years, [year]: nextYear } } }, `Tournée ${year} mise à jour.`);
   const setMap = (name, id, value) => saveYear({ ...record, [name]: { ...(record[name] || {}), [id]: value } });
-  const setOk = (name, id, ok) => setMap(name, id, { ok, at: new Date().toISOString() });
   const isOk = (name, id) => record[name]?.[id] === true || Boolean(record[name]?.[id]?.ok);
+  const setOk = async (name, id, ok) => {
+    try {
+      const result = await request("/api/tournee/flag", {
+        method: "POST",
+        body: JSON.stringify({ year, memberId: id, field: name, value: ok }),
+      });
+      if (result?.data?.[KEYS.tournee]) {
+        if (typeof mergeData === "function") {
+          mergeData({ [KEYS.tournee]: result.data[KEYS.tournee] }, ok ? "Statut enregistré." : "Statut retiré.");
+        } else {
+          await saveData({ [KEYS.tournee]: result.data[KEYS.tournee] }, ok ? "Statut enregistré." : "Statut retiré.");
+        }
+      }
+    } catch (err) {
+      alert(err.message || "Impossible d’enregistrer le statut.");
+    }
+  };
+  const setReceptionDate = async (id, dateValue) => {
+    try {
+      const result = await request("/api/tournee/flag", {
+        method: "POST",
+        body: JSON.stringify({ year, memberId: id, field: "receptionDates", dateValue }),
+      });
+      if (result?.data?.[KEYS.tournee]) {
+        if (typeof mergeData === "function") {
+          mergeData({ [KEYS.tournee]: result.data[KEYS.tournee] }, "Date de réception enregistrée.");
+        } else {
+          await saveData({ [KEYS.tournee]: result.data[KEYS.tournee] }, "Date de réception enregistrée.");
+        }
+      }
+    } catch (err) {
+      alert(err.message || "Impossible d’enregistrer la date.");
+    }
+  };
   const setOrder = (kind, ids) => {
     const order = { ...(record[kind] || {}) };
     if (ids.length) order[month] = ids; else delete order[month];
@@ -157,7 +190,7 @@ export function TourneeAdmin({ data, members, saveData }) {
       <div className="order-items">{reception.map((id, index) => <div className="order-item" key={id}>
         <span className="order-rank">{index + 1}</span><strong>{nameOf(id)}</strong>
         <label className="inline-check"><input type="checkbox" checked={isOk("receptionOk", id)} onChange={(event) => setOk("receptionOk", id, event.target.checked)} /> Reçu</label>
-        <input type="date" aria-label={`Date de réception de ${nameOf(id)}`} value={record.receptionDates?.[id] || ""} onChange={(event) => setMap("receptionDates", id, event.target.value)} />
+        <input type="date" aria-label={`Date de réception de ${nameOf(id)}`} value={record.receptionDates?.[id] || ""} onChange={(event) => setReceptionDate(id, event.target.value)} />
         <div className="row-actions"><Button aria-label="Monter" disabled={index === 0} onClick={() => move(reception, index, -1, "reception")}>↑</Button><Button aria-label="Descendre" disabled={index === reception.length - 1} onClick={() => move(reception, index, 1, "reception")}>↓</Button><Button variant="danger" aria-label="Retirer" onClick={() => setOrder("reception", reception.filter((value) => value !== id))}>×</Button></div>
       </div>)}{!reception.length && <span className="muted">Personne pour l’instant.</span>}</div>
       {addSelect(reception, "reception")}
