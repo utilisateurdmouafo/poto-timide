@@ -36,15 +36,50 @@ export function AdminPage({ section, sections, setSection, data, member, members
 }
 
 export function MembersAdmin({ data, members, runAction, confirmAction, saveData }) {
+  // Liste complète (y compris "nouveau") pour que l’ajout reste visible après enregistrement
+  const allMembers = list(data, KEYS.members).filter((m) => m && m.id && !m.deletedAt);
+  const activeMembers = allMembers.filter((m) => m.kind !== "nouveau");
   return <>
-    <PanelTitle title="Membres & Bureau" meta={`${members.length} membres actifs`} />
+    <PanelTitle title="Membres & Bureau" meta={`${activeMembers.length} actifs · ${allMembers.length} au total`} />
     <Form className="subform" title="Ajouter un membre" fields={[
       { name: "name", label: "Nom complet" },
       { name: "kind", label: "Statut", options: [["membre", "Membre actif"], ["nouveau", "Nouveau membre"]] },
     ]} submitLabel="Ajouter le membre" onSubmit={async (values) => {
+      const name = String(values.name || "").trim();
+      if (!name) {
+        alert("Le nom est obligatoire.");
+        return false;
+      }
+      const kind = values.kind === "nouveau" ? "nouveau" : "membre";
       const id = crypto.randomUUID();
-      const member = { id, name: values.name.trim(), kind: values.kind, createdAt: new Date().toISOString() };
-      return saveData({ [KEYS.members]: [...list(data, KEYS.members), member] }, "Membre ajouté. Le compte de connexion est créé côté serveur.");
+      const member = {
+        id,
+        name,
+        kind,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const next = [member, ...allMembers.filter((m) => String(m.id) !== id)];
+      const ok = await saveData({ [KEYS.members]: next }, "Membre ajouté.");
+      if (ok === false) {
+        alert("Échec de l’ajout du membre. Réessaie en Mode Dev ou avec l’accès Membres.");
+        return false;
+      }
+      // Crée le compte de connexion (mot de passe par défaut 1234)
+      try {
+        const result = await request(`/api/admin/ensure-user/${encodeURIComponent(id)}`, {
+          method: "POST",
+          body: "{}",
+        });
+        if (result?.message) {
+          // message déjà en notice via saveData ; garder discret
+        }
+      } catch (err) {
+        alert(
+          "Membre enregistré, mais le compte de connexion n’a pas pu être créé automatiquement. Utilise « Créer le compte ».",
+        );
+      }
+      return ok;
     }} />
     <p className="muted">La suppression d’un membre est traitée côté serveur et retire ses affectations de rôle et ses données de groupe.</p>
     <Table columns={[
@@ -52,8 +87,8 @@ export function MembersAdmin({ data, members, runAction, confirmAction, saveData
       { key: "kind", label: "Statut", render: (row) => row.kind === "nouveau" ? "Nouveau membre" : "Membre actif" },
       { key: "office", label: "Fonction", render: (row) => Object.entries(data[KEYS.roles] || {}).filter(([, id]) => String(id) === String(row.id)).map(([role]) => ROLE_NAMES[role] || role).join(", ") || "—" },
       { key: "actions", label: "Actions", render: (row) => <div className="row-actions"><Button onClick={async () => { const name = prompt("Modifier le nom du membre :", row.name); if (name === null || !name.trim()) return; await saveData({ [KEYS.members]: list(data, KEYS.members).map((member) => member.id === row.id ? { ...member, name: name.trim() } : member) }, "Nom du membre mis à jour."); }}>Modifier</Button><Button onClick={async () => { try { const result = await request(`/api/admin/ensure-user/${encodeURIComponent(row.id)}`, { method: "POST", body: "{}" }); alert(result.message); } catch (reason) { alert(reason.message); } }}>Créer le compte</Button><Button onClick={async () => { try { const result = await request(`/api/admin/reset-password/${encodeURIComponent(row.id)}`, { method: "POST", body: "{}" }); alert(result.message); } catch (reason) { alert(reason.message); } }}>Réinitialiser accès</Button><Button variant="danger" onClick={() => confirmAction({ domain: "member", type: "delete", memberId: row.id }, `Supprimer ${row.name} du groupe ? Cette action retirera ses données associées.`)}>Supprimer</Button></div> },
-    ]} rows={list(data, KEYS.members)} />
-    <section className="panel inset-panel"><h3>Attributions du bureau</h3><div className="role-grid">{Object.entries(ROLE_NAMES).map(([role, label]) => <label className="field" key={role}><span>{label}</span><select value={data[KEYS.roles]?.[role] || ""} onChange={(event) => { const next = { ...(data[KEYS.roles] || {}) }; if (event.target.value) next[role] = event.target.value; else delete next[role]; saveData({ [KEYS.roles]: next }, "Attribution du bureau mise à jour."); }}><option value="">Non attribué</option>{members.filter((member) => member.kind !== "nouveau").map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>)}</div></section>
+    ]} rows={allMembers} />
+    <section className="panel inset-panel"><h3>Attributions du bureau</h3><div className="role-grid">{Object.entries(ROLE_NAMES).map(([role, label]) => <label className="field" key={role}><span>{label}</span><select value={data[KEYS.roles]?.[role] || ""} onChange={(event) => { const next = { ...(data[KEYS.roles] || {}) }; if (event.target.value) next[role] = event.target.value; else delete next[role]; saveData({ [KEYS.roles]: next }, "Attribution du bureau mise à jour."); }}><option value="">Non attribué</option>{activeMembers.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}</select></label>)}</div></section>
   </>;
 }
 

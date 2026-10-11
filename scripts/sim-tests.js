@@ -381,6 +381,55 @@ async function test(name, fn) {
     }),
   );
 
+
+  results.push(
+    await test("membre: ajout nouveau en SQL", async () => {
+      const testId = "sim-nouveau-" + Date.now();
+      const members = await entities.loadDomainList(db, "members");
+      const member = {
+        id: testId,
+        name: "Sim Nouveau",
+        kind: "nouveau",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const next = [member, ...members];
+      await entities.replaceDomainList(db, "members", next);
+      await setJson("poto-timide-members", next);
+      const after = await entities.loadDomainList(db, "members");
+      const found = after.find((m) => m.id === testId);
+      if (!found || found.kind !== "nouveau") throw new Error("nouveau non persisté");
+      // cleanup
+      const cleaned = after.filter((m) => m.id !== testId);
+      await entities.replaceDomainList(db, "members", cleaned);
+      await setJson("poto-timide-members", cleaned);
+    }),
+  );
+
+  results.push(
+    await test("membre: ajout actif en SQL", async () => {
+      const testId = "sim-actif-" + Date.now();
+      const members = await entities.loadDomainList(db, "members");
+      const member = {
+        id: testId,
+        name: "Sim Actif",
+        kind: "membre",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const next = [member, ...members];
+      await entities.replaceDomainList(db, "members", next);
+      await setJson("poto-timide-members", next);
+      const after = await entities.loadDomainList(db, "members");
+      if (!after.find((m) => m.id === testId && m.kind === "membre")) {
+        throw new Error("membre actif non persisté");
+      }
+      const cleaned = after.filter((m) => m.id !== testId);
+      await entities.replaceDomainList(db, "members", cleaned);
+      await setJson("poto-timide-members", cleaned);
+    }),
+  );
+
   const ok = results.filter((r) => r.ok).length;
   const fail = results.filter((r) => !r.ok);
   const summary = fail.length
@@ -388,7 +437,7 @@ async function test(name, fn) {
     : `Tests: ${ok}/${results.length} OK. Toutes les fonctions simulées ont réussi.`;
 
   await notifyDarioOnly({
-    title: "Rapport tests bloc sécurité",
+    title: "Rapport tests ajout membre",
     message: summary,
     tab: "reunion",
   });
