@@ -331,7 +331,7 @@ export default function App() {
       case "finance": return <FinancePage data={data} members={members} names={memberNames} canManage={can("caisse") || isAdmin} runAction={runAction} confirmAction={confirmAction} saveData={saveData} />;
       case "fond-caisse": return <FundPage data={data} members={members} member={session} />;
       case "admin": return canOpenAdmin
-        ? <Suspense fallback={<div className="page-content"><p className="muted">Chargement…</p></div>}><AdminPage section={adminSection} sections={adminSections} setSection={(section) => navigate("admin", section)} data={data} member={session} members={members} names={memberNames} runAction={runAction} confirmAction={confirmAction} saveData={saveData} mergeData={mergeData} /></Suspense>
+        ? <Suspense fallback={<div className="page-content"><p className="muted">Chargement…</p></div>}><AdminPage section={adminSection} sections={adminSections} setSection={(section) => navigate("admin", section)} data={data} member={session} members={members} names={memberNames} runAction={runAction} confirmAction={confirmAction} saveData={saveData} mergeData={mergeData} canCommunication={can("communication") || isAdmin} isFullAdmin={isAdmin} /></Suspense>
         : <NoAccess />;
       default: return <MeetingPage data={data} member={session} members={members} names={memberNames} online={online} onlineMembers={onlineMembers} isAdmin={canOpenAdmin} can={can} unreadCount={unreadCount} navigate={navigate} />;
     }

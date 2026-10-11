@@ -850,7 +850,13 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
         </form>
       )}
 
-<section className="panel communication-panel">
+{!canManage && (
+        <p className="muted communication-readonly-hint">
+          Communication en lecture seule. Seules les personnes autorisées dans Admin → Accès peuvent publier ou modifier.
+        </p>
+      )}
+
+      <section className="panel communication-panel">
         <nav className="communication-categories" aria-label="Rubriques de communication">
           {tabs.map((tab) => (
             <button
