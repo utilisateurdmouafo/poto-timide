@@ -145,6 +145,23 @@ async function test(name, fn) {
     }),
   );
 
+  results.push(
+    await test("API data keys présentes", async () => {
+      const keys = [
+        "poto-timide-members",
+        "poto-timide-prets",
+        "poto-timide-tab-permissions",
+        "poto-timide-tournee",
+        "poto-timide-communication",
+      ];
+      for (const key of keys) {
+        const row = await db.get("SELECT key FROM app_data WHERE key = ?", [key]);
+        if (!row) throw new Error("clé manquante: " + key);
+      }
+    }),
+  );
+
+
   const ok = results.filter((r) => r.ok).length;
   const fail = results.filter((r) => !r.ok);
   const summary = fail.length
@@ -152,7 +169,7 @@ async function test(name, fn) {
     : `Tests: ${ok}/${results.length} OK. Toutes les fonctions simulées ont réussi.`;
 
   await notifyDarioOnly({
-    title: "Rapport tests système",
+    title: "Rapport tests bloc API",
     message: summary,
     tab: "reunion",
   });

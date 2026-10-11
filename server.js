@@ -1451,6 +1451,37 @@ async function applySyncPayload(payload, users) {
   await backupDatabase();
 }
 
+
+/** Construit le contexte d’accès d’un membre (rôles + permissions + admin). */
+async function buildSyncActor(memberId) {
+  const actor = await findMemberById(memberId);
+  if (!actor) return null;
+  const [storedRoles, storedPermissions, admin] = await Promise.all([
+    getData("poto-timide-roles"),
+    getData("poto-timide-tab-permissions"),
+    isAdminId(actor.id),
+  ]);
+  const roleIds = Object.entries(storedRoles || {})
+    .filter(([, mid]) => String(mid) === String(actor.id))
+    .map(([roleId]) => roleId);
+  const permissions =
+    storedPermissions && typeof storedPermissions === "object"
+      ? storedPermissions
+      : DEFAULT_TAB_PERMISSIONS;
+  return {
+    actor,
+    id: actor.id,
+    isAdmin: Boolean(admin),
+    roleIds,
+    permissions,
+    hasTab(tab) {
+      return roleIds.some(
+        (roleId) => Array.isArray(permissions[tab]) && permissions[tab].includes(roleId),
+      );
+    },
+  };
+}
+
 function createApp() {
   const app = express();
   const isProduction = process.env.NODE_ENV === "production";
@@ -1943,47 +1974,28 @@ async function syncPresenceLogFromOnline(onlineList) {
 
   app.post("/api/actions", requireAuth, async (req, res) => {
     const runAction = async () => {
-      const member = await findMemberById(req.session.userId);
-      if (!member) {
+      const sync = await buildSyncActor(req.session.userId);
+      if (!sync) {
         const error = new Error("Membre introuvable.");
         error.status = 403;
         throw error;
       }
-      const [storedRoles, storedPermissions] = await Promise.all([
-        getData("poto-timide-roles"),
-        getData("poto-timide-tab-permissions"),
-      ]);
-      const roles = storedRoles && typeof storedRoles === "object" ? storedRoles : {};
-      const roleIds = Object.entries(roles)
-        .filter(([, memberId]) => String(memberId) === String(member.id))
-        .map(([roleId]) => roleId);
-      const permissions =
-        storedPermissions && typeof storedPermissions === "object"
-          ? storedPermissions
-          : DEFAULT_TAB_PERMISSIONS;
-      const isAdmin = await isAdminId(member.id);
-      const hasTab = (tab) =>
-        roleIds.some((roleId) => Array.isArray(permissions[tab]) && permissions[tab].includes(roleId));
-      const isTreasurer = isAdmin || roleIds.includes("tresorier");
+      const member = sync.actor;
+      const isAdmin = sync.isAdmin;
+      const isTreasurer = isAdmin || sync.roleIds.includes("tresorier");
+      const hasTab = (tab) => sync.hasTab(tab);
       const action = req.body || {};
-      const canManageLoans =
-        isTreasurer || hasTab("prets");
-      const canManageFines =
-        isTreasurer || hasTab("amendes") || hasTab("ancienne-tournee");
-      const canManageFund = isTreasurer || hasTab("caisse") || hasTab("tournee");
-      const canManageEvents = isTreasurer || hasTab("evenements");
       const state = await getAllStoredData();
-      const canManageMembers = isAdmin || hasTab("membres");
       const applied = applyGroupAction(
         state,
         {
           id: member.id,
           isAdmin,
-          canManageLoans,
-          canManageFines,
-          canManageFund,
-          canManageEvents,
-          canManageMembers,
+          canManageLoans: isTreasurer || hasTab("prets"),
+          canManageFines: isTreasurer || hasTab("amendes") || hasTab("ancienne-tournee"),
+          canManageFund: isTreasurer || hasTab("caisse") || hasTab("tournee"),
+          canManageEvents: isTreasurer || hasTab("evenements"),
+          canManageMembers: isAdmin || hasTab("membres"),
           ownerId: action.domain === "member" ? await getOwnerId() : null,
         },
         action,
@@ -2072,6 +2084,24 @@ async function syncPresenceLogFromOnline(onlineList) {
     "poto-timide-cotisations": { title: "Tournée", tab: "tournee", label: "les cotisations" },
   };
 
+  async function notifyOneMember(memberId, { type, title, message, tab, item, loanId }) {
+    const membersRaw = unwrapStored(await getData(MEMBERS_KEY)) || [];
+    const target = (Array.isArray(membersRaw) ? membersRaw : []).find(
+      (m) => m && String(m.id) === String(memberId),
+    );
+    if (!target) return { created: 0 };
+    return notifyAllMembers({
+      actor: target,
+      type,
+      title,
+      message,
+      tab,
+      item,
+      loanId,
+      silent: true, // silent + actor = only this member
+    });
+  }
+
   async function notifyAllMembers({ actor, type, title, message, tab, item, loanId, silent }) {
     const membersRaw = unwrapStored(await getData(MEMBERS_KEY)) || [];
     let members = (Array.isArray(membersRaw) ? membersRaw : []).filter(
@@ -2150,22 +2180,10 @@ async function syncPresenceLogFromOnline(onlineList) {
   // Flags tournée (Reçu / Déjà bouffé) — SQL dédié
   app.post("/api/tournee/flag", requireAuth, async (req, res) => {
     try {
-      const actor = await findMemberById(req.session.userId);
-      if (!actor) return res.status(403).json({ error: "Membre introuvable." });
-      const [storedRoles, storedPermissions, admin] = await Promise.all([
-        getData("poto-timide-roles"),
-        getData("poto-timide-tab-permissions"),
-        isAdminId(actor.id),
-      ]);
-      const roleIds = Object.entries(storedRoles || {})
-        .filter(([, memberId]) => String(memberId) === String(actor.id))
-        .map(([roleId]) => roleId);
-      const permissions =
-        storedPermissions && typeof storedPermissions === "object"
-          ? storedPermissions
-          : DEFAULT_TAB_PERMISSIONS;
-      const syncActor = { id: actor.id, isAdmin: admin, roleIds, permissions };
-      if (!admin && !hasSyncTabPermission("tournee", syncActor)) {
+      const sync = await buildSyncActor(req.session.userId);
+      if (!sync) return res.status(403).json({ error: "Membre introuvable." });
+      const { actor } = sync;
+      if (!sync.isAdmin && !hasSyncTabPermission("tournee", sync)) {
         return res.status(403).json({ error: "Vous n’avez pas accès à la tournée." });
       }
       const body = req.body || {};
@@ -2200,10 +2218,9 @@ async function syncPresenceLogFromOnline(onlineList) {
 
 app.post("/api/permissions", requireAuth, async (req, res) => {
     try {
-      const actor = await findMemberById(req.session.userId);
-      if (!actor) return res.status(403).json({ error: "Membre introuvable." });
-      const admin = await isAdminId(actor.id);
-      if (!admin && !(await isOwnerId(actor.id))) {
+      const sync = await buildSyncActor(req.session.userId);
+      if (!sync) return res.status(403).json({ error: "Membre introuvable." });
+      if (!sync.isAdmin && !(await isOwnerId(sync.id))) {
         return res.status(403).json({ error: "Seul le propriétaire peut modifier les accès." });
       }
       const body = req.body || {};
@@ -2244,22 +2261,10 @@ app.post("/api/permissions", requireAuth, async (req, res) => {
 
 app.post("/api/communication", requireAuth, async (req, res) => {
     try {
-      const actor = await findMemberById(req.session.userId);
-      if (!actor) return res.status(403).json({ error: "Membre introuvable." });
-      const [storedRoles, storedPermissions, admin] = await Promise.all([
-        getData("poto-timide-roles"),
-        getData("poto-timide-tab-permissions"),
-        isAdminId(actor.id),
-      ]);
-      const roleIds = Object.entries(storedRoles || {})
-        .filter(([, memberId]) => String(memberId) === String(actor.id))
-        .map(([roleId]) => roleId);
-      const permissions =
-        storedPermissions && typeof storedPermissions === "object"
-          ? storedPermissions
-          : DEFAULT_TAB_PERMISSIONS;
-      const syncActor = { id: actor.id, isAdmin: admin, roleIds, permissions };
-      if (!admin && !hasSyncTabPermission("communication", syncActor)) {
+      const sync = await buildSyncActor(req.session.userId);
+      if (!sync) return res.status(403).json({ error: "Membre introuvable." });
+      const { actor } = sync;
+      if (!sync.isAdmin && !hasSyncTabPermission("communication", sync)) {
         return res.status(403).json({ error: "Vous n’avez pas accès à la communication." });
       }
       const body = req.body || {};
