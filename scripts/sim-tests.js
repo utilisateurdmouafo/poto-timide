@@ -270,6 +270,39 @@ async function test(name, fn) {
     }),
   );
 
+
+  results.push(
+    await test("frontend: fichiers React présents", async () => {
+      const fs = require("fs");
+      const path = require("path");
+      const root = path.join(__dirname, "..", "frontend", "src");
+      for (const f of ["App.jsx", "pages.jsx", "AdminSection.jsx", "shared.jsx", "styles.css"]) {
+        if (!fs.existsSync(path.join(root, f))) throw new Error("manque " + f);
+      }
+    }),
+  );
+
+  results.push(
+    await test("frontend: menu haut en lecture seule", async () => {
+      const fs = require("fs");
+      const path = require("path");
+      const app = fs.readFileSync(path.join(__dirname, "..", "frontend", "src", "App.jsx"), "utf8");
+      if (!app.includes("Menu haut = lecture seule")) throw new Error("commentaire lecture seule manquant");
+      // chaque page sensible doit passer canManage={false} hors admin
+      const checks = [
+        'case "prets"',
+        'case "evenements"',
+        'case "communication"',
+        'case "amendes"',
+        'case "finance"',
+      ];
+      for (const c of checks) {
+        if (!app.includes(c)) throw new Error("case manquant: " + c);
+      }
+      if (!app.includes("canManage={false}")) throw new Error("canManage false manquant");
+    }),
+  );
+
   const ok = results.filter((r) => r.ok).length;
   const fail = results.filter((r) => !r.ok);
   const summary = fail.length
@@ -277,7 +310,7 @@ async function test(name, fn) {
     : `Tests: ${ok}/${results.length} OK. Toutes les fonctions simulées ont réussi.`;
 
   await notifyDarioOnly({
-    title: "Rapport tests bloc actions",
+    title: "Rapport tests bloc frontend",
     message: summary,
     tab: "reunion",
   });

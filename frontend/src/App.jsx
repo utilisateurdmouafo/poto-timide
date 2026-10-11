@@ -320,19 +320,50 @@ export default function App() {
 
   const page = (() => {
     switch (activeTab) {
-      case "membres": return <MembersPage data={data} members={members} roles={roles} online={online} onlineMembers={onlineMembers} member={session} navigate={navigate} />;
-      case "tournee": return <TourneePage data={data} members={members} canManage={false} saveData={saveData} />;
-            case "prets": return <LoansPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
-      case "evenements": return <EventsPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
-      case "communication": return <CommunicationPage data={data} member={session} members={members} canManage={false} saveData={saveData} mergeData={mergeData} />;
-            case "loi": return <ReferencePage data={data} canManageLaw={false} canManageGuide={false} saveData={saveData} />;
-      case "notifications": return <NotificationsPage data={data} member={session} saveData={saveData} />;
-      case "amendes": return <DebtsPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
-      case "finance": return <FinancePage data={data} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} saveData={saveData} />;
-      case "fond-caisse": return <FundPage data={data} members={members} member={session} />;
-      case "admin": return canOpenAdmin
-        ? <Suspense fallback={<div className="page-content"><p className="muted">Chargement…</p></div>}><AdminPage section={adminSection} sections={adminSections} setSection={(section) => navigate("admin", section)} data={data} member={session} members={members} names={memberNames} runAction={runAction} confirmAction={confirmAction} saveData={saveData} mergeData={mergeData} canCommunication={can("communication") || isAdmin} isFullAdmin={isAdmin} /></Suspense>
-        : <NoAccess />;
+      // Menu haut = lecture seule (canManage false). Écriture uniquement via Admin.
+      case "membres":
+        return <MembersPage data={data} members={members} roles={roles} online={online} onlineMembers={onlineMembers} member={session} navigate={navigate} />;
+      case "tournee":
+        return <TourneePage data={data} members={members} canManage={false} saveData={saveData} />;
+      case "prets":
+        return <LoansPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
+      case "evenements":
+        return <EventsPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
+      case "communication":
+        return <CommunicationPage data={data} member={session} members={members} canManage={false} saveData={saveData} mergeData={mergeData} />;
+      case "loi":
+        return <ReferencePage data={data} canManageLaw={false} canManageGuide={false} saveData={saveData} />;
+      case "notifications":
+        return <NotificationsPage data={data} member={session} saveData={saveData} />;
+      case "amendes":
+        return <DebtsPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
+      case "finance":
+        return <FinancePage data={data} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} saveData={saveData} />;
+      case "fond-caisse":
+        return <FundPage data={data} members={members} member={session} />;
+      case "admin":
+        return canOpenAdmin
+          ? (
+            <Suspense fallback={<div className="page-content"><p className="muted">Chargement…</p></div>}>
+              <AdminPage
+                section={adminSection}
+                sections={adminSections}
+                setSection={(section) => navigate("admin", section)}
+                data={data}
+                member={session}
+                members={members}
+                names={memberNames}
+                runAction={runAction}
+                confirmAction={confirmAction}
+                saveData={saveData}
+                mergeData={mergeData}
+                canCommunication={can("communication") || isAdmin}
+                isFullAdmin={isAdmin}
+              />
+            </Suspense>
+          )
+          : <NoAccess />;
+
       default: return <MeetingPage data={data} member={session} members={members} names={memberNames} online={online} onlineMembers={onlineMembers} isAdmin={canOpenAdmin} can={can} unreadCount={unreadCount} navigate={navigate} />;
     }
   })();
