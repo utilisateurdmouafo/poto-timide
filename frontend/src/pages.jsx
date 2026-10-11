@@ -615,7 +615,7 @@ export function FinancePage({ data, members, names, canManage, runAction, confir
   );
 }
 
-export function CommunicationPage({ data, member, members = [], canManage, saveData }) {
+export function CommunicationPage({ data, member, members = [], canManage, saveData, mergeData }) {
   const [category, setCategory] = useState("communique");
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState(null);
@@ -763,11 +763,17 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 alert("Réponse serveur invalide");
                 return;
               }
-              // Second PUT pour synchroniser le state React (merge serveur = stable)
-              await saveData(
-                { [KEYS.communication]: rows },
-                editingId ? "Publication modifiée." : "Publication ajoutée.",
-              );
+              if (typeof mergeData === "function") {
+                mergeData(
+                  { [KEYS.communication]: rows },
+                  editingId ? "Publication modifiée." : "Publication ajoutée.",
+                );
+              } else {
+                await saveData(
+                  { [KEYS.communication]: rows },
+                  editingId ? "Publication modifiée." : "Publication ajoutée.",
+                );
+              }
               if (result?.entry?.id) setOpenId(result.entry.id);
               setEditingId(null);
               setDraftTitle("");
