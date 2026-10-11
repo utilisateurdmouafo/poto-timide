@@ -386,6 +386,13 @@ function mergeById(existing, incoming) {
     const loser = itemNewer ? prev : item;
     const merged = { ...loser, ...winner, id };
 
+    // Fusion des accusés de lecture (rapports)
+    const readA = prev.readBy && typeof prev.readBy === "object" && !Array.isArray(prev.readBy) ? prev.readBy : {};
+    const readB = item.readBy && typeof item.readBy === "object" && !Array.isArray(item.readBy) ? item.readBy : {};
+    if (Object.keys(readA).length || Object.keys(readB).length) {
+      merged.readBy = { ...readA, ...readB };
+    }
+
     // Suppression sticky : dès qu'un côté a deletedAt, on ne le perd JAMAIS
     const prevDel = prev.deletedAt ? new Date(prev.deletedAt).getTime() || 0 : 0;
     const nextDel = item.deletedAt ? new Date(item.deletedAt).getTime() || 0 : 0;

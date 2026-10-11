@@ -649,6 +649,50 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
 
   const names = Object.fromEntries((members || []).map((person) => [String(person.id), person.name]));
 
+  const groupMembers = (members || []).filter((person) => person && person.kind !== "nouveau");
+
+  const rapportStats = (post) => {
+    const readBy = post?.readBy && typeof post.readBy === "object" && !Array.isArray(post.readBy) ? post.readBy : {};
+    const readers = Object.keys(readBy)
+      .map((id) => {
+        const person = groupMembers.find((row) => String(row.id) === String(id));
+        return person ? { id, name: person.name, at: readBy[id] } : null;
+      })
+      .filter(Boolean)
+      .sort((x, y) => String(x.name).localeCompare(String(y.name), "fr", { sensitivity: "base" }));
+    const readIds = new Set(readers.map((row) => String(row.id)));
+    const pending = groupMembers.filter((person) => !readIds.has(String(person.id)));
+    return {
+      readers,
+      pending,
+      readCount: readers.filter((row) => groupMembers.some((person) => String(person.id) === String(row.id))).length,
+      total: groupMembers.length,
+      hasRead: member?.id ? Boolean(readBy[String(member.id)]) : false,
+    };
+  };
+
+  const markRapportRead = async (post) => {
+    if (!member?.id) return;
+    if (member.kind === "nouveau") {
+      alert("Seuls les membres du groupe peuvent confirmer la lecture.");
+      return;
+    }
+    const readBy = post.readBy && typeof post.readBy === "object" ? { ...post.readBy } : {};
+    if (readBy[String(member.id)]) return;
+    readBy[String(member.id)] = new Date().toISOString();
+    const next = list(data, KEYS.communication).map((row) =>
+      String(row.id) === String(post.id)
+        ? { ...row, readBy, readReceiptUpdatedAt: new Date().toISOString() }
+        : row,
+    );
+    if (typeof mergeData === "function") {
+      // optimistic
+      mergeData({ [KEYS.communication]: next }, "");
+    }
+    await saveData({ [KEYS.communication]: next }, "Lecture confirmée — merci.");
+  };
+
+
   const tabs = [
     { id: "communique", label: "Communiqué", singular: "communiqué" },
     { id: "agenda", label: "Ordre du jour", singular: "ordre du jour" },
@@ -948,6 +992,43 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                 <p className="announcement-body">
                   {openId === item.id && focusPhrase ? highlightWith(focusPhrase, item.body || "") : (item.body || "")}
                 </p>
+                {(communicationCategoryOf(item) === "rapport" || item.kind === "rapport" || category === "rapport") && (() => {
+                  const stats = rapportStats(item);
+                  return (
+                    <div className="comm-read-receipt">
+                      <div className="comm-read-row">
+                        {member?.id && member.kind !== "nouveau" ? (
+                          stats.hasRead ? (
+                            <span className="comm-read-done">✓ Tu as lu</span>
+                          ) : (
+                            <Button variant="primary" onClick={() => markRapportRead(item)}>
+                              J&apos;ai lu le rapport
+                            </Button>
+                          )
+                        ) : (
+                          <span className="comm-read-hint">Connecte-toi pour confirmer</span>
+                        )}
+                        <span className="comm-read-count">{stats.readCount}/{stats.total} ont lu</span>
+                      </div>
+                      <div className="comm-read-bar" aria-hidden="true">
+                        <span style={{ width: `${stats.total ? (stats.readCount / stats.total) * 100 : 0}%` }} />
+                      </div>
+                      {(canManage || stats.readCount > 0) && (
+                        <details className="comm-read-details">
+                          <summary>Voir qui a lu ({stats.readCount})</summary>
+                          <p className="comm-read-names">
+                            {stats.readers.length ? stats.readers.map((row) => row.name).join(", ") : "Personne pour le moment."}
+                          </p>
+                          {canManage && stats.pending.length > 0 && (
+                            <p className="comm-read-pending">
+                              <strong>Pas encore :</strong> {stats.pending.map((row) => row.name).join(", ")}
+                            </p>
+                          )}
+                        </details>
+                      )}
+                    </div>
+                  );
+                })()}
                 {canManage && !item._source && (item.category || item.kind || category !== "loi") && category !== "loi" && (
                   <div className="row-actions">
                     <Button

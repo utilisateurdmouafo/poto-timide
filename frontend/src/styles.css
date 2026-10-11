@@ -1138,3 +1138,57 @@ input::placeholder, textarea::placeholder {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
+
+
+/* Accusé de lecture — rapports */
+.comm-read-receipt {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f0f9ff;
+  border: 1px solid #dbeafe;
+}
+.comm-read-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+.comm-read-done {
+  color: #047857;
+  font-weight: 800;
+  font-size: 13px;
+}
+.comm-read-count {
+  color: #334155;
+  font-weight: 700;
+  font-size: 12px;
+  margin-left: auto;
+}
+.comm-read-hint { color: #64748b; font-size: 12px; }
+.comm-read-bar {
+  margin-top: 10px;
+  height: 8px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  overflow: hidden;
+}
+.comm-read-bar > span {
+  display: block;
+  height: 100%;
+  background: #059669;
+  border-radius: 999px;
+  transition: width 0.25s ease;
+}
+.comm-read-details {
+  margin-top: 10px;
+  font-size: 12px;
+  color: #475569;
+}
+.comm-read-details summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: #1e40af;
+}
+.comm-read-names, .comm-read-pending { margin: 6px 0 0; line-height: 1.4; }
+.comm-read-pending { color: #9a3412; }
