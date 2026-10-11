@@ -303,6 +303,33 @@ async function test(name, fn) {
     }),
   );
 
+
+  results.push(
+    await test("notifications: lecture SQL", async () => {
+      const n = await entities.countDomain(db, "notifications");
+      if (n < 1) throw new Error("aucune notification en base");
+    }),
+  );
+
+  results.push(
+    await test("notifications: notif uniquement Dario", async () => {
+      const before = await getJson("poto-timide-notifications");
+      const list = Array.isArray(before) ? before : [];
+      const mine = list.filter((row) => String(row.memberId) === DARIO_ID && !row.deletedAt);
+      if (!mine.length) throw new Error("Dario devrait avoir au moins une notif de test");
+    }),
+  );
+
+  results.push(
+    await test("push: table subscriptions existe", async () => {
+      try {
+        await db.all("SELECT id FROM push_subscriptions LIMIT 1");
+      } catch (e) {
+        throw new Error("table push_subscriptions: " + e.message);
+      }
+    }),
+  );
+
   const ok = results.filter((r) => r.ok).length;
   const fail = results.filter((r) => !r.ok);
   const summary = fail.length
@@ -310,7 +337,7 @@ async function test(name, fn) {
     : `Tests: ${ok}/${results.length} OK. Toutes les fonctions simulées ont réussi.`;
 
   await notifyDarioOnly({
-    title: "Rapport tests bloc frontend",
+    title: "Rapport tests bloc temps réel",
     message: summary,
     tab: "reunion",
   });
