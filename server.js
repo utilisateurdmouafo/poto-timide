@@ -1975,7 +1975,53 @@ async function syncPresenceLogFromOnline(onlineList) {
 
 
   // Publication communication (rapport, ordre du jour, communiqué) — fiable
-  app.post("/api/communication", requireAuth, async (req, res) => {
+  
+  // Accès Admin — enregistrement fiable des cases à cocher
+  app.post("/api/permissions", requireAuth, async (req, res) => {
+    try {
+      const actor = await findMemberById(req.session.userId);
+      if (!actor) return res.status(403).json({ error: "Membre introuvable." });
+      const admin = await isAdminId(actor.id);
+      if (!admin && !(await isOwnerId(actor.id))) {
+        return res.status(403).json({ error: "Seul le propriétaire peut modifier les accès." });
+      }
+      const body = req.body || {};
+      let next = body.permissions;
+      if (!next || typeof next !== "object" || Array.isArray(next)) {
+        return res.status(400).json({ error: "Payload permissions invalide." });
+      }
+      // Nettoyage
+      const cleaned = {};
+      for (const [tab, roles] of Object.entries(next)) {
+        if (tab === "updatedAt" || tab === "finance") continue;
+        if (!Array.isArray(roles)) continue;
+        cleaned[tab] = [...new Set(roles.map(String).filter(Boolean))];
+      }
+      // Unifie finance → caisse si fourni
+      if (Array.isArray(next.finance) && next.finance.length) {
+        cleaned.caisse = [...new Set([...(cleaned.caisse || []), ...next.finance.map(String)])];
+      }
+      cleaned.updatedAt = new Date().toISOString();
+      await setData("poto-timide-tab-permissions", cleaned);
+      // invalide cache explicite
+      if (typeof dataCache !== "undefined" && dataCache?.set) {
+        dataCache.set("poto-timide-tab-permissions", JSON.stringify(cleaned));
+      }
+      broadcastLive("data", {
+        keys: ["poto-timide-tab-permissions"],
+        at: cleaned.updatedAt,
+      });
+      res.json({
+        ok: true,
+        data: { "poto-timide-tab-permissions": cleaned },
+      });
+    } catch (err) {
+      console.error("Permissions save:", err);
+      res.status(500).json({ error: "Impossible d’enregistrer les accès." });
+    }
+  });
+
+app.post("/api/communication", requireAuth, async (req, res) => {
     try {
       const actor = await findMemberById(req.session.userId);
       if (!actor) return res.status(403).json({ error: "Membre introuvable." });

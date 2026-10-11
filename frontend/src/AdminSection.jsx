@@ -31,7 +31,7 @@ export function AdminPage({ section, sections, setSection, data, member, members
     if (activeSection === "loi") return <ReferenceAdmin data={data} saveData={saveData} />;
     if (activeSection === "connexions") return <LoginLogAdmin />;
     if (activeSection === "sauvegarde") return <BackupAdmin />;
-    return <AccessAdmin data={data} members={members} saveData={saveData} />;
+    return <AccessAdmin data={data} members={members} saveData={saveData} mergeData={mergeData} />;
   }
 }
 
@@ -183,7 +183,7 @@ export function TourneeAdmin({ data, members, saveData }) {
     </details>
   </>;
 }
-export function AccessAdmin({ data, members, saveData }) {
+export function AccessAdmin({ data, members, saveData, mergeData }) {
   const roles = data[KEYS.roles] || {};
   const rawPermissions = data[KEYS.permissions] || {};
   // Unifie finance → caisse (même fonction)
@@ -216,19 +216,29 @@ export function AccessAdmin({ data, members, saveData }) {
     const nextRoles = checked
       ? [...new Set([...current, role])]
       : current.filter((value) => value !== role);
-    const next = { ...rawPermissions, [tab]: nextRoles, updatedAt: new Date().toISOString() };
-    // Unifie finance → caisse
+    const next = { ...rawPermissions, [tab]: nextRoles };
+    delete next.finance;
+    delete next.updatedAt;
     if (tab === "caisse") {
-      delete next.finance;
+      // already on caisse key
     }
-    // Ne jamais laisser finance diverger
-    if (next.finance && !next.caisse) {
-      next.caisse = next.finance;
-      delete next.finance;
-    }
-    const ok = await saveData({ [KEYS.permissions]: next }, "Autorisations mises à jour.");
-    if (ok === false) {
-      alert("Échec de l’enregistrement des accès. Réessaie (Mode Dev / propriétaire).");
+    try {
+      const result = await request("/api/permissions", {
+        method: "POST",
+        body: JSON.stringify({ permissions: next }),
+      });
+      const saved = result?.data?.[KEYS.permissions];
+      if (!saved || typeof saved !== "object") {
+        alert("Réponse serveur invalide pour les accès.");
+        return;
+      }
+      if (typeof mergeData === "function") {
+        mergeData({ [KEYS.permissions]: saved }, "Autorisations mises à jour.");
+      } else {
+        await saveData({ [KEYS.permissions]: saved }, "Autorisations mises à jour.");
+      }
+    } catch (err) {
+      alert(err.message || "Échec de l’enregistrement des accès.");
     }
   };
 
