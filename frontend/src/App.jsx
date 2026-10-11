@@ -324,7 +324,7 @@ export default function App() {
       case "tournee": return <TourneePage data={data} members={members} canManage={can("tournee") || isAdmin} saveData={saveData} />;
             case "prets": return <LoansPage data={data} member={session} members={members} names={memberNames} canManage={can("prets") || isAdmin} runAction={runAction} confirmAction={confirmAction} />;
       case "evenements": return <EventsPage data={data} member={session} members={members} names={memberNames} canManage={can("evenements") || isAdmin} runAction={runAction} confirmAction={confirmAction} />;
-      case "communication": return <CommunicationPage data={data} member={session} members={members} canManage={can("communication") || isAdmin} saveData={saveData} mergeData={mergeData} />;
+      case "communication": return <CommunicationPage data={data} member={session} members={members} canManage={false} saveData={saveData} mergeData={mergeData} />;
             case "loi": return <ReferencePage data={data} canManageLaw={can("loi") || isAdmin} canManageGuide={can("communication") || isAdmin} saveData={saveData} />;
       case "notifications": return <NotificationsPage data={data} member={session} saveData={saveData} />;
       case "amendes": return <DebtsPage data={data} member={session} members={members} names={memberNames} canManage={can("amendes") || isAdmin} runAction={runAction} confirmAction={confirmAction} />;

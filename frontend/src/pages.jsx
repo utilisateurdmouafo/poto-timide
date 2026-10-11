@@ -852,7 +852,7 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
 
 {!canManage && (
         <p className="muted communication-readonly-hint">
-          Communication en lecture seule. Seules les personnes autorisées dans Admin → Accès peuvent publier ou modifier.
+          Lecture seule ici. Pour publier ou modifier : Admin → Communication (si tu as l’accès).
         </p>
       )}
 
