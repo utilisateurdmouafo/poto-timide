@@ -211,15 +211,25 @@ export function AccessAdmin({ data, members, saveData }) {
     return members.find((member) => String(member.id) === String(id))?.name || "Membre inconnu";
   };
 
-  const toggle = (tab, role, checked) => {
+  const toggle = async (tab, role, checked) => {
     const current = Array.isArray(permissions[tab]) ? permissions[tab] : [];
     const nextRoles = checked
       ? [...new Set([...current, role])]
       : current.filter((value) => value !== role);
-    const next = { ...rawPermissions, [tab]: nextRoles };
-    // Ne plus stocker l’ancienne clé finance
-    if (tab === "caisse") delete next.finance;
-    saveData({ [KEYS.permissions]: next }, "Autorisations mises à jour.");
+    const next = { ...rawPermissions, [tab]: nextRoles, updatedAt: new Date().toISOString() };
+    // Unifie finance → caisse
+    if (tab === "caisse") {
+      delete next.finance;
+    }
+    // Ne jamais laisser finance diverger
+    if (next.finance && !next.caisse) {
+      next.caisse = next.finance;
+      delete next.finance;
+    }
+    const ok = await saveData({ [KEYS.permissions]: next }, "Autorisations mises à jour.");
+    if (ok === false) {
+      alert("Échec de l’enregistrement des accès. Réessaie (Mode Dev / propriétaire).");
+    }
   };
 
   const permissionRows = sections.map(([id, label]) => ({

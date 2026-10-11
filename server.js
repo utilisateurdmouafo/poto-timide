@@ -740,6 +740,9 @@ async function persistStorageValue(key, value) {
       value = mergeTourneeData(unwrapStored(existingRaw) || { years: {} }, unwrapStored(value) || { years: {} });
     } else if (MERGE_BY_ID_KEYS.has(key)) {
       value = mergeById(unwrapStored(existingRaw) || [], unwrapStored(value) || []);
+    } else if (key === "poto-timide-tab-permissions" || key === "poto-timide-roles") {
+      // Remplacement intégral : les cases Accès / bureau doivent toujours s'enregistrer
+      value = unwrapStored(value) || {};
     } else if (objectUpdatedAt(existingRaw) > objectUpdatedAt(value)) {
       return unwrapStored(existingRaw);
     }
