@@ -251,10 +251,9 @@ export function AccessAdmin({ data, members, saveData, mergeData }) {
 
   return <>
     <PanelTitle title="Accès aux fonctions" />
-    <p className="muted">
+    <p className="access-page-hint">
       Coche un rôle pour lui donner le droit de <strong>gérer</strong> cette section dans <strong>Admin</strong>.
-      Les onglets du menu en haut restent en lecture seule pour tout le monde.
-      Le financier (trésorier) a aussi automatiquement Caisse, Prêts et Dettes.
+      Les onglets du menu en haut restent en lecture seule. Le <strong>financier</strong> a aussi automatiquement Caisse, Prêts et Dettes.
     </p>
     <section className="panel inset-panel">
       <h3>Bureau actuel</h3>

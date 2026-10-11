@@ -318,29 +318,47 @@ td strong { color: #203846; }
 
 .admin-content .admin-table-wrap {
   overflow: auto;
-  border: 1px solid #d9e5df;
+  border: 1px solid #d0dde8;
   border-radius: 12px;
   background: #fff;
-  box-shadow: 0 8px 22px rgba(25, 62, 52, .07);
+  box-shadow: 0 6px 18px rgba(15, 60, 90, .06);
 }
-.admin-content .admin-table-wrap table { border-collapse: separate; border-spacing: 0; }
+.admin-content .admin-table-wrap table { border-collapse: separate; border-spacing: 0; width: 100%; }
 .admin-content .admin-table-wrap th {
-  padding: 12px 13px;
+  padding: 11px 12px;
   border: 0;
-  border-bottom: 2px solid #c9a85d;
-  color: #f6f4ec;
-  background: #214a40;
+  border-bottom: 2px solid #1a6a94;
+  color: #f0f7fc;
+  background: #0f4c6e;
   font-size: 10px;
-  letter-spacing: .075em;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  vertical-align: bottom;
 }
-.admin-content .admin-table-wrap th:first-child { border-radius: 0; }
-.admin-content .admin-table-wrap th:last-child { border-radius: 0; }
+.admin-content .admin-table-wrap th:first-child { border-radius: 11px 0 0 0; }
+.admin-content .admin-table-wrap th:last-child { border-radius: 0 11px 0 0; }
 .admin-content .admin-table-wrap th.table-right,
 .admin-content .admin-table-wrap td.table-right { text-align: right; font-variant-numeric: tabular-nums; }
-.admin-content .admin-table-wrap td { padding: 13px; border-bottom: 1px solid #e9efeb; }
-.admin-content .admin-table-wrap tbody tr:nth-child(even) { background: #f7faf8; }
-.admin-content .admin-table-wrap tbody tr:hover { background: #edf5f0; }
+.admin-content .admin-table-wrap td {
+  padding: 11px 12px;
+  border-bottom: 1px solid #e4eef5;
+  color: #1e3a4c;
+  font-size: 12px;
+  font-weight: 650;
+  vertical-align: middle;
+}
+.admin-content .admin-table-wrap tbody tr:nth-child(even) { background: #f5f9fc; }
+.admin-content .admin-table-wrap tbody tr:hover { background: #eaf3f9; }
 .admin-content .admin-table-wrap tbody tr:last-child td { border-bottom: 0; }
+.admin-content .admin-table-wrap input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #0f4c6e;
+  cursor: pointer;
+}
+
 .admin-content .admin-table-wrap tfoot td {
   border-top: 1px solid #d4e2d9;
   border-bottom: 0;
@@ -1195,17 +1213,35 @@ input::placeholder, textarea::placeholder {
 
 .access-role-head {
   display: grid;
-  gap: 2px;
-  line-height: 1.2;
+  gap: 3px;
+  line-height: 1.15;
+  text-align: center;
+  min-width: 72px;
 }
-.access-role-head strong { font-size: 11px; }
+.access-role-head strong {
+  font-size: 10px;
+  font-weight: 800;
+  color: inherit;
+}
 .access-role-head small {
   display: block;
-  color: #64748b;
+  color: #b8d9ec;
   font-size: 10px;
-  font-weight: 600;
-  max-width: 90px;
+  font-weight: 650;
+  max-width: 88px;
+  margin: 0 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.access-page-hint {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #d0e4f2;
+  background: #eef6fb;
+  color: #2c4a5e;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.access-page-hint strong { color: #0f4c6e; }
