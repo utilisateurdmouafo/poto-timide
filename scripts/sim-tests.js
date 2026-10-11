@@ -162,6 +162,114 @@ async function test(name, fn) {
   );
 
 
+
+  // --- Bloc 3 : actions métier (simulation en mémoire, sans écrire si possible) ---
+  const { applyGroupAction } = require("../lib/group-actions");
+
+  async function loadState() {
+    const keys = [
+      "poto-timide-members",
+      "poto-timide-prets",
+      "poto-timide-amendes",
+      "poto-timide-amendes-caisse",
+      "poto-timide-evenements",
+      "poto-timide-autre-argent",
+      "poto-timide-ancienne-tournee-dettes",
+      "poto-timide-capital-hors-groupe",
+      "poto-timide-notifications",
+      "poto-timide-fond-caisse",
+      "poto-timide-fond-caisse-annuel",
+      "poto-timide-roles",
+      "poto-timide-cotisations",
+      "poto-timide-tournee",
+    ];
+    const state = {};
+    for (const key of keys) {
+      state[key] = await getJson(key);
+      if (state[key] == null) {
+        state[key] = key.includes("fond-caisse") && !key.includes("annuel") ? 0 : Array.isArray(await getJson(key)) ? [] : {};
+      }
+      if (state[key] == null) state[key] = key === "poto-timide-fond-caisse" ? 0 : [];
+    }
+    // Prefer entities for lists
+    for (const [key, domain] of Object.entries(entities.ENTITY_KEY_TO_DOMAIN)) {
+      try {
+        const c = await entities.countDomain(db, domain);
+        if (c > 0) state[key] = await entities.loadDomainList(db, domain);
+      } catch (_) {}
+    }
+    return state;
+  }
+
+  const adminActor = {
+    id: DARIO_ID,
+    isAdmin: true,
+    canManageLoans: true,
+    canManageFines: true,
+    canManageFund: true,
+    canManageEvents: true,
+    canManageMembers: true,
+    ownerId: DARIO_ID,
+  };
+
+  results.push(
+    await test("action cash add (mémoire)", async () => {
+      const state = await loadState();
+      const before = Array.isArray(state["poto-timide-autre-argent"])
+        ? state["poto-timide-autre-argent"].length
+        : 0;
+      const applied = applyGroupAction(state, adminActor, {
+        domain: "cash",
+        type: "add",
+        memberId: DARIO_ID,
+        amount: 0.01,
+        motif: "Test sim bloc3",
+        note: "ne pas garder",
+      });
+      if (!applied.changedKeys.includes("poto-timide-autre-argent")) {
+        throw new Error("cash add n'a pas touché autre-argent");
+      }
+      const after = applied.data["poto-timide-autre-argent"].length;
+      if (after < before + 1) throw new Error("ligne cash non ajoutée");
+      // Soft-delete the test row in memory then persist delete if it was written - we did NOT call setData, pure memory
+    }),
+  );
+
+  results.push(
+    await test("action fine add refusée sans droit", async () => {
+      const state = await loadState();
+      const noRights = { id: DARIO_ID, isAdmin: false, canManageFines: false, canManageLoans: false, canManageFund: false, canManageEvents: false, canManageMembers: false };
+      let threw = false;
+      try {
+        applyGroupAction(state, noRights, {
+          domain: "fine",
+          type: "add",
+          memberId: DARIO_ID,
+          amount: 1,
+          fineType: "absence",
+          note: "test",
+        });
+      } catch (e) {
+        threw = true;
+        if (e.status !== 403) throw new Error("attendu 403, reçu " + e.status);
+      }
+      if (!threw) throw new Error("aurait dû refuser");
+    }),
+  );
+
+  results.push(
+    await test("action loan domain reconnu", async () => {
+      const state = await loadState();
+      let threw = false;
+      try {
+        applyGroupAction(state, adminActor, { domain: "loan", type: "unknown-type-xyz" });
+      } catch (e) {
+        threw = true;
+      }
+      if (!threw) throw new Error("type inconnu devrait échouer");
+    }),
+  );
+
   const ok = results.filter((r) => r.ok).length;
   const fail = results.filter((r) => !r.ok);
   const summary = fail.length
@@ -169,7 +277,7 @@ async function test(name, fn) {
     : `Tests: ${ok}/${results.length} OK. Toutes les fonctions simulées ont réussi.`;
 
   await notifyDarioOnly({
-    title: "Rapport tests bloc API",
+    title: "Rapport tests bloc actions",
     message: summary,
     tab: "reunion",
   });
