@@ -140,22 +140,100 @@ td strong { color: #203846; }
 .empty-panel { display: grid; min-height: 145px; place-content: center; justify-items: center; gap: 8px; border: 1px dashed #d7e1e6; border-radius: 13px; color: var(--muted); background: rgba(255,255,255,.65); }
 .empty-panel p { margin: 0; font-size: 12px; }
 .empty-icon { color: #8fb7c7; font-size: 25px; }
-.admin-layout { display: grid; grid-template-columns: 230px minmax(0, 1fr); align-items: start; gap: 18px; }
-.admin-menu { position: sticky; top: 96px; display: grid; gap: 4px; padding: 10px; border: 1px solid #d4e2d9; border-radius: 13px; background: #eaf2ed; box-shadow: var(--shadow); }
-.admin-menu-item { display: flex; align-items: center; justify-content: space-between; padding: 11px 12px; border: 0; border-radius: 8px; color: #3d5c51; background: transparent; font-size: 12px; font-weight: 700; text-align: left; transition: background .15s ease, color .15s ease; }
-.admin-menu-item span { color: #718b7e; font-size: 18px; }
-.admin-menu-item:hover { color: #214a40; background: #dce9e1; }
-.admin-menu-item.current { color: #fff; background: #214a40; box-shadow: 0 3px 8px rgba(33, 74, 64, .18); }
-.admin-menu-item.current span { color: #e1c77f; }
-.admin-content { display: grid; min-width: 0; gap: 15px; padding: 21px; border: 1px solid var(--line); border-radius: 15px; background: #fff; box-shadow: var(--shadow); }
-.inset-panel { margin-top: 14px; box-shadow: none; }
-.role-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 18px; }
+.admin-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+.admin-menu {
+  position: sticky;
+  top: 96px;
+  display: grid;
+  gap: 3px;
+  padding: 10px;
+  border: 1px solid #d0dde8;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #f3f7fb 0%, #e8f0f6 100%);
+  box-shadow: var(--shadow);
+}
+.admin-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 9px;
+  color: #2c4a5e;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 750;
+  text-align: left;
+  transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+}
+.admin-menu-item span { color: #7a93a6; font-size: 16px; }
+.admin-menu-item:hover { color: #0f3a55; background: #dbe8f2; }
+.admin-menu-item.current {
+  color: #fff;
+  background: #0f4c6e;
+  box-shadow: 0 3px 10px rgba(15, 76, 110, .22);
+}
+.admin-menu-item.current span { color: #9ad4f5; }
+.admin-content {
+  display: grid;
+  min-width: 0;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #d0dde8;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--shadow);
+}
+.admin-content .panel-heading h2 { color: #0f3a55; }
+.inset-panel {
+  margin-top: 0;
+  box-shadow: none;
+  border: 1px solid #dbe6ef;
+  border-radius: 12px;
+  background: #f8fbfd;
+  padding: 14px 16px;
+}
+.inset-panel h3 {
+  margin: 0 0 12px;
+  color: #0f4c6e;
+  font-size: 14px;
+  font-weight: 800;
+}
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 20px;
+}
 .bureau-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 10px; }
-.bureau-card { display: grid; gap: 7px; padding: 13px; border: 1px solid var(--line); border-radius: 10px; background: #fbfdfe; }
-.bureau-card strong { color: #344c59; font-size: 12px; }
-.role-line { display: flex; justify-content: space-between; gap: 10px; padding: 12px 0; border-bottom: 1px solid #edf1f3; font-size: 11px; }
-.role-line strong { color: #344c59; }
-.role-line span { color: var(--muted); text-align: right; }
+.bureau-card { display: grid; gap: 7px; padding: 13px; border: 1px solid #d0dde8; border-radius: 10px; background: #f8fbfd; }
+.bureau-card strong { color: #1e3a4c; font-size: 12px; }
+.role-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid #e2ebf2;
+  font-size: 12px;
+}
+.role-line:last-child { border-bottom: 0; }
+.role-line strong {
+  color: #1e3a4c;
+  font-weight: 800;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.role-line span {
+  color: #334155;
+  font-weight: 700;
+  text-align: right;
+}
 .admin-id-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .admin-id-list label { display: flex; align-items: center; gap: 11px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
 .admin-id-list label span { display: grid; gap: 3px; color: #344c59; font-size: 12px; }
