@@ -1117,3 +1117,24 @@ input::placeholder, textarea::placeholder {
   color: #0f2740;
   font-weight: 800;
 }
+
+.finance-history-table th,
+.finance-history-table td {
+  white-space: nowrap !important;
+  vertical-align: middle;
+}
+.finance-history-table .status {
+  white-space: nowrap !important;
+  max-width: none;
+  display: inline-flex;
+}
+.finance-history-table .finance-detail {
+  white-space: nowrap;
+}
+.table-wrap.finance-history-table,
+.finance-history-table.table-wrap,
+.table-wrap:has(.finance-history-table),
+.panel .table-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}

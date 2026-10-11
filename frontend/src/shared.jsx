@@ -409,8 +409,66 @@ export function addMonthsYmd(iso, months) {
   return `${String(next.getDate()).padStart(2, "0")}/${String(next.getMonth() + 1).padStart(2, "0")}`;
 }
 
+function addMonthsDate(iso, months) {
+  const base = new Date(iso);
+  if (Number.isNaN(base.getTime())) return null;
+  return new Date(base.getFullYear(), base.getMonth() + months, base.getDate(), 12);
+}
+
+function formatFrDay(d) {
+  if (!d || Number.isNaN(d.getTime())) return "";
+  try {
+    return d.toLocaleDateString("fr-BE", { day: "numeric", month: "short", year: "numeric" });
+  } catch {
+    return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${d.getFullYear()}`;
+  }
+}
+
+function daysUntil(d) {
+  if (!d || Number.isNaN(d.getTime())) return null;
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12);
+  const end = new Date(d.getFullYear(), d.getMonth(), d.getDate(), 12);
+  return Math.round((end - start) / 86400000);
+}
+
+/** Libellé détail prêt (identique style historique finance) */
 export function loanDueLabel(loan) {
   const start = loan.approvedAt || loan.createdAt;
+  if (!start) return "";
+  const capital = Number(loan.amount) || 0;
+  const interest = Number(loan.interestAmount) || 0;
+  const paid = loanPaid(loan);
+
+  if (loan.status === "defaulted" || interest > 0) {
+    const parts = [`prêt init ${capital.toFixed(0)} €`];
+    if (interest > 0) parts.push(`art. 4.4 : ${interest.toFixed(0)} €`);
+    return parts.join(" · ");
+  }
+
+  const month1 = addMonthsDate(start, 1);
+  const month2 = addMonthsDate(start, 2);
+  if (!month1) return "";
+
+  // Avant la 1re échéance (80 %)
+  const d1 = daysUntil(month1);
+  if (d1 !== null && d1 >= 0 && paid < capital * 0.8 - 0.01) {
+    const jours = d1 === 0 ? "aujourd’hui" : d1 === 1 ? "1 jour" : `${d1} jours`;
+    return `Payer 80 % avant le ${formatFrDay(month1)} (${jours})`;
+  }
+
+  // Entre 80 % et solde
+  if (month2) {
+    const d2 = daysUntil(month2);
+    if (d2 !== null && d2 >= 0) {
+      const jours = d2 === 0 ? "aujourd’hui" : d2 === 1 ? "1 jour" : `${d2} jours`;
+      return `Solde avant le ${formatFrDay(month2)} (${jours})`;
+    }
+    if (d2 !== null && d2 < 0) {
+      return `Échéance dépassée · solde ${formatFrDay(month2)}`;
+    }
+  }
+
   const first = addMonthsYmd(start, 1);
   const second = addMonthsYmd(start, 2);
   return first && second ? `80% ${first} · Solde ${second}` : "";
