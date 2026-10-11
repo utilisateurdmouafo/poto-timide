@@ -11,6 +11,7 @@ const crypto = require("crypto");
 const path = require("path");
 const fs = require("fs");
 const db = require("./lib/db");
+const entities = require("./lib/entities");
 const { ensureFrozenPlanning } = require("./lib/default-planning");
 const push = require("./lib/push");
 const { applyGroupAction, advanceLoanStatuses } = require("./lib/group-actions");
@@ -336,7 +337,21 @@ async function getRawData(key) {
 }
 
 async function getData(key) {
-  const value = unwrapStored(await getRawData(key));
+  let value = unwrapStored(await getRawData(key));
+  // Listes : préférer la table entities si elle a des lignes
+  if (entities.isEntityKey(key)) {
+    try {
+      const domain = entities.domainForKey(key);
+      const count = await entities.countDomain(db, domain);
+      if (count > 0) {
+        value = await entities.loadDomainList(db, domain);
+      } else if (Array.isArray(value) && value.length) {
+        await entities.replaceDomainList(db, domain, value);
+      }
+    } catch (err) {
+      console.warn("entities hydrate:", key, err.message || err);
+    }
+  }
   if (key === "poto-timide-tournee") {
     try {
       const flags = await loadTourneeFlagsFromSql();
@@ -356,6 +371,14 @@ async function setData(key, value) {
     [key, encoded]
   );
   dataCache.set(key, encoded);
+  // Miroir SQL par entité (listes du site)
+  if (entities.isEntityKey(key) && Array.isArray(value)) {
+    try {
+      await entities.replaceDomainList(db, entities.domainForKey(key), value);
+    } catch (err) {
+      console.warn("entities.replaceDomainList:", key, err.message || err);
+    }
+  }
   backupDatabase().catch(() => {});
 }
 
@@ -1018,6 +1041,13 @@ async function restoreFullDump(dump) {
 
   const pushCount = await restorePushSubscriptions(dump.pushSubscriptions);
   await seedMissingAppData();
+  try {
+    await entities.ensureEntitiesTable(db);
+    const n = await entities.migrateAllFromAppData(db, async (key) => unwrapStored(await getRawData(key)));
+    if (n) console.log(`[entities] migration initiale: ${n} domaines`);
+  } catch (err) {
+    console.warn("Migration entities:", err.message || err);
+  }
   await backupDatabase();
 
   return {
