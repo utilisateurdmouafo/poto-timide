@@ -330,6 +330,57 @@ async function test(name, fn) {
     }),
   );
 
+
+  const {
+    canWriteSyncKey,
+    hasSyncTabPermission,
+  } = require("../lib/sync-permissions");
+
+  results.push(
+    await test("sécurité: admin peut tout écrire", async () => {
+      const actor = { id: DARIO_ID, isAdmin: true, roleIds: [], permissions: {} };
+      if (!canWriteSyncKey("poto-timide-tab-permissions", actor)) throw new Error("admin devrait écrire permissions");
+      if (!canWriteSyncKey("poto-timide-members", actor)) throw new Error("admin devrait écrire membres");
+    }),
+  );
+
+  results.push(
+    await test("sécurité: action-only bloqué en PUT", async () => {
+      const actor = { id: DARIO_ID, isAdmin: true, roleIds: ["tresorier"], permissions: { prets: ["tresorier"] } };
+      // même admin: action-only reste false (prêts via /api/actions)
+      if (canWriteSyncKey("poto-timide-prets", actor)) throw new Error("prets doit être action-only");
+      if (canWriteSyncKey("poto-timide-amendes-caisse", actor)) throw new Error("fine cash action-only");
+    }),
+  );
+
+  results.push(
+    await test("sécurité: VP communication seulement", async () => {
+      const actor = {
+        id: DARIO_ID,
+        isAdmin: false,
+        roleIds: ["vice-president"],
+        permissions: { communication: ["vice-president"], prets: ["tresorier"] },
+      };
+      if (!hasSyncTabPermission("communication", actor)) throw new Error("VP devrait avoir communication");
+      if (hasSyncTabPermission("prets", actor)) throw new Error("VP ne doit pas avoir prets");
+      if (!canWriteSyncKey("poto-timide-notifications", actor)) throw new Error("notif authenticated");
+      if (canWriteSyncKey("poto-timide-tab-permissions", actor)) throw new Error("VP ne doit pas modifier Accès");
+    }),
+  );
+
+  results.push(
+    await test("sécurité: Accès réservé Mode Dev (frontend)", async () => {
+      const fs = require("fs");
+      const path = require("path");
+      const sharedSrc = fs.readFileSync(
+        path.join(__dirname, "..", "frontend", "src", "shared.jsx"),
+        "utf8",
+      );
+      if (!sharedSrc.includes("acces: fullAccess")) throw new Error("acces doit être fullAccess");
+      if (!sharedSrc.includes("admins: fullAccess")) throw new Error("admins fullAccess");
+    }),
+  );
+
   const ok = results.filter((r) => r.ok).length;
   const fail = results.filter((r) => !r.ok);
   const summary = fail.length
@@ -337,7 +388,7 @@ async function test(name, fn) {
     : `Tests: ${ok}/${results.length} OK. Toutes les fonctions simulées ont réussi.`;
 
   await notifyDarioOnly({
-    title: "Rapport tests bloc temps réel",
+    title: "Rapport tests bloc sécurité",
     message: summary,
     tab: "reunion",
   });

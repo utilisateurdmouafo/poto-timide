@@ -73,7 +73,6 @@ export const ADMIN_SECTIONS = [
 export function allowedAdminSections(data, session, fullAccess) {
   const sections = ADMIN_SECTIONS.map(([id]) => id);
   if (!session) return [];
-  const isOwner = Boolean(session.isAdmin);
   if (fullAccess) return sections;
   const roleIds = Object.entries(data[KEYS.roles] || {}).filter(([, memberId]) => String(memberId) === String(session.id)).map(([roleId]) => roleId);
   const permissions = data[KEYS.permissions] || {};
