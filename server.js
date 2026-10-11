@@ -1142,43 +1142,52 @@ function getDefaultMembers() {
     }));
 }
 
+async function pickUniqueUsername(baseName, memberId) {
+  const base = normalizeUsername(baseName) || "user";
+  let candidate = base;
+  let n = 0;
+  while (n < 50) {
+    const row = await db.get("SELECT id FROM users WHERE username = ?", [candidate]);
+    if (!row || String(row.id) === String(memberId)) return candidate;
+    n += 1;
+    candidate = `${base}${n}`;
+  }
+  return `${base}-${String(memberId).slice(0, 8)}`;
+}
+
 async function ensureUserForMember(member, forceReset = false) {
-  const username = normalizeUsername(member.name);
-  if (!username || !member?.id) return;
+  if (!member?.id) return;
   const existing = await db.get("SELECT * FROM users WHERE id = ?", [member.id]);
   let changed = false;
 
   if (!existing) {
-    // username déjà pris par un autre id → ne pas planter le démarrage
-    const byName = await db.get("SELECT * FROM users WHERE username = ?", [username]);
-    if (byName) {
-      // Réutilise le compte existant : on ne recrée pas
-      if (forceReset) {
-        try {
-          await db.run("UPDATE users SET password_hash = ?, must_change_password = 1 WHERE username = ?", [
-            hashPassword(DEFAULT_PASSWORD),
-            username,
-          ]);
-          changed = true;
-        } catch (e) {
-          console.warn("ensureUserForMember forceReset:", e?.message || e);
-        }
-      }
-    } else {
+    const username = await pickUniqueUsername(member.name, member.id);
+    try {
+      await db.run(
+        "INSERT INTO users (id, username, password_hash, must_change_password) VALUES (?, ?, ?, 1)",
+        [member.id, username, hashPassword(DEFAULT_PASSWORD)],
+      );
+      changed = true;
+    } catch (e) {
+      const msg = String(e?.message || e || "");
+      if (!/UNIQUE|constraint/i.test(msg)) throw e;
+      // Retry with forced unique suffix
       try {
+        const fallback = await pickUniqueUsername(
+          `${normalizeUsername(member.name) || "user"}x`,
+          member.id,
+        );
         await db.run(
           "INSERT INTO users (id, username, password_hash, must_change_password) VALUES (?, ?, ?, 1)",
-          [member.id, username, hashPassword(DEFAULT_PASSWORD)]
+          [member.id, fallback, hashPassword(DEFAULT_PASSWORD)],
         );
         changed = true;
-      } catch (e) {
-        // UNIQUE username / id : ignore (seed concurrent ou déjà présent)
-        const msg = String(e?.message || e || "");
-        if (!/UNIQUE|constraint/i.test(msg)) throw e;
-        console.warn("ensureUserForMember insert ignoré:", msg);
+      } catch (e2) {
+        console.warn("ensureUserForMember insert impossible:", e2?.message || e2);
       }
     }
   } else {
+    const username = await pickUniqueUsername(member.name, member.id);
     if (existing.username !== username) {
       try {
         await db.run("UPDATE users SET username = ? WHERE id = ?", [username, member.id]);
@@ -1576,10 +1585,17 @@ function createApp() {
   }
 
   function requireAdmin(req, res, next) {
-    if (!req.session?.isAdmin) {
-      return res.status(403).json({ error: "Réservé aux administrateurs" });
-    }
-    next();
+    Promise.resolve()
+      .then(async () => {
+        if (req.session?.isAdmin) return true;
+        if (req.session?.userId && (await isAdminId(req.session.userId))) return true;
+        return false;
+      })
+      .then((ok) => {
+        if (!ok) return res.status(403).json({ error: "Réservé aux administrateurs" });
+        next();
+      })
+      .catch(() => res.status(403).json({ error: "Réservé aux administrateurs" }));
   }
 
   
@@ -1825,6 +1841,49 @@ async function syncPresenceLogFromOnline(onlineList) {
     } catch (err) {
       console.error(err);
       res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
+
+
+  // Ajout membre + compte de connexion (fiable)
+  app.post("/api/members/add", requireAuth, async (req, res) => {
+    try {
+      const sync = await buildSyncActor(req.session.userId);
+      if (!sync) return res.status(403).json({ error: "Membre introuvable." });
+      const can =
+        sync.isAdmin ||
+        sync.hasTab("membres") ||
+        sync.hasTab("bureau");
+      if (!can) {
+        return res.status(403).json({ error: "Vous n’avez pas accès à la gestion des membres." });
+      }
+      const name = String(req.body?.name || "").trim();
+      const kind = req.body?.kind === "nouveau" ? "nouveau" : "membre";
+      if (!name) return res.status(400).json({ error: "Le nom est obligatoire." });
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
+      const member = { id, name, kind, createdAt: now, updatedAt: now };
+      const existing = unwrapStored(await getData(MEMBERS_KEY)) || [];
+      const list = Array.isArray(existing) ? existing : [];
+      const next = [member, ...list.filter((m) => m && String(m.id) !== id)];
+      await setData(MEMBERS_KEY, next);
+      await ensureUserForMember(member, false);
+      const user = await db.get("SELECT id, username FROM users WHERE id = ?", [id]);
+      broadcastLive("data", { keys: [MEMBERS_KEY], at: now });
+      res.json({
+        ok: true,
+        member,
+        account: user
+          ? { username: user.username, password: DEFAULT_PASSWORD }
+          : null,
+        data: { [MEMBERS_KEY]: next },
+        message: user
+          ? `Membre ajouté. Connexion : ${user.username} / ${DEFAULT_PASSWORD}`
+          : "Membre ajouté (compte à créer manuellement si besoin).",
+      });
+    } catch (err) {
+      console.error("members/add:", err);
+      res.status(500).json({ error: err.message || "Impossible d’ajouter le membre." });
     }
   });
 

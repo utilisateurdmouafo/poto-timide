@@ -20,7 +20,7 @@ export function AdminPage({ section, sections, setSection, data, member, members
   );
 
   function renderSection() {
-    if (activeSection === "membres") return <MembersAdmin data={data} members={members} runAction={runAction} confirmAction={confirmAction} saveData={saveData} />;
+    if (activeSection === "membres") return <MembersAdmin data={data} members={members} runAction={runAction} confirmAction={confirmAction} saveData={saveData} mergeData={mergeData} />;
     if (activeSection === "admins") return <AdminIdsPage data={data} members={members} saveData={saveData} />;
     if (activeSection === "amendes") return <DebtsPage data={data} member={{ id: "" }} members={members} names={names} canManage runAction={runAction} confirmAction={confirmAction} />;
     if (activeSection === "prets") return <LoansPage data={data} member={{ id: "" }} members={members} names={names} canManage runAction={runAction} confirmAction={confirmAction} />;
@@ -35,7 +35,7 @@ export function AdminPage({ section, sections, setSection, data, member, members
   }
 }
 
-export function MembersAdmin({ data, members, runAction, confirmAction, saveData }) {
+export function MembersAdmin({ data, members, runAction, confirmAction, saveData, mergeData }) {
   // Liste complète (y compris "nouveau") pour que l’ajout reste visible après enregistrement
   const allMembers = list(data, KEYS.members).filter((m) => m && m.id && !m.deletedAt);
   const activeMembers = allMembers.filter((m) => m.kind !== "nouveau");
@@ -51,35 +51,28 @@ export function MembersAdmin({ data, members, runAction, confirmAction, saveData
         return false;
       }
       const kind = values.kind === "nouveau" ? "nouveau" : "membre";
-      const id = crypto.randomUUID();
-      const member = {
-        id,
-        name,
-        kind,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
-      const next = [member, ...allMembers.filter((m) => String(m.id) !== id)];
-      const ok = await saveData({ [KEYS.members]: next }, "Membre ajouté.");
-      if (ok === false) {
-        alert("Échec de l’ajout du membre. Réessaie en Mode Dev ou avec l’accès Membres.");
+      try {
+        const result = await request("/api/members/add", {
+          method: "POST",
+          body: JSON.stringify({ name, kind }),
+        });
+        if (result?.data?.[KEYS.members]) {
+          if (typeof mergeData === "function") {
+            mergeData(result.data, result.message || "Membre ajouté.");
+          } else {
+            await saveData(result.data, result.message || "Membre ajouté.");
+          }
+        }
+        if (result?.account?.username) {
+          alert(
+            `Membre ajouté.\nConnexion : ${result.account.username}\nMot de passe : ${result.account.password}`,
+          );
+        }
+        return result;
+      } catch (err) {
+        alert(err.message || "Impossible d’ajouter le membre.");
         return false;
       }
-      // Crée le compte de connexion (mot de passe par défaut 1234)
-      try {
-        const result = await request(`/api/admin/ensure-user/${encodeURIComponent(id)}`, {
-          method: "POST",
-          body: "{}",
-        });
-        if (result?.message) {
-          // message déjà en notice via saveData ; garder discret
-        }
-      } catch (err) {
-        alert(
-          "Membre enregistré, mais le compte de connexion n’a pas pu être créé automatiquement. Utilise « Créer le compte ».",
-        );
-      }
-      return ok;
     }} />
     <p className="muted">La suppression d’un membre est traitée côté serveur et retire ses affectations de rôle et ses données de groupe.</p>
     <Table columns={[
