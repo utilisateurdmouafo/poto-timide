@@ -880,10 +880,20 @@ async function persistStorageValue(key, value) {
       value = mergeTourneeData(unwrapStored(existingRaw) || { years: {} }, unwrapStored(value) || { years: {} });
     } else if (MERGE_BY_ID_KEYS.has(key)) {
       value = mergeById(unwrapStored(existingRaw) || [], unwrapStored(value) || []);
-    } else if (key === "poto-timide-tab-permissions" || key === "poto-timide-roles") {
-      // Remplacement intégral : les cases Accès / bureau doivent toujours s'enregistrer
+    } else if (
+      key === "poto-timide-tab-permissions" ||
+      key === "poto-timide-roles" ||
+      key === "poto-timide-cotisations" ||
+      key === "poto-timide-admin-ids" ||
+      key === "poto-timide-financier-account"
+    ) {
+      // Remplacement intégral : ne jamais jeter une écriture admin
       value = unwrapStored(value) || {};
-    } else if (objectUpdatedAt(existingRaw) > objectUpdatedAt(value)) {
+    } else if (
+      key !== "poto-timide-tournee" &&
+      objectUpdatedAt(existingRaw) > objectUpdatedAt(value)
+    ) {
+      // Pour les objets versionnés hors tournée : garder le plus récent
       return unwrapStored(existingRaw);
     }
     await setData(key, value);
