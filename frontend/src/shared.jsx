@@ -79,10 +79,12 @@ export function allowedAdminSections(data, session, fullAccess) {
   const permissions = data[KEYS.permissions] || {};
   const hasTab = (...tabs) => tabs.some((tab) => roleIds.some((roleId) => Array.isArray(permissions[tab]) && permissions[tab].includes(roleId)));
   const financier = roleIds.includes("tresorier");
+  // Mode normal = uniquement les accès de rôle (cases Accès).
+  // Accès / Admins / Sauvegarde / Connexions = réservés au Mode Dev (propriétaire).
   const rules = {
     membres: hasTab("membres", "bureau"),
-    admins: isOwner,
-    acces: isOwner,
+    admins: fullAccess,
+    acces: fullAccess,
     tournee: hasTab("tournee"),
     caisse: financier || hasTab("caisse", "finance"),
     prets: financier || hasTab("prets"),
@@ -90,8 +92,8 @@ export function allowedAdminSections(data, session, fullAccess) {
     evenements: hasTab("evenements"),
     communication: hasTab("communication"),
     loi: hasTab("loi"),
-    sauvegarde: isOwner,
-    connexions: isOwner,
+    sauvegarde: fullAccess,
+    connexions: fullAccess,
   };
   return sections.filter((id) => rules[id]);
 }
