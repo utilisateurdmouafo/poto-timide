@@ -735,8 +735,7 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
     <div className="page-content communication-page">
       {/* Pas de grand titre « Communication » : les sous-onglets suffisent */}
 
-      {canManage && category !== "loi" && category !== "guide-site" && (
-              {canManage && category !== "loi" && (
+            {canManage && (
         <form
           className="panel form-panel inline-form"
           id="communication-composer"
@@ -748,54 +747,34 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
               alert("Titre et message sont obligatoires.");
               return;
             }
-            const all = list(data, KEYS.communication);
-            if (editingId) {
-              const targetId = String(editingId);
-              let found = false;
-              const next = all.map((row) => {
-                if (String(row.id) !== targetId) return row;
-                found = true;
-                return {
-                  ...row,
+            try {
+              const result = await request("/api/communication", {
+                method: "POST",
+                body: JSON.stringify({
+                  id: editingId || undefined,
                   title,
                   body,
-                  kind: row.kind || category,
-                  category: row.category || category,
-                  updatedAt: new Date().toISOString(),
-                };
+                  kind: category,
+                  category,
+                }),
               });
-              if (!found) {
-                alert("Publication introuvable — réessaie.");
+              const rows = result?.data?.["poto-timide-communication"];
+              if (!Array.isArray(rows)) {
+                alert("Réponse serveur invalide");
                 return;
               }
-              const ok = await saveData({ [KEYS.communication]: next }, "Publication modifiée.");
-              if (ok === false) return;
+              // Second PUT pour synchroniser le state React (merge serveur = stable)
+              await saveData(
+                { [KEYS.communication]: rows },
+                editingId ? "Publication modifiée." : "Publication ajoutée.",
+              );
+              if (result?.entry?.id) setOpenId(result.entry.id);
               setEditingId(null);
               setDraftTitle("");
               setDraftBody("");
-              return;
+            } catch (err) {
+              alert(err.message || "Publication impossible");
             }
-            const ok = await saveData(
-              {
-                [KEYS.communication]: [
-                  {
-                    id: crypto.randomUUID(),
-                    kind: category,
-                    category,
-                    title,
-                    body,
-                    createdAt: new Date().toISOString(),
-                    updatedAt: new Date().toISOString(),
-                    createdBy: member?.id,
-                  },
-                  ...all,
-                ],
-              },
-              "Publication ajoutée.",
-            );
-            if (ok === false) return;
-            setDraftTitle("");
-            setDraftBody("");
           }}
         >
           <h3>{editingId ? `Modifier — ${tabMeta.label}` : `Publier — ${tabMeta.label}`}</h3>
@@ -815,10 +794,10 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
               <textarea
                 name="body"
                 required
-                rows={6}
+                rows={8}
                 value={draftBody}
                 onChange={(event) => setDraftBody(event.target.value)}
-                placeholder="Texte…"
+                placeholder="Texte du rapport, communiqué ou ordre du jour…"
               />
             </label>
           </div>

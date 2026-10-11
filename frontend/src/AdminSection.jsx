@@ -2,7 +2,7 @@
 import { KEYS, AdminTableContext, TOURNEE_MONTHS, ADMIN_SECTIONS, money, date, active, list, byNewest, request, Button, Form, Table, AdminTable, Stat, ROLE_NAMES, OrderEditor, MiniAmountAction, PageHeading, PanelTitle, Status } from "./shared.jsx";
 import { LoansPage, EventsPage, DebtsPage, FinancePage, CommunicationPage } from "./pages.jsx";
 
-export function AdminPage({ section, sections, setSection, data, member, members, names, runAction, confirmAction, saveData }) {
+export function AdminPage({ section, sections, setSection, data, member, members, names, runAction, confirmAction, saveData, mergeData }) {
   const sectionAliases = { annuel: "caisse", journal: "connexions" };
   const requestedSection = sectionAliases[section] || section;
   const visibleSections = ADMIN_SECTIONS.filter(([id]) => sections.includes(id));
@@ -27,7 +27,7 @@ export function AdminPage({ section, sections, setSection, data, member, members
     if (activeSection === "evenements") return <EventsPage data={data} member={{ id: "" }} members={members} names={names} canManage runAction={runAction} confirmAction={confirmAction} />;
     if (activeSection === "caisse") return <><FinancePage data={data} members={members} names={names} canManage runAction={runAction} confirmAction={confirmAction} saveData={saveData} /><AnnualFundAdmin data={data} members={members} names={names} runAction={runAction} confirmAction={confirmAction} /></>;
     if (activeSection === "tournee") return <TourneeAdmin data={data} members={members} saveData={saveData} />;
-    if (activeSection === "communication") return <CommunicationPage data={data} members={members} canManage member={member} saveData={saveData} />;
+    if (activeSection === "communication") return <CommunicationPage data={data} members={members} canManage member={member} saveData={saveData} mergeData={mergeData} />;
     if (activeSection === "loi") return <ReferenceAdmin data={data} saveData={saveData} />;
     if (activeSection === "connexions") return <LoginLogAdmin />;
     if (activeSection === "sauvegarde") return <BackupAdmin />;

@@ -1963,6 +1963,100 @@ async function syncPresenceLogFromOnline(onlineList) {
   }
 
 
+
+  // Publication communication (rapport, ordre du jour, communiqué) — fiable
+  app.post("/api/communication", requireAuth, async (req, res) => {
+    try {
+      const actor = await findMemberById(req.session.userId);
+      if (!actor) return res.status(403).json({ error: "Membre introuvable." });
+      const [storedRoles, storedPermissions, admin] = await Promise.all([
+        getData("poto-timide-roles"),
+        getData("poto-timide-tab-permissions"),
+        isAdminId(actor.id),
+      ]);
+      const roleIds = Object.entries(storedRoles || {})
+        .filter(([, memberId]) => String(memberId) === String(actor.id))
+        .map(([roleId]) => roleId);
+      const permissions =
+        storedPermissions && typeof storedPermissions === "object"
+          ? storedPermissions
+          : DEFAULT_TAB_PERMISSIONS;
+      const syncActor = { id: actor.id, isAdmin: admin, roleIds, permissions };
+      if (!admin && !hasSyncTabPermission("communication", syncActor)) {
+        return res.status(403).json({ error: "Vous n’avez pas accès à la communication." });
+      }
+      const body = req.body || {};
+      const title = String(body.title || "").trim();
+      const text = String(body.body || "").trim();
+      const kind = String(body.kind || body.category || "communique").trim() || "communique";
+      const editId = body.id ? String(body.id) : "";
+      if (!title || !text) {
+        return res.status(400).json({ error: "Titre et message obligatoires." });
+      }
+      const existing = unwrapStored(await getData("poto-timide-communication")) || [];
+      const list = Array.isArray(existing) ? existing : [];
+      const now = new Date().toISOString();
+      let next;
+      let entry;
+      if (editId) {
+        let found = false;
+        next = list.map((row) => {
+          if (String(row?.id) !== editId) return row;
+          found = true;
+          entry = {
+            ...row,
+            title,
+            body: text,
+            kind: row.kind || kind,
+            category: row.category || kind,
+            updatedAt: now,
+          };
+          return entry;
+        });
+        if (!found) return res.status(404).json({ error: "Publication introuvable." });
+      } else {
+        entry = {
+          id: crypto.randomUUID(),
+          kind,
+          category: kind,
+          title,
+          body: text,
+          createdAt: now,
+          updatedAt: now,
+          createdBy: actor.id,
+        };
+        next = [entry, ...list];
+      }
+      await setData("poto-timide-communication", next);
+      const silent = req.headers["x-poto-silent"] === "1" || Boolean(body.silent);
+      try {
+        await notifyAllMembers({
+          actor,
+          type: "communication",
+          title: kind === "rapport" ? "Nouveau rapport" : kind === "agenda" ? "Ordre du jour" : "Communication",
+          message: `${actor.name} a ${editId ? "modifié" : "publié"} : ${title}`,
+          tab: "communication",
+          item: entry.id,
+          silent,
+        });
+      } catch (err) {
+        console.warn("Notif communication:", err.message || err);
+      }
+      broadcastLive("data", {
+        keys: ["poto-timide-communication", "poto-timide-notifications"],
+        at: now,
+      });
+      res.json({
+        ok: true,
+        entry,
+        data: { "poto-timide-communication": next },
+      });
+    } catch (err) {
+      console.error("Publication communication impossible :", err);
+      res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
+
   app.put("/api/data", requireAuth, async (req, res) => {
     const runSync = async () => {
       const payload = await sanitizePayloadForOwner(req.body || {});
