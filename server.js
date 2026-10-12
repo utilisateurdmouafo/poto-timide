@@ -1724,6 +1724,7 @@ async function syncPresenceLogFromOnline(onlineList) {
           member: {
             id: member.id,
             name: member.name,
+            kind: member.kind === "nouveau" ? "nouveau" : "membre",
             isAdmin: req.session.isAdmin,
           },
           mustChangePassword: req.session.mustChangePassword,
