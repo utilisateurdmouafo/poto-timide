@@ -94,20 +94,77 @@ export function MembersAdmin({ data, members, runAction, confirmAction, saveData
 }
 
 export function AdminIdsPage({ data, members, saveData }) {
+  const OWNER_NAME = "Dario";
+  const isOwnerMember = (member) =>
+    String(member?.name || "").trim().toLowerCase() === OWNER_NAME.toLowerCase();
   const raw = data[KEYS.adminIds];
   const current = Array.isArray(raw) ? raw : Array.isArray(raw?.ids) ? raw.ids : [];
+  // Fondateur jamais affiché / jamais retirable dans cette liste
+  const listed = members.filter(
+    (member) =>
+      !isOwnerMember(member) && current.some((id) => String(id) === String(member.id)),
+  );
   const assign = (ids) => {
-    const value = Array.isArray(raw) ? ids : { ...(raw || {}), ids, updatedAt: new Date().toISOString() };
+    const owner = members.find(isOwnerMember);
+    const cleaned = [...new Set(ids.map(String).filter(Boolean))];
+    // Toujours conserver le fondateur côté données si présent
+    if (owner && !cleaned.includes(String(owner.id))) cleaned.unshift(String(owner.id));
+    const value = Array.isArray(raw)
+      ? cleaned
+      : { ...(raw || {}), ids: cleaned, updatedAt: new Date().toISOString() };
     return saveData({ [KEYS.adminIds]: value }, "Liste des administrateurs mise à jour.");
   };
   return <>
-    <PanelTitle title="Administrateurs du groupe" meta={`${current.length} administrateur${current.length === 1 ? "" : "s"}`} />
-    <p className="muted">Les administrateurs peuvent gérer les membres, les finances, les événements et les autorisations. Le propriétaire du site reste administrateur.</p>
-    {members.some((member) => !current.some((id) => String(id) === String(member.id))) && <Form className="inline-form" title="Nommer un administrateur" fields={[
-      { name: "memberId", label: "Membre", options: members.filter((member) => !current.some((id) => String(id) === String(member.id))).map((member) => [member.id, member.name]) },
-    ]} submitLabel="Nommer administrateur" onSubmit={(values) => assign([...new Set([...current, values.memberId])])} />}
-    <section className="panel inset-panel"><PanelTitle title="Administrateurs actuels" />
-      {current.length ? <div className="admin-id-list">{members.filter((member) => current.some((id) => String(id) === String(member.id))).map((member) => <div className="admin-id-card" key={member.id}><span><strong>{member.name}</strong><small>{member.kind === "nouveau" ? "Nouveau membre" : "Membre du groupe"}</small></span><Button variant="danger" onClick={() => assign(current.filter((id) => String(id) !== String(member.id)))}>Retirer</Button></div>)}</div> : <p className="muted">Aucun administrateur supplémentaire n’est désigné.</p>}
+    <PanelTitle title="Administrateurs du groupe" meta={`${listed.length} administrateur${listed.length === 1 ? "" : "s"} supplémentaire${listed.length === 1 ? "" : "s"}`} />
+    <p className="muted">
+      Le fondateur (Dario) est administrateur permanent du site : il n’apparaît pas ici et personne ne peut le retirer.
+      Tu peux nommer d’autres administrateurs ci-dessous.
+    </p>
+    <Form
+      className="inline-form"
+      title="Nommer un administrateur"
+      fields={[
+        {
+          name: "memberId",
+          label: "Membre",
+          options: members
+            .filter(
+              (member) =>
+                !isOwnerMember(member) &&
+                member.kind !== "nouveau" &&
+                !current.some((id) => String(id) === String(member.id)),
+            )
+            .map((member) => [member.id, member.name]),
+        },
+      ]}
+      submitLabel="Nommer administrateur"
+      onSubmit={(values) => {
+        if (!values.memberId) return;
+        return assign([...current, values.memberId]);
+      }}
+    />
+    <section className="panel inset-panel">
+      <PanelTitle title="Administrateurs actuels" />
+      {listed.length ? (
+        <div className="admin-id-list">
+          {listed.map((member) => (
+            <div className="admin-id-card" key={member.id}>
+              <span>
+                <strong>{member.name}</strong>
+                <small>Administrateur nommé</small>
+              </span>
+              <Button
+                variant="danger"
+                onClick={() => assign(current.filter((id) => String(id) !== String(member.id)))}
+              >
+                Retirer
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="muted">Aucun administrateur supplémentaire n’est désigné.</p>
+      )}
     </section>
   </>;
 }
