@@ -148,9 +148,9 @@ export function TourneePage({ data, members, canManage, saveData }) {
       <section className="panel"><PanelTitle title="Organisation de la tournée" meta={`Année ${year}`} />
         <Table columns={[
           { key: "number", label: "N°", render: (row) => row.index + 1 },
-          { key: "month", label: "Mois" },
-          { key: "reception", label: "Ordre de réception", render: (row) => <MemberChips ids={record.reception?.[row.key] || []} members={members} flags={record.receptionOk} empty="Aucun membre défini." /> },
-          { key: "ristourne", label: "Ordre de ristourne", render: (row) => <MemberChips ids={record.ristourne?.[row.key] || []} members={members} flags={record.ristourneOk} amounts={data[KEYS.cotisations] || {}} empty="Aucun membre défini." /> },
+          { key: "month", label: "Mois", render: (row) => <strong>{row.month}</strong> },
+          { key: "reception", label: "Ordre de réception", render: (row) => <MemberChips ids={record.reception?.[row.key] || record.reception?.[Number(row.key)] || []} members={members} flags={record.receptionOk || {}} flagLabel="Reçu" empty="Aucun membre défini." /> },
+          { key: "ristourne", label: "Ordre de ristourne", render: (row) => <MemberChips ids={record.ristourne?.[row.key] || record.ristourne?.[Number(row.key)] || []} members={members} flags={record.bouffeOk || record.ristourneOk || {}} flagLabel="Déjà bouffé" amounts={data[KEYS.cotisations] || {}} empty="Aucun membre défini." /> },
         ]} rows={TOURNEE_MONTHS.map((monthIndex, index) => ({ id: `tournee-${monthIndex}`, key: String(monthIndex), index, month: new Intl.DateTimeFormat("fr-BE", { month: "long" }).format(new Date(2020, monthIndex, 1)) }))} />
       </section>
     </>}

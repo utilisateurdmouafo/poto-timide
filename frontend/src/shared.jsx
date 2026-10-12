@@ -362,13 +362,31 @@ export function Stat({ label, value, note, tone = "" }) {
   return <article className={`stat ${tone}`}><span>{label}</span><strong>{value}</strong>{note && <small>{note}</small>}</article>;
 }
 
-export function MemberChips({ ids, members, flags = {}, amounts, empty }) {
-  if (!ids?.length) return <span className="muted">{empty}</span>;
-  return <div className="member-chips">{ids.map((id) => {
-    const person = members.find((member) => String(member.id) === String(id));
-    return <span className="member-chip" key={id}>{person?.name || "Membre"}{(flags?.[id] === true || flags?.[id]?.ok) && <small>Validé</small>}{amounts && <small>{money((Number(amounts[id]) || 0) * 10)}</small>}</span>;
-  })}</div>;
+export function MemberChips({ ids, members, flags = {}, amounts, empty, flagLabel = "Validé" }) {
+  if (!ids?.length) return <span className="muted">{empty || "—"}</span>;
+  const isFlagged = (id) => {
+    const raw = flags?.[id] ?? flags?.[String(id)];
+    if (raw === true || raw === 1 || raw === "1") return true;
+    if (raw && typeof raw === "object" && (raw.ok === true || raw.ok === 1)) return true;
+    return Boolean(raw);
+  };
+  return (
+    <div className="member-chips">
+      {ids.map((id) => {
+        const person = members.find((row) => String(row.id) === String(id));
+        const ok = isFlagged(id);
+        return (
+          <span className={ok ? "member-chip member-chip--ok" : "member-chip"} key={id}>
+            <strong>{person?.name || "Membre"}</strong>
+            {ok ? <Status value={flagLabel} /> : null}
+            {amounts ? <small className="member-chip-amount">{money((Number(amounts[id]) || Number(amounts[String(id)]) || 0) * 10)}</small> : null}
+          </span>
+        );
+      })}
+    </div>
+  );
 }
+
 
 export const ROLE_NAMES = {
   president: "Président",
@@ -523,16 +541,17 @@ export function loanDueLabel(loan) {
 }
 
 export function Status({ value }) {
-  const tone = /^(payé|soldé|clôturé|remboursé|oui|entrée)(?:$|[\s·])/i.test(value)
+  const text = String(value || "");
+  const tone = /^(payé|soldé|clôturé|remboursé|oui|entrée|validé|reçu|déjà bouffé|bouffé)(?:$|[\s·])/i.test(text)
     ? "status-success"
-    : /^retard \+ intérêts/i.test(value)
+    : /^retard \+ intérêts/i.test(text)
       ? "status-pending"
-    : /retard|refus|non|passé en dette|sortie/i.test(value)
+    : /retard|refus|non|passé en dette|sortie/i.test(text)
       ? "status-danger"
-      : /à payer|partiel|payer|en cours|ouvert|en vote|attente|à valider/i.test(value)
+      : /à payer|partiel|payer|en cours|ouvert|en vote|attente|à valider/i.test(text)
         ? "status-pending"
         : "";
-  return <span className={`status ${tone}`}>{value}</span>;
+  return <span className={`status ${tone}`}>{text}</span>;
 }
 
 export function EmptyPanel({ message }) {
