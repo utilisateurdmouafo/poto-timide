@@ -1105,19 +1105,22 @@ export function NotificationsPage({ data, member, saveData, mergeData }) {
   const rows = list(data, KEYS.notifications).filter((row) => String(row.memberId) === String(member.id) && !row.deletedAt).sort(byNewest);
   const unread = rows.filter((row) => !row.read).length;
 
+  const applyNotifData = (payload, message) => {
+    if (!payload?.[KEYS.notifications]) return;
+    if (typeof mergeData === "function") {
+      mergeData(payload, message);
+    } else {
+      saveData(payload, message);
+    }
+  };
+
   const markRead = async (row) => {
     try {
       const result = await request("/api/notifications/read", {
         method: "POST",
         body: JSON.stringify({ id: row.id }),
       });
-      if (result?.data?.[KEYS.notifications]) {
-        if (typeof mergeData === "function") {
-          mergeData(result.data, "Notification marquée comme lue.");
-        } else {
-          await saveData(result.data, "Notification marquée comme lue.");
-        }
-      }
+      applyNotifData(result?.data, "Notification marquée comme lue.");
     } catch (err) {
       showPopup({
         title: "Erreur",
@@ -1127,13 +1130,56 @@ export function NotificationsPage({ data, member, saveData, mergeData }) {
     }
   };
 
+  const deleteOne = async (row) => {
+    try {
+      const result = await request("/api/notifications/delete", {
+        method: "POST",
+        body: JSON.stringify({ id: row.id }),
+      });
+      applyNotifData(result?.data, "Notification supprimée.");
+    } catch (err) {
+      showPopup({
+        title: "Erreur",
+        message: err.message || "Impossible de supprimer.",
+        variant: "error",
+      });
+    }
+  };
+
+  const deleteAll = async () => {
+    if (!rows.length) return;
+    if (!confirm(`Supprimer les ${rows.length} notification(s) ?`)) return;
+    try {
+      const result = await request("/api/notifications/delete", {
+        method: "POST",
+        body: JSON.stringify({ all: true }),
+      });
+      applyNotifData(result?.data, "Toutes les notifications ont été supprimées.");
+    } catch (err) {
+      showPopup({
+        title: "Erreur",
+        message: err.message || "Impossible de tout supprimer.",
+        variant: "error",
+      });
+    }
+  };
+
   return <div className="page-content">
     <PageHeading eyebrow="Votre espace" title="Notifications" description="Retrouvez les informations importantes sur les prêts, les paiements et les activités du groupe." />
-    <section className="panel"><PanelTitle title="Toutes les notifications" meta={`${unread} non lue${unread === 1 ? "" : "s"}`} />
+    <section className="panel">
+      <PanelTitle title="Toutes les notifications" meta={`${unread} non lue${unread === 1 ? "" : "s"}`} />
+      {rows.length > 0 && (
+        <div className="row-actions" style={{ marginBottom: 12 }}>
+          <Button variant="danger" onClick={deleteAll}>Tout supprimer</Button>
+        </div>
+      )}
       {!rows.length && <p className="muted">Vous n’avez aucune notification.</p>}
       <div className="notification-list">{rows.map((row) => <article className={row.read ? "notification-item" : "notification-item notification-unread"} key={row.id}>
         <div className="notification-copy"><strong>{row.title || row.type || "Information"}</strong><small>{date(row.createdAt || row.at)}</small><p>{row.message || "—"}</p></div>
-        <div className="row-actions">{!row.read && <Button onClick={() => markRead(row)}>Marquer comme lue</Button>}</div>
+        <div className="row-actions">
+          {!row.read && <Button onClick={() => markRead(row)}>Marquer comme lue</Button>}
+          <Button variant="danger" onClick={() => deleteOne(row)}>Supprimer</Button>
+        </div>
       </article>)}</div>
     </section>
   </div>;

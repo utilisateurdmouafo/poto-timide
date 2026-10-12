@@ -168,8 +168,8 @@ export default function App() {
     const pollData = () => refresh().catch((reason) => setError(reason.message));
     pollPresence();
     const timer = setInterval(pollPresence, 30000);
-    // Bloc 5: Socket.IO prioritaire ; polling 12s en secours (évite les freezes)
-    const dataTimer = setInterval(pollData, 12000);
+    // Socket.IO prioritaire ; polling 40s en secours (moins de charge = plus fluide)
+    const dataTimer = setInterval(pollData, 40000);
     return () => {
       stopped = true;
       clearTimeout(dataDebounce);

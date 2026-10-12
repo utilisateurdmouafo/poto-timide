@@ -328,6 +328,12 @@ async function getAllStoredData() {
     const domain = entities.domainForKey(key);
     if (domain && Array.isArray(entitiesByDomain[domain]) && entitiesByDomain[domain].length) {
       value = entitiesByDomain[domain];
+      // Cap notifications : liste énorme = site lent
+      if (domain === "notifications" && Array.isArray(value)) {
+        value = value
+          .filter((row) => row && !row.deletedAt)
+          .slice(0, 250);
+      }
     }
     if (key === "poto-timide-tournee") {
       try {
@@ -1874,7 +1880,45 @@ async function syncPresenceLogFromOnline(onlineList) {
   });
 
   // Accusé de lecture rapport
-  app.post("/api/communication/read", requireAuth, async (req, res) => {
+  
+  app.post("/api/notifications/delete", requireAuth, async (req, res) => {
+    try {
+      const actorId = String(req.session.userId || "");
+      const notifId = String(req.body?.id || "");
+      const deleteAll = Boolean(req.body?.all);
+      const list = unwrapStored(await getData("poto-timide-notifications")) || [];
+      const rows = Array.isArray(list) ? list : [];
+      const now = new Date().toISOString();
+      let changed = 0;
+      const next = rows.map((row) => {
+        if (!row || String(row.memberId) !== actorId) return row;
+        if (deleteAll) {
+          if (row.deletedAt) return row;
+          changed += 1;
+          return { ...row, deletedAt: now, read: true, updatedAt: now };
+        }
+        if (String(row.id) !== notifId) return row;
+        if (row.deletedAt) return row;
+        changed += 1;
+        return { ...row, deletedAt: now, read: true, updatedAt: now };
+      });
+      if (!deleteAll && !changed) {
+        return res.status(404).json({ error: "Notification introuvable." });
+      }
+      await setData("poto-timide-notifications", next);
+      broadcastLive("data", { keys: ["poto-timide-notifications"], at: now });
+      res.json({
+        ok: true,
+        deleted: changed,
+        data: { "poto-timide-notifications": next },
+      });
+    } catch (err) {
+      console.error("notifications/delete:", err);
+      res.status(500).json({ error: "Impossible de supprimer." });
+    }
+  });
+
+app.post("/api/communication/read", requireAuth, async (req, res) => {
     try {
       const actor = await findMemberById(req.session.userId);
       if (!actor) return res.status(403).json({ error: "Membre introuvable." });
