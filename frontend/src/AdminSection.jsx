@@ -149,106 +149,214 @@ export function AnnualFundAdmin({ data, members, names, runAction, confirmAction
 export function TourneeAdmin({ data, members, saveData, mergeData }) {
   const years = data[KEYS.tournee]?.years || {};
   const yearKeys = [...new Set([...Object.keys(years), String(new Date().getFullYear())])].sort((a, b) => Number(b) - Number(a));
-  const [year, setYear] = useState(yearKeys.includes(String(new Date().getFullYear())) && years[String(new Date().getFullYear())] ? String(new Date().getFullYear()) : yearKeys.find((key) => years[key]) || yearKeys[0]);
+  const defaultYear = yearKeys.includes(String(new Date().getFullYear())) && years[String(new Date().getFullYear())]
+    ? String(new Date().getFullYear())
+    : yearKeys.find((key) => years[key]) || yearKeys[0];
+  const [year, setYear] = useState(defaultYear);
   const [month, setMonth] = useState(String(TOURNEE_MONTHS.includes(new Date().getMonth()) ? new Date().getMonth() : TOURNEE_MONTHS[0]));
+  const [busy, setBusy] = useState(false);
   const record = years[year] || {};
   const cotisations = data[KEYS.cotisations] || {};
   const nameOf = (id) => members.find((row) => String(row.id) === String(id))?.name || "Membre";
   const monthName = (index) => new Intl.DateTimeFormat("fr-BE", { month: "long" }).format(new Date(2020, Number(index), 1));
   const shortMonth = (index) => new Intl.DateTimeFormat("fr-BE", { month: "short" }).format(new Date(2020, Number(index), 1));
-  const saveYear = (nextYear) => saveData({ [KEYS.tournee]: { ...(data[KEYS.tournee] || {}), years: { ...years, [year]: nextYear } } }, `Tournée ${year} mise à jour.`);
-  const setMap = (name, id, value) => saveYear({ ...record, [name]: { ...(record[name] || {}), [id]: value } });
-  const isOk = (name, id) => record[name]?.[id] === true || Boolean(record[name]?.[id]?.ok);
+
+  const readOrder = (kind) => {
+    const map = record[kind] || {};
+    const raw = map[month] || map[String(month)] || map[Number(month)] || record[month] || record[String(month)] || record[Number(month)] || [];
+    return (Array.isArray(raw) ? raw : []).map(String);
+  };
+
+  const hasReceptionMonth = (index) => {
+    const map = record.reception || {};
+    const raw = map[String(index)] || map[index] || record[String(index)] || record[index] || [];
+    return Array.isArray(raw) && raw.length > 0;
+  };
+
+  const isOk = (name, id) => {
+    const map = record[name] || {};
+    const raw = map[id] ?? map[String(id)];
+    if (raw === true || raw === 1 || raw === "1") return true;
+    if (raw && typeof raw === "object" && (raw.ok === true || raw.ok === 1)) return true;
+    return false;
+  };
+
+  const applyTournee = (payload, message) => {
+    if (!payload?.[KEYS.tournee]) return;
+    if (typeof mergeData === "function") mergeData({ [KEYS.tournee]: payload[KEYS.tournee] }, message);
+    else saveData({ [KEYS.tournee]: payload[KEYS.tournee] }, message);
+  };
+
   const setOk = async (name, id, ok) => {
+    setBusy(true);
     try {
       const result = await request("/api/tournee/flag", {
         method: "POST",
         body: JSON.stringify({ year, memberId: id, field: name, value: ok }),
       });
-      if (result?.data?.[KEYS.tournee]) {
-        if (typeof mergeData === "function") {
-          mergeData({ [KEYS.tournee]: result.data[KEYS.tournee] }, ok ? "Statut enregistré." : "Statut retiré.");
-        } else {
-          await saveData({ [KEYS.tournee]: result.data[KEYS.tournee] }, ok ? "Statut enregistré." : "Statut retiré.");
-        }
-      }
+      applyTournee(result?.data, ok ? "Statut enregistré." : "Statut retiré.");
     } catch (err) {
-      alert(err.message || "Impossible d’enregistrer le statut.");
+      showPopup({ title: "Erreur", message: err.message || "Impossible d’enregistrer le statut.", variant: "error" });
+    } finally {
+      setBusy(false);
     }
   };
+
   const setReceptionDate = async (id, dateValue) => {
+    setBusy(true);
     try {
       const result = await request("/api/tournee/flag", {
         method: "POST",
         body: JSON.stringify({ year, memberId: id, field: "receptionDates", dateValue }),
       });
-      if (result?.data?.[KEYS.tournee]) {
-        if (typeof mergeData === "function") {
-          mergeData({ [KEYS.tournee]: result.data[KEYS.tournee] }, "Date de réception enregistrée.");
-        } else {
-          await saveData({ [KEYS.tournee]: result.data[KEYS.tournee] }, "Date de réception enregistrée.");
-        }
-      }
+      applyTournee(result?.data, "Date de réception enregistrée.");
     } catch (err) {
-      alert(err.message || "Impossible d’enregistrer la date.");
+      showPopup({ title: "Erreur", message: err.message || "Impossible d’enregistrer la date.", variant: "error" });
+    } finally {
+      setBusy(false);
     }
   };
-  const setOrder = (kind, ids) => {
-    const order = { ...(record[kind] || {}) };
-    if (ids.length) order[month] = ids; else delete order[month];
-    const nextYear = { ...record, [kind]: order };
-    if (!Object.keys(order).length) delete nextYear[kind];
-    if (kind === "reception") { if (ids.length) nextYear[month] = ids; else delete nextYear[month]; }
-    return saveYear(nextYear);
+
+  const setOrder = async (kind, ids) => {
+    setBusy(true);
+    try {
+      const result = await request("/api/tournee/order", {
+        method: "POST",
+        body: JSON.stringify({ year, month, kind, ids }),
+      });
+      applyTournee(result?.data, `Ordre ${kind === "reception" ? "de réception" : "de ristourne"} mis à jour.`);
+    } catch (err) {
+      showPopup({ title: "Erreur", message: err.message || "Impossible d’enregistrer l’ordre.", variant: "error" });
+    } finally {
+      setBusy(false);
+    }
   };
-  const reception = record.reception?.[month] || [];
-  const ristourne = record.ristourne?.[month] || [];
+
+  const reception = readOrder("reception");
+  const ristourne = readOrder("ristourne");
+
   const move = (ids, index, delta, kind) => {
+    if (busy) return;
     const next = [...ids];
-    [next[index], next[index + delta]] = [next[index + delta], next[index]];
+    const j = index + delta;
+    if (j < 0 || j >= next.length) return;
+    [next[index], next[j]] = [next[j], next[index]];
     setOrder(kind, next);
   };
+
   const addSelect = (ids, kind) => (
-    <select aria-label="Ajouter un membre" value="" onChange={(event) => event.target.value && setOrder(kind, [...ids, event.target.value])}>
+    <select
+      aria-label="Ajouter un membre"
+      value=""
+      disabled={busy}
+      onChange={(event) => {
+        if (!event.target.value) return;
+        setOrder(kind, [...ids, String(event.target.value)]);
+      }}
+    >
       <option value="">+ Ajouter un membre…</option>
-      {members.filter((member) => !ids.includes(String(member.id))).map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+      {members
+        .filter((member) => member.kind !== "nouveau" && !ids.includes(String(member.id)))
+        .map((member) => (
+          <option key={member.id} value={member.id}>{member.name}</option>
+        ))}
     </select>
   );
+
   return <>
     <PanelTitle title="Tournée" meta="Choisissez un mois, puis organisez l’ordre de passage" />
     <div className="tournee-toolbar">
       <label>Année <select value={year} onChange={(event) => setYear(event.target.value)}>{yearKeys.map((item) => <option key={item}>{item}</option>)}</select></label>
-      <div className="month-pills" role="tablist" aria-label="Mois de la tournée">{TOURNEE_MONTHS.map((index) => <button key={index} role="tab" aria-selected={String(index) === month} className={String(index) === month ? "month-pill current" : "month-pill"} onClick={() => setMonth(String(index))}>{shortMonth(index)}{record.reception?.[index]?.length ? <i /> : null}</button>)}</div>
+      <div className="month-pills" role="tablist" aria-label="Mois de la tournée">
+        {TOURNEE_MONTHS.map((index) => (
+          <button
+            key={index}
+            type="button"
+            role="tab"
+            aria-selected={String(index) === month}
+            className={String(index) === month ? "month-pill current" : "month-pill"}
+            onClick={() => setMonth(String(index))}
+          >
+            {shortMonth(index)}
+            {hasReceptionMonth(index) ? <i /> : null}
+          </button>
+        ))}
+      </div>
     </div>
     <section className="panel inset-panel">
       <h3>1. Qui reçoit en {monthName(month)} ?</h3>
-      <p className="muted">Classez dans l’ordre de passage, puis cochez « Reçu » une fois la tournée faite.</p>
-      <div className="order-items">{reception.map((id, index) => <div className="order-item" key={id}>
-        <span className="order-rank">{index + 1}</span><strong>{nameOf(id)}</strong>
-        <label className="inline-check"><input type="checkbox" checked={isOk("receptionOk", id)} onChange={(event) => setOk("receptionOk", id, event.target.checked)} /> Reçu</label>
-        <input type="date" aria-label={`Date de réception de ${nameOf(id)}`} value={record.receptionDates?.[id] || ""} onChange={(event) => setReceptionDate(id, event.target.value)} />
-        <div className="row-actions"><Button aria-label="Monter" disabled={index === 0} onClick={() => move(reception, index, -1, "reception")}>↑</Button><Button aria-label="Descendre" disabled={index === reception.length - 1} onClick={() => move(reception, index, 1, "reception")}>↓</Button><Button variant="danger" aria-label="Retirer" onClick={() => setOrder("reception", reception.filter((value) => value !== id))}>×</Button></div>
-      </div>)}{!reception.length && <span className="muted">Personne pour l’instant.</span>}</div>
+      <p className="muted">Coche <strong>Reçu</strong> quand le poto a reçu. L’ordre se change avec ↑ ↓.</p>
+      <div className="order-items">
+        {reception.map((id, index) => (
+          <div className="order-item" key={id}>
+            <strong>{index + 1}. {nameOf(id)}</strong>
+            <label className="inline-check">
+              <input type="checkbox" disabled={busy} checked={isOk("receptionOk", id)} onChange={(event) => setOk("receptionOk", id, event.target.checked)} />
+              Reçu
+            </label>
+            <input
+              type="date"
+              disabled={busy}
+              aria-label={`Date de réception de ${nameOf(id)}`}
+              value={record.receptionDates?.[id] || record.receptionDates?.[String(id)] || ""}
+              onChange={(event) => setReceptionDate(id, event.target.value)}
+            />
+            <div className="row-actions">
+              <Button disabled={busy || index === 0} onClick={() => move(reception, index, -1, "reception")}>↑</Button>
+              <Button disabled={busy || index === reception.length - 1} onClick={() => move(reception, index, 1, "reception")}>↓</Button>
+              <Button variant="danger" disabled={busy} onClick={() => setOrder("reception", reception.filter((value) => value !== id))}>×</Button>
+            </div>
+          </div>
+        ))}
+        {!reception.length && <span className="muted">Personne pour l’instant.</span>}
+      </div>
       {addSelect(reception, "reception")}
     </section>
     <section className="panel inset-panel">
-      <h3>2. Ristourne</h3>
-      <p className="muted">Montant annuel = cotisation × 10 (septembre → juin). Cochez « Déjà bouffé » quand c’est réglé.</p>
-      <div className="order-items">{ristourne.map((id, index) => <div className="order-item" key={id}>
-        <span className="order-rank">{index + 1}</span><strong>{nameOf(id)}</strong><small>{money((Number(cotisations[id]) || 0) * 10)}</small>
-        <label className="inline-check"><input type="checkbox" checked={isOk("ristourneOk", id)} onChange={(event) => setOk("ristourneOk", id, event.target.checked)} /> Déjà bouffé</label>
-        <div className="row-actions"><Button aria-label="Monter" disabled={index === 0} onClick={() => move(ristourne, index, -1, "ristourne")}>↑</Button><Button aria-label="Descendre" disabled={index === ristourne.length - 1} onClick={() => move(ristourne, index, 1, "ristourne")}>↓</Button><Button variant="danger" aria-label="Retirer" onClick={() => setOrder("ristourne", ristourne.filter((value) => value !== id))}>×</Button></div>
-      </div>)}{!ristourne.length && <span className="muted">Personne pour l’instant.</span>}</div>
+      <h3>2. Ordre de ristourne — {monthName(month)}</h3>
+      <p className="muted">Coche <strong>Déjà bouffé</strong> quand c’est fait.</p>
+      <div className="order-items">
+        {ristourne.map((id, index) => (
+          <div className="order-item" key={id}>
+            <strong>{index + 1}. {nameOf(id)}</strong>
+            <label className="inline-check">
+              <input type="checkbox" disabled={busy} checked={isOk("bouffeOk", id)} onChange={(event) => setOk("bouffeOk", id, event.target.checked)} />
+              Déjà bouffé
+            </label>
+            <div className="row-actions">
+              <Button disabled={busy || index === 0} onClick={() => move(ristourne, index, -1, "ristourne")}>↑</Button>
+              <Button disabled={busy || index === ristourne.length - 1} onClick={() => move(ristourne, index, 1, "ristourne")}>↓</Button>
+              <Button variant="danger" disabled={busy} onClick={() => setOrder("ristourne", ristourne.filter((value) => value !== id))}>×</Button>
+            </div>
+          </div>
+        ))}
+        {!ristourne.length && <span className="muted">Personne pour l’instant.</span>}
+      </div>
       {addSelect(ristourne, "ristourne")}
     </section>
-    <details className="panel inset-panel"><summary><strong>Cotisations mensuelles</strong> <span className="muted">(servent au calcul de la ristourne)</span></summary>
-      <div className="cotisation-list">{members.map((member) => <form className="cotisation-row" key={member.id} onSubmit={(event) => {
-        event.preventDefault();
-        const value = Number(new FormData(event.currentTarget).get("amount"));
-        const current = { ...cotisations };
-        if (value > 0) current[member.id] = value; else delete current[member.id];
-        saveData({ [KEYS.cotisations]: current }, "Cotisation mise à jour.");
-      }}><strong>{member.name}</strong><input name="amount" type="number" min="0" step="0.5" defaultValue={cotisations[member.id] || ""} aria-label={`Cotisation de ${member.name}`} /><span>€</span><button className="button button-primary">OK</button></form>)}</div>
+    <details className="panel inset-panel">
+      <summary><strong>Cotisations mensuelles</strong> <span className="muted">(servent au calcul de la ristourne)</span></summary>
+      <div className="cotisation-list">
+        {members.filter((member) => member.kind !== "nouveau").map((member) => (
+          <form
+            className="cotisation-row"
+            key={member.id}
+            onSubmit={(event) => {
+              event.preventDefault();
+              const value = Number(new FormData(event.currentTarget).get("amount"));
+              const current = { ...cotisations };
+              if (value > 0) current[member.id] = value;
+              else delete current[member.id];
+              saveData({ [KEYS.cotisations]: current }, "Cotisation mise à jour.");
+            }}
+          >
+            <strong>{member.name}</strong>
+            <input name="amount" type="number" min="0" step="0.5" defaultValue={cotisations[member.id] || ""} aria-label={`Cotisation de ${member.name}`} />
+            <span>€</span>
+            <button type="submit" className="button button-primary">OK</button>
+          </form>
+        ))}
+      </div>
     </details>
   </>;
 }

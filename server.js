@@ -726,20 +726,16 @@ async function upsertTourneeFlag({ year, memberId, field, value, dateValue }) {
 function applyTourneeFlagsToData(tournee, flagsByYear) {
   const base = tournee && typeof tournee === "object" ? { ...tournee } : { years: {} };
   const years = { ...(base.years && typeof base.years === "object" ? base.years : {}) };
+  // SQL = source de vérité pour Reçu / Bouffé / dates (remplace, ne fusionne pas)
   for (const [year, flags] of Object.entries(flagsByYear || {})) {
     const current = { ...(years[year] || {}) };
-    if (flags.receptionOk && Object.keys(flags.receptionOk).length) {
-      current.receptionOk = { ...(current.receptionOk || {}), ...flags.receptionOk };
-    }
-    if (flags.ristourneOk && Object.keys(flags.ristourneOk).length) {
-      current.ristourneOk = { ...(current.ristourneOk || {}), ...flags.ristourneOk };
-    }
-    if (flags.bouffeOk && Object.keys(flags.bouffeOk).length) {
-      current.bouffeOk = { ...(current.bouffeOk || {}), ...flags.bouffeOk };
-    }
-    if (flags.receptionDates && Object.keys(flags.receptionDates).length) {
-      current.receptionDates = { ...(current.receptionDates || {}), ...flags.receptionDates };
-    }
+    current.receptionOk = { ...(flags.receptionOk || {}) };
+    current.ristourneOk = { ...(flags.ristourneOk || {}) };
+    current.bouffeOk = { ...(flags.bouffeOk || {}) };
+    current.receptionDates = {
+      ...(current.receptionDates || {}),
+      ...(flags.receptionDates || {}),
+    };
     years[year] = current;
   }
   return { ...base, years };
@@ -2393,7 +2389,62 @@ app.post("/api/members/add", requireAuth, async (req, res) => {
   // Accès Admin — enregistrement fiable des cases à cocher
   
   // Flags tournée (Reçu / Déjà bouffé) — SQL dédié
-  app.post("/api/tournee/flag", requireAuth, async (req, res) => {
+  
+  app.post("/api/tournee/order", requireAuth, async (req, res) => {
+    try {
+      const sync = await buildSyncActor(req.session.userId);
+      if (!sync) return res.status(403).json({ error: "Membre introuvable." });
+      if (!sync.isAdmin && !hasSyncTabPermission("tournee", sync)) {
+        return res.status(403).json({ error: "Vous n’avez pas accès à la tournée." });
+      }
+      const body = req.body || {};
+      const year = String(body.year || new Date().getFullYear());
+      const month = String(body.month ?? "");
+      const kind = String(body.kind || "");
+      if (!month || !["reception", "ristourne"].includes(kind)) {
+        return res.status(400).json({ error: "Paramètres invalides." });
+      }
+      const ids = Array.isArray(body.ids)
+        ? body.ids.map((id) => String(id)).filter(Boolean)
+        : [];
+      const tournee = unwrapStored(await getData("poto-timide-tournee")) || { years: {} };
+      const years = { ...(tournee.years || {}) };
+      const yearData = { ...(years[year] || {}) };
+      const orderMap = { ...(yearData[kind] || {}) };
+      // Normalise: uniquement des clés string
+      for (const key of Object.keys(orderMap)) {
+        if (String(key) !== key) {
+          orderMap[String(key)] = orderMap[key];
+          delete orderMap[key];
+        }
+      }
+      if (ids.length) orderMap[month] = ids;
+      else delete orderMap[month];
+      // Nettoie doublons numériques
+      delete orderMap[Number(month)];
+      yearData[kind] = orderMap;
+      // Legacy: tableau à la racine du mois (réception seulement)
+      if (kind === "reception") {
+        if (ids.length) yearData[month] = ids;
+        else {
+          delete yearData[month];
+          delete yearData[Number(month)];
+        }
+      }
+      years[year] = yearData;
+      const next = { ...tournee, years };
+      await setData("poto-timide-tournee", next);
+      const flags = await loadTourneeFlagsFromSql();
+      const merged = applyTourneeFlagsToData(next, flags);
+      broadcastLive("data", { keys: ["poto-timide-tournee"], at: new Date().toISOString() });
+      res.json({ ok: true, data: { "poto-timide-tournee": merged } });
+    } catch (err) {
+      console.error("tournee/order:", err);
+      res.status(500).json({ error: "Impossible d’enregistrer l’ordre." });
+    }
+  });
+
+app.post("/api/tournee/flag", requireAuth, async (req, res) => {
     try {
       const sync = await buildSyncActor(req.session.userId);
       if (!sync) return res.status(403).json({ error: "Membre introuvable." });
