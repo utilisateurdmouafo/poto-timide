@@ -194,15 +194,33 @@ export default function App() {
     return () => window.removeEventListener("poto-popup", onPopup);
   }, []);
 
+  const members = useMemo(() => list(data, KEYS.members).filter((member) => member.kind !== "nouveau"), [data]);
+  // Statut fiable : session.kind OU fiche membre en base
+  const sessionKind = useMemo(() => {
+    if (session?.kind === "nouveau" || session?.kind === "membre") return session.kind;
+    const row = list(data, KEYS.members).find((m) => String(m.id) === String(session?.id));
+    return row?.kind === "nouveau" ? "nouveau" : "membre";
+  }, [session, data]);
+  const isNouveau = sessionKind === "nouveau";
+  const memberNames = useMemo(() => Object.fromEntries(list(data, KEYS.members).map((member) => [member.id, member.name])), [data]);
+
   useEffect(() => {
-    if (session?.kind === "nouveau" && activeTab !== "loi") {
+    if (isNouveau && activeTab !== "loi") {
       setActiveTab("loi");
       setAdminSection("");
     }
-  }, [session, activeTab]);
+  }, [isNouveau, activeTab]);
 
-  const members = useMemo(() => list(data, KEYS.members).filter((member) => member.kind !== "nouveau"), [data]);
-  const memberNames = useMemo(() => Object.fromEntries(list(data, KEYS.members).map((member) => [member.id, member.name])), [data]);
+  // Enrichit session.kind dès que la liste membres est chargée
+  useEffect(() => {
+    if (!session?.id) return;
+    const row = list(data, KEYS.members).find((m) => String(m.id) === String(session.id));
+    if (!row) return;
+    const kind = row.kind === "nouveau" ? "nouveau" : "membre";
+    if (session.kind !== kind) {
+      setSession((prev) => (prev ? { ...prev, kind } : prev));
+    }
+  }, [data, session?.id, session?.kind]);
   const isDeveloper = Boolean(session?.isAdmin);
   const isAdmin = isDeveloper && devMode;
   function toggleDevMode() {
@@ -323,7 +341,7 @@ export default function App() {
   }
 
   function navigate(tab, section) {
-    if (session?.kind === "nouveau" && tab !== "loi") {
+    if (isNouveau && tab !== "loi") {
       tab = "loi";
       section = undefined;
     }
@@ -346,7 +364,7 @@ export default function App() {
   if (mustChangePassword) return <PasswordChange onSubmit={changePassword} error={error} />;
 
   const page = (() => {
-    if (session?.kind === "nouveau") {
+    if (isNouveau) {
       return <ReferencePage data={data} canManageLaw={false} canManageGuide={false} saveData={saveData} />;
     }
     switch (activeTab) {
@@ -397,16 +415,15 @@ export default function App() {
       default: return <MeetingPage data={data} member={session} members={members} names={memberNames} online={online} onlineMembers={onlineMembers} isAdmin={canOpenAdmin} can={can} unreadCount={unreadCount} navigate={navigate} />;
     }
   })();
-  const isNouveau = session?.kind === "nouveau";
   const selectedTab = isNouveau ? "loi" : activeTab;
 
   return (
     <div className="app-shell">
       <header className="topbar topbar--underline">
-        <a className="brand" href={session?.kind === "nouveau" ? "#loi" : "#reunion"} onClick={() => navigate(session?.kind === "nouveau" ? "loi" : "reunion")} aria-label="Poto Timide, accueil"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="12" fill="#0284C7"/><circle cx="27.5" cy="12" r="5.2" fill="#67E8F9"/><path d="M7 22.5c6.2-10.2 11.2-10.2 18.2 0 7 10.2 11.4 10.2 20.4 0" stroke="#fff" strokeWidth="3.1" strokeLinecap="round"/><path d="M9 29.2c5.2-8 9.4-8 16.2 0" stroke="#7DD3FC" strokeWidth="2.6" strokeLinecap="round"/></svg></span><span><strong>Poto Timide</strong><small>GROUPE · ESPACE PRIVÉ</small></span></a>
+        <a className="brand" href={isNouveau ? "#loi" : "#reunion"} onClick={() => navigate(isNouveau ? "loi" : "reunion")} aria-label="Poto Timide, accueil"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="12" fill="#0284C7"/><circle cx="27.5" cy="12" r="5.2" fill="#67E8F9"/><path d="M7 22.5c6.2-10.2 11.2-10.2 18.2 0 7 10.2 11.4 10.2 20.4 0" stroke="#fff" strokeWidth="3.1" strokeLinecap="round"/><path d="M9 29.2c5.2-8 9.4-8 16.2 0" stroke="#7DD3FC" strokeWidth="2.6" strokeLinecap="round"/></svg></span><span><strong>Poto Timide</strong><small>GROUPE · ESPACE PRIVÉ</small></span></a>
         <nav className="main-nav" aria-label="Navigation principale">
           {NAV.filter(([id]) => {
-            if (session?.kind === "nouveau") return id === "loi";
+            if (isNouveau) return id === "loi";
             if (id === "admin") return canOpenAdmin;
             return true;
           }).map(([id, label, icon]) => (
@@ -420,7 +437,7 @@ export default function App() {
       </header>
       <main className="page-main">
         {(error || notice) && <div className={`notice ${error ? "notice-error" : noticeIsWarning ? "notice-warning" : "notice-success"}`} role="status">{error || notice}<button aria-label="Fermer" onClick={() => { setError(""); setNotice(""); }}>×</button></div>}
-        {selectedTab !== "reunion" && session?.kind !== "nouveau" && <div className="reunion-back-bar"><Button onClick={() => navigate("reunion")}>← Réunion</Button></div>}
+        {selectedTab !== "reunion" && !isNouveau && <div className="reunion-back-bar"><Button onClick={() => navigate("reunion")}>← Réunion</Button></div>}
         {page}
       </main>
       <footer className="app-footer"><span>Poto Timide · Espace privé du groupe</span><span>{online} membre{online > 1 ? "s" : ""} en ligne · synchronisation temps réel</span></footer>

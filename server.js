@@ -1405,7 +1405,9 @@ async function seedFinanceIfMissing() {
 
 async function findMemberById(id) {
   const members = (await getData(MEMBERS_KEY)) || [];
-  return members.find((m) => m.id === id) || null;
+  const found =
+    (Array.isArray(members) ? members : []).find((m) => String(m?.id) === String(id)) || null;
+  return found;
 }
 
 async function isAdminId(memberId) {
@@ -1778,6 +1780,7 @@ async function syncPresenceLogFromOnline(onlineList) {
           member: {
             id: member.id,
             name: member.name,
+            kind: member.kind === "nouveau" ? "nouveau" : "membre",
             isAdmin: req.session.isAdmin,
           },
           mustChangePassword: req.session.mustChangePassword,
