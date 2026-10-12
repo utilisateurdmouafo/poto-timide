@@ -389,15 +389,15 @@ async function getData(key) {
   return value;
 }
 
-async function setData(key, value) {
+async function setData(key, value, options = {}) {
   const encoded = JSON.stringify(value);
   await db.run(
     "INSERT INTO app_data (key, value, updated_at) VALUES (?, ?, datetime('now')) ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
     [key, encoded]
   );
   dataCache.set(key, encoded);
-  // Miroir SQL par entité (listes du site)
-  if (entities.isEntityKey(key) && Array.isArray(value)) {
+  // Miroir SQL par entité (listes du site) — skip si mise à jour unitaire déjà faite
+  if (!options.skipEntities && entities.isEntityKey(key) && Array.isArray(value)) {
     try {
       await entities.replaceDomainList(db, entities.domainForKey(key), value);
     } catch (err) {
@@ -1859,20 +1859,37 @@ async function syncPresenceLogFromOnline(onlineList) {
       const actorId = String(req.session.userId || "");
       const notifId = String(req.body?.id || "");
       if (!notifId) return res.status(400).json({ error: "Notification invalide." });
-      const list = unwrapStored(await getData("poto-timide-notifications")) || [];
-      const rows = Array.isArray(list) ? list : [];
-      let found = false;
       const now = new Date().toISOString();
-      const next = rows.map((row) => {
-        if (String(row?.id) !== notifId) return row;
-        if (String(row.memberId) !== actorId) return row;
-        found = true;
-        return { ...row, read: true, updatedAt: now };
-      });
-      if (!found) return res.status(404).json({ error: "Notification introuvable." });
-      await setData("poto-timide-notifications", next);
+      // Lecture directe d’une seule ligne SQL (rapide)
+      const entityRow = await db.get(
+        "SELECT data FROM entities WHERE domain = ? AND id = ?",
+        ["notifications", notifId],
+      );
+      let item = null;
+      if (entityRow?.data) {
+        try {
+          item = JSON.parse(entityRow.data);
+        } catch {
+          item = null;
+        }
+      }
+      if (!item) {
+        const list = unwrapStored(await getData("poto-timide-notifications")) || [];
+        item = (Array.isArray(list) ? list : []).find((row) => String(row?.id) === notifId) || null;
+      }
+      if (!item || String(item.memberId) !== actorId) {
+        return res.status(404).json({ error: "Notification introuvable." });
+      }
+      const updated = { ...item, read: true, updatedAt: now };
+      await entities.upsertEntity(db, "notifications", updated);
+      // Patch app_data sans réécrire toutes les entities
+      const list = unwrapStored(await getRawData("poto-timide-notifications")) || [];
+      const rows = Array.isArray(list) ? list : [];
+      const next = rows.map((row) => (String(row?.id) === notifId ? updated : row));
+      if (!rows.some((row) => String(row?.id) === notifId)) next.unshift(updated);
+      await setData("poto-timide-notifications", next, { skipEntities: true });
       broadcastLive("data", { keys: ["poto-timide-notifications"], at: now });
-      res.json({ ok: true, data: { "poto-timide-notifications": next } });
+      res.json({ ok: true, updated, data: { "poto-timide-notifications": next } });
     } catch (err) {
       console.error("notifications/read:", err);
       res.status(500).json({ error: "Impossible de marquer comme lue." });
@@ -1886,9 +1903,9 @@ async function syncPresenceLogFromOnline(onlineList) {
       const actorId = String(req.session.userId || "");
       const notifId = String(req.body?.id || "");
       const deleteAll = Boolean(req.body?.all);
-      const list = unwrapStored(await getData("poto-timide-notifications")) || [];
-      const rows = Array.isArray(list) ? list : [];
       const now = new Date().toISOString();
+      const list = unwrapStored(await getRawData("poto-timide-notifications")) || [];
+      const rows = Array.isArray(list) ? list : [];
       let changed = 0;
       const next = rows.map((row) => {
         if (!row || String(row.memberId) !== actorId) return row;
@@ -1905,7 +1922,19 @@ async function syncPresenceLogFromOnline(onlineList) {
       if (!deleteAll && !changed) {
         return res.status(404).json({ error: "Notification introuvable." });
       }
-      await setData("poto-timide-notifications", next);
+      if (deleteAll) {
+        // Plusieurs lignes : upsert seulement celles de l’acteur
+        for (const row of next) {
+          if (String(row.memberId) === actorId && row.deletedAt === now) {
+            await entities.upsertEntity(db, "notifications", row);
+          }
+        }
+        await setData("poto-timide-notifications", next, { skipEntities: true });
+      } else {
+        const updated = next.find((row) => String(row.id) === notifId);
+        if (updated) await entities.upsertEntity(db, "notifications", updated);
+        await setData("poto-timide-notifications", next, { skipEntities: true });
+      }
       broadcastLive("data", { keys: ["poto-timide-notifications"], at: now });
       res.json({
         ok: true,
@@ -1927,26 +1956,46 @@ app.post("/api/communication/read", requireAuth, async (req, res) => {
       }
       const postId = String(req.body?.id || "");
       if (!postId) return res.status(400).json({ error: "Publication invalide." });
-      const list = unwrapStored(await getData("poto-timide-communication")) || [];
-      const rows = Array.isArray(list) ? list : [];
-      const index = rows.findIndex((row) => String(row?.id) === postId && !row.deletedAt);
-      if (index < 0) return res.status(404).json({ error: "Publication introuvable." });
-      const post = { ...rows[index] };
+      const now = new Date().toISOString();
+      let post = null;
+      const entityRow = await db.get(
+        "SELECT data FROM entities WHERE domain = ? AND id = ?",
+        ["communication", postId],
+      );
+      if (entityRow?.data) {
+        try {
+          post = JSON.parse(entityRow.data);
+        } catch {
+          post = null;
+        }
+      }
+      const list = unwrapStored(await getRawData("poto-timide-communication")) || [];
+      const rows = Array.isArray(list) ? [...list] : [];
+      if (!post) {
+        post = rows.find((row) => String(row?.id) === postId && !row.deletedAt) || null;
+      }
+      if (!post || post.deletedAt) {
+        return res.status(404).json({ error: "Publication introuvable." });
+      }
       const readBy =
         post.readBy && typeof post.readBy === "object" && !Array.isArray(post.readBy)
           ? { ...post.readBy }
           : {};
-      const now = new Date().toISOString();
       if (!readBy[String(actor.id)]) {
         readBy[String(actor.id)] = now;
       }
-      post.readBy = readBy;
-      post.readReceiptUpdatedAt = now;
-      post.updatedAt = now;
-      rows[index] = post;
-      await setData("poto-timide-communication", rows);
+      const updated = {
+        ...post,
+        readBy,
+        readReceiptUpdatedAt: now,
+        updatedAt: now,
+      };
+      await entities.upsertEntity(db, "communication", updated);
+      const next = rows.map((row) => (String(row?.id) === postId ? updated : row));
+      if (!rows.some((row) => String(row?.id) === postId)) next.unshift(updated);
+      await setData("poto-timide-communication", next, { skipEntities: true });
       broadcastLive("data", { keys: ["poto-timide-communication"], at: now });
-      res.json({ ok: true, data: { "poto-timide-communication": rows } });
+      res.json({ ok: true, updated, data: { "poto-timide-communication": next } });
     } catch (err) {
       console.error("communication/read:", err);
       res.status(500).json({ error: "Impossible d’enregistrer la lecture." });
