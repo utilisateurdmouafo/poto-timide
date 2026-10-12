@@ -2482,6 +2482,42 @@ app.post("/api/tournee/flag", requireAuth, async (req, res) => {
     }
   });
 
+
+  // Nommer / retirer administrateurs (fiable)
+  app.post("/api/admins", requireAuth, async (req, res) => {
+    try {
+      const sync = await buildSyncActor(req.session.userId);
+      if (!sync) return res.status(403).json({ error: "Membre introuvable." });
+      if (!sync.isAdmin && !(await isOwnerId(sync.id))) {
+        return res.status(403).json({ error: "Réservé aux administrateurs." });
+      }
+      const body = req.body || {};
+      let ids = Array.isArray(body.ids) ? body.ids.map(String).filter(Boolean) : null;
+      if (!ids) {
+        return res.status(400).json({ error: "Liste d’administrateurs invalide." });
+      }
+      const ownerId = await getOwnerId();
+      if (ownerId && !ids.includes(String(ownerId))) {
+        ids = [String(ownerId), ...ids.filter((id) => id !== String(ownerId))];
+      }
+      // Dédupliquer
+      ids = [...new Set(ids)];
+      const value = { ids, updatedAt: new Date().toISOString() };
+      await setData(ADMIN_IDS_KEY, value);
+      await enforceOwnerSafeguards();
+      const stored = await getData(ADMIN_IDS_KEY);
+      broadcastLive("data", { keys: [ADMIN_IDS_KEY], at: value.updatedAt });
+      res.json({
+        ok: true,
+        data: { [ADMIN_IDS_KEY]: stored },
+        message: "Liste des administrateurs enregistrée.",
+      });
+    } catch (err) {
+      console.error("admins:", err);
+      res.status(500).json({ error: "Impossible d’enregistrer les administrateurs." });
+    }
+  });
+
 app.post("/api/permissions", requireAuth, async (req, res) => {
     try {
       const sync = await buildSyncActor(req.session.userId);
@@ -2716,11 +2752,21 @@ app.post("/api/communication", requireAuth, async (req, res) => {
         });
       }
 
+      // Renvoyer TOUTES les clés persistées (évite que le client perde la modif)
+      const outData = {};
+      for (const key of persistedKeys) {
+        try {
+          outData[key] = await getData(key);
+        } catch {
+          /* ignore */
+        }
+      }
+      if (notifResult?.notifications) {
+        outData["poto-timide-notifications"] = notifResult.notifications;
+      }
       res.json({
         ok: true,
-        data: notifResult?.notifications
-          ? { "poto-timide-notifications": notifResult.notifications }
-          : undefined,
+        data: Object.keys(outData).length ? outData : undefined,
       });
     };
     const queued = groupActionQueue.then(runSync, runSync);

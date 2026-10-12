@@ -21,7 +21,7 @@ export function AdminPage({ section, sections, setSection, data, member, members
 
   function renderSection() {
     if (activeSection === "membres") return <MembersAdmin data={data} members={members} runAction={runAction} confirmAction={confirmAction} saveData={saveData} mergeData={mergeData} />;
-    if (activeSection === "admins") return <AdminIdsPage data={data} members={members} saveData={saveData} />;
+    if (activeSection === "admins") return <AdminIdsPage data={data} members={members} saveData={saveData} mergeData={mergeData} />;
     if (activeSection === "amendes") return <DebtsPage data={data} member={{ id: "" }} members={members} names={names} canManage runAction={runAction} confirmAction={confirmAction} />;
     if (activeSection === "prets") return <LoansPage data={data} member={{ id: "" }} members={members} names={names} canManage runAction={runAction} confirmAction={confirmAction} />;
     if (activeSection === "evenements") return <EventsPage data={data} member={{ id: "" }} members={members} names={names} canManage runAction={runAction} confirmAction={confirmAction} />;
@@ -93,7 +93,7 @@ export function MembersAdmin({ data, members, runAction, confirmAction, saveData
   </>;
 }
 
-export function AdminIdsPage({ data, members, saveData }) {
+export function AdminIdsPage({ data, members, saveData, mergeData }) {
   const OWNER_NAME = "Dario";
   const isOwnerMember = (member) =>
     String(member?.name || "").trim().toLowerCase() === OWNER_NAME.toLowerCase();
@@ -104,15 +104,33 @@ export function AdminIdsPage({ data, members, saveData }) {
     (member) =>
       !isOwnerMember(member) && current.some((id) => String(id) === String(member.id)),
   );
-  const assign = (ids) => {
+  const assign = async (ids) => {
     const owner = members.find(isOwnerMember);
     const cleaned = [...new Set(ids.map(String).filter(Boolean))];
-    // Toujours conserver le fondateur côté données si présent
     if (owner && !cleaned.includes(String(owner.id))) cleaned.unshift(String(owner.id));
-    const value = Array.isArray(raw)
-      ? cleaned
-      : { ...(raw || {}), ids: cleaned, updatedAt: new Date().toISOString() };
-    return saveData({ [KEYS.adminIds]: value }, "Liste des administrateurs mise à jour.");
+    try {
+      const result = await request("/api/admins", {
+        method: "POST",
+        body: JSON.stringify({ ids: cleaned }),
+      });
+      if (result?.data?.[KEYS.adminIds] != null) {
+        if (typeof mergeData === "function") {
+          mergeData(result.data, "Liste des administrateurs enregistrée.");
+        } else {
+          await saveData(result.data, "Liste des administrateurs enregistrée.");
+        }
+        return result;
+      }
+      showPopup({ title: "Erreur", message: "Réponse serveur invalide.", variant: "error" });
+      return false;
+    } catch (err) {
+      showPopup({
+        title: "Erreur",
+        message: err.message || "Impossible d’enregistrer l’administrateur.",
+        variant: "error",
+      });
+      return false;
+    }
   };
   return <>
     <PanelTitle title="Administrateurs du groupe" meta={`${listed.length} administrateur${listed.length === 1 ? "" : "s"} supplémentaire${listed.length === 1 ? "" : "s"}`} />
@@ -463,7 +481,7 @@ export function AccessAdmin({ data, members, saveData, mergeData }) {
       });
       const saved = result?.data?.[KEYS.permissions];
       if (!saved || typeof saved !== "object") {
-        alert("Réponse serveur invalide pour les accès.");
+        showPopup({ title: "Erreur", message: "Réponse serveur invalide pour les accès.", variant: "error" });
         return;
       }
       if (typeof mergeData === "function") {
@@ -472,7 +490,7 @@ export function AccessAdmin({ data, members, saveData, mergeData }) {
         await saveData({ [KEYS.permissions]: saved }, "Autorisations mises à jour.");
       }
     } catch (err) {
-      alert(err.message || "Échec de l’enregistrement des accès.");
+      showPopup({ title: "Erreur", message: err.message || "Échec de l’enregistrement des accès.", variant: "error" });
     }
   };
 
