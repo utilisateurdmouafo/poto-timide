@@ -247,6 +247,50 @@ export function Form({ title, fields, submitLabel = "Enregistrer", onSubmit, cla
   );
 }
 
+
+/** Affiche un popup global (écoute dans App). */
+export function showPopup({ title = "", message = "", variant = "info" } = {}) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent("poto-popup", {
+      detail: { title, message, variant: variant || "info" },
+    }),
+  );
+}
+
+export function Modal({ open, title, message, variant = "info", onClose, children }) {
+  if (!open) return null;
+  const tone =
+    variant === "error" ? "modal-error" : variant === "success" ? "modal-success" : "modal-info";
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <div
+        className={`modal-card ${tone}`}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="poto-modal-title"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="modal-icon" aria-hidden="true">
+          {variant === "error" ? "!" : variant === "success" ? "✓" : "i"}
+        </div>
+        {title ? (
+          <h2 id="poto-modal-title" className="modal-title">
+            {title}
+          </h2>
+        ) : null}
+        {message ? <p className="modal-message">{message}</p> : null}
+        {children}
+        <div className="modal-actions">
+          <button type="button" className="button button-primary modal-ok" onClick={onClose}>
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function Table({ columns, rows, empty = "Aucune donnée pour le moment.", footer, className = "" }) {
   const useAdminStyle = useContext(AdminTableContext);
   if (useAdminStyle) return <AdminTable columns={columns} rows={rows} empty={empty} footer={footer} className={className} />;

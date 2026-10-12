@@ -1,5 +1,5 @@
-﻿import { useState } from "react";
-import { KEYS, cashFigures, loanDueLabel, memberEventRows, loanCapital, isEventFine, TOURNEE_MONTHS, LOAN_RESERVE_PER_MEMBER, COMMUNICATION_CATEGORIES, communicationCategoryOf, money, formatIban, wholeMoney, date, active, list, byNewest, loanPaid, loanRemaining, fineOriginal, request, Button, Form, Table, Stat, MemberChips, ROLE_NAMES, FINE_NAMES, MiniAmountAction, PromptNumberAction, LoanDateAction, PageHeading, PanelTitle, Status, EmptyPanel } from "./shared.jsx";
+import { useState } from "react";
+import { KEYS, cashFigures, loanDueLabel, memberEventRows, loanCapital, isEventFine, TOURNEE_MONTHS, LOAN_RESERVE_PER_MEMBER, COMMUNICATION_CATEGORIES, communicationCategoryOf, money, formatIban, wholeMoney, date, active, list, byNewest, loanPaid, loanRemaining, fineOriginal, request, Button, Form, Table, Stat, MemberChips, ROLE_NAMES, FINE_NAMES, MiniAmountAction, PromptNumberAction, LoanDateAction, PageHeading, PanelTitle, Status, EmptyPanel , showPopup } from "./shared.jsx";
 
 /** Carte KPI cliquable — style Prêts (fond blanc, bordure colorée) */
 function ReunionStripButton({ label, value, tone = "navy", onClick }) {
@@ -674,22 +674,32 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
   const markRapportRead = async (post) => {
     if (!member?.id) return;
     if (member.kind === "nouveau") {
-      alert("Seuls les membres du groupe peuvent confirmer la lecture.");
+      showPopup({
+        title: "Lecture réservée",
+        message: "Seuls les membres du groupe peuvent confirmer la lecture d’un rapport.",
+        variant: "info",
+      });
       return;
     }
-    const readBy = post.readBy && typeof post.readBy === "object" ? { ...post.readBy } : {};
-    if (readBy[String(member.id)]) return;
-    readBy[String(member.id)] = new Date().toISOString();
-    const next = list(data, KEYS.communication).map((row) =>
-      String(row.id) === String(post.id)
-        ? { ...row, readBy, readReceiptUpdatedAt: new Date().toISOString() }
-        : row,
-    );
-    if (typeof mergeData === "function") {
-      // optimistic
-      mergeData({ [KEYS.communication]: next }, "");
+    try {
+      const result = await request("/api/communication/read", {
+        method: "POST",
+        body: JSON.stringify({ id: post.id }),
+      });
+      if (result?.data?.[KEYS.communication]) {
+        if (typeof mergeData === "function") {
+          mergeData(result.data, "Lecture confirmée — merci.");
+        } else {
+          await saveData(result.data, "Lecture confirmée — merci.");
+        }
+      }
+    } catch (err) {
+      showPopup({
+        title: "Impossible d’enregistrer",
+        message: err.message || "La confirmation de lecture a échoué.",
+        variant: "error",
+      });
     }
-    await saveData({ [KEYS.communication]: next }, "Lecture confirmée — merci.");
   };
 
 
@@ -1091,16 +1101,39 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
   );
 }
 
-export function NotificationsPage({ data, member, saveData }) {
+export function NotificationsPage({ data, member, saveData, mergeData }) {
   const rows = list(data, KEYS.notifications).filter((row) => String(row.memberId) === String(member.id) && !row.deletedAt).sort(byNewest);
   const unread = rows.filter((row) => !row.read).length;
+
+  const markRead = async (row) => {
+    try {
+      const result = await request("/api/notifications/read", {
+        method: "POST",
+        body: JSON.stringify({ id: row.id }),
+      });
+      if (result?.data?.[KEYS.notifications]) {
+        if (typeof mergeData === "function") {
+          mergeData(result.data, "Notification marquée comme lue.");
+        } else {
+          await saveData(result.data, "Notification marquée comme lue.");
+        }
+      }
+    } catch (err) {
+      showPopup({
+        title: "Erreur",
+        message: err.message || "Impossible de marquer comme lue.",
+        variant: "error",
+      });
+    }
+  };
+
   return <div className="page-content">
     <PageHeading eyebrow="Votre espace" title="Notifications" description="Retrouvez les informations importantes sur les prêts, les paiements et les activités du groupe." />
     <section className="panel"><PanelTitle title="Toutes les notifications" meta={`${unread} non lue${unread === 1 ? "" : "s"}`} />
       {!rows.length && <p className="muted">Vous n’avez aucune notification.</p>}
       <div className="notification-list">{rows.map((row) => <article className={row.read ? "notification-item" : "notification-item notification-unread"} key={row.id}>
         <div className="notification-copy"><strong>{row.title || row.type || "Information"}</strong><small>{date(row.createdAt || row.at)}</small><p>{row.message || "—"}</p></div>
-        <div className="row-actions">{!row.read && <Button onClick={() => saveData({ [KEYS.notifications]: list(data, KEYS.notifications).map((item) => item.id === row.id ? { ...item, read: true, updatedAt: new Date().toISOString() } : item) }, "Notification marquée comme lue.")}>Marquer comme lue</Button>}</div>
+        <div className="row-actions">{!row.read && <Button onClick={() => markRead(row)}>Marquer comme lue</Button>}</div>
       </article>)}</div>
     </section>
   </div>;

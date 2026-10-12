@@ -1,5 +1,5 @@
-﻿import { useEffect, useState } from "react";
-import { KEYS, AdminTableContext, TOURNEE_MONTHS, ADMIN_SECTIONS, money, date, active, list, byNewest, request, Button, Form, Table, AdminTable, Stat, ROLE_NAMES, OrderEditor, MiniAmountAction, PageHeading, PanelTitle, Status } from "./shared.jsx";
+import { useEffect, useState } from "react";
+import { KEYS, AdminTableContext, TOURNEE_MONTHS, ADMIN_SECTIONS, money, date, active, list, byNewest, request, Button, Form, Table, AdminTable, Stat, ROLE_NAMES, OrderEditor, MiniAmountAction, PageHeading, PanelTitle, Status, showPopup } from "./shared.jsx";
 import { LoansPage, EventsPage, DebtsPage, FinancePage, CommunicationPage } from "./pages.jsx";
 
 export function AdminPage({ section, sections, setSection, data, member, members, names, runAction, confirmAction, saveData, mergeData, canCommunication = false, isFullAdmin = false }) {
@@ -47,7 +47,7 @@ export function MembersAdmin({ data, members, runAction, confirmAction, saveData
     ]} submitLabel="Ajouter le membre" onSubmit={async (values) => {
       const name = String(values.name || "").trim();
       if (!name) {
-        alert("Le nom est obligatoire.");
+        showPopup({ title: "Nom requis", message: "Le nom est obligatoire.", variant: "info" });
         return false;
       }
       const kind = values.kind === "nouveau" ? "nouveau" : "membre";
@@ -64,13 +64,21 @@ export function MembersAdmin({ data, members, runAction, confirmAction, saveData
           }
         }
         if (result?.account?.username) {
-          alert(
-            `Membre ajouté.\nConnexion : ${result.account.username}\nMot de passe : ${result.account.password}`,
-          );
+          showPopup({
+            title: "Membre ajouté",
+            message: `Connexion : ${result.account.username}\nMot de passe : ${result.account.password}`,
+            variant: "success",
+          });
+        } else {
+          showPopup({
+            title: "Membre ajouté",
+            message: result?.message || "Le membre a été enregistré.",
+            variant: "success",
+          });
         }
         return result;
       } catch (err) {
-        alert(err.message || "Impossible d’ajouter le membre.");
+        showPopup({ title: "Erreur", message: err.message || "Impossible d’ajouter le membre.", variant: "error" });
         return false;
       }
     }} />

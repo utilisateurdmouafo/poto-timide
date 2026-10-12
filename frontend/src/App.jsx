@@ -1,5 +1,5 @@
 ﻿import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { KEYS, NAV, APP_TABS, EMPTY, active, list, request, allowedAdminSections, Button, Form } from "./shared.jsx";
+import { KEYS, NAV, APP_TABS, EMPTY, active, list, request, allowedAdminSections, Button, Form, Modal, showPopup } from "./shared.jsx";
 import { MeetingPage, MembersPage, TourneePage, FundPage, LoansPage, EventsPage, DebtsPage, FinancePage, CommunicationPage, NotificationsPage, ReferencePage } from "./pages.jsx";
 
 const AdminPage = lazy(() => import("./AdminSection.jsx").then((module) => ({ default: module.AdminPage })));
@@ -48,6 +48,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [popup, setPopup] = useState(null);
   const [online, setOnline] = useState(0);
   const [onlineMembers, setOnlineMembers] = useState([]);
   const [mustChangePassword, setMustChangePassword] = useState(false);
@@ -179,6 +180,27 @@ export default function App() {
     };
   }, [session, refresh]);
 
+
+  useEffect(() => {
+    const onPopup = (event) => {
+      const detail = event?.detail || {};
+      setPopup({
+        title: detail.title || "",
+        message: detail.message || "",
+        variant: detail.variant || "info",
+      });
+    };
+    window.addEventListener("poto-popup", onPopup);
+    return () => window.removeEventListener("poto-popup", onPopup);
+  }, []);
+
+  useEffect(() => {
+    if (session?.kind === "nouveau" && activeTab !== "loi") {
+      setActiveTab("loi");
+      setAdminSection("");
+    }
+  }, [session, activeTab]);
+
   const members = useMemo(() => list(data, KEYS.members).filter((member) => member.kind !== "nouveau"), [data]);
   const memberNames = useMemo(() => Object.fromEntries(list(data, KEYS.members).map((member) => [member.id, member.name])), [data]);
   const isDeveloper = Boolean(session?.isAdmin);
@@ -273,7 +295,7 @@ export default function App() {
       setMustChangePassword(Boolean(result.mustChangePassword));
       const latest = await request("/api/data");
       setData((previous) => ({ ...previous, ...latest }));
-      navigate("reunion");
+      navigate(result.member?.kind === "nouveau" ? "loi" : "reunion");
     } catch (reason) {
       setError(reason.message);
     }
@@ -301,6 +323,11 @@ export default function App() {
   }
 
   function navigate(tab, section) {
+    if (session?.kind === "nouveau" && tab !== "loi") {
+      tab = "loi";
+      section = undefined;
+    }
+
     setActiveTab(tab);
     const adminTarget = tab === "admin" ? section || "membres" : "";
     if (adminTarget) setAdminSection(adminTarget);
@@ -334,7 +361,7 @@ export default function App() {
       case "loi":
         return <ReferencePage data={data} canManageLaw={false} canManageGuide={false} saveData={saveData} />;
       case "notifications":
-        return <NotificationsPage data={data} member={session} saveData={saveData} />;
+        return <NotificationsPage data={data} member={session} saveData={saveData} mergeData={mergeData} />;
       case "amendes":
         return <DebtsPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
       case "finance":
@@ -374,12 +401,16 @@ export default function App() {
       <header className="topbar topbar--underline">
         <a className="brand" href="#reunion" onClick={() => navigate("reunion")} aria-label="Poto Timide, accueil"><span className="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" fill="none"><rect width="40" height="40" rx="12" fill="#0284C7"/><circle cx="27.5" cy="12" r="5.2" fill="#67E8F9"/><path d="M7 22.5c6.2-10.2 11.2-10.2 18.2 0 7 10.2 11.4 10.2 20.4 0" stroke="#fff" strokeWidth="3.1" strokeLinecap="round"/><path d="M9 29.2c5.2-8 9.4-8 16.2 0" stroke="#7DD3FC" strokeWidth="2.6" strokeLinecap="round"/></svg></span><span><strong>Poto Timide</strong><small>GROUPE · ESPACE PRIVÉ</small></span></a>
         <nav className="main-nav" aria-label="Navigation principale">
-          {NAV.map(([id, label, icon]) => ((id !== "admin" || canOpenAdmin) && (
+          {NAV.filter(([id]) => {
+            if (session?.kind === "nouveau") return id === "loi";
+            if (id === "admin") return canOpenAdmin;
+            return true;
+          }).map(([id, label, icon]) => (
             <button type="button" key={id} className={selectedTab === id ? "nav-item selected" : "nav-item"} onClick={() => navigate(id)}>
               <span aria-hidden="true">{icon}</span>{label}
               {id === "notifications" && unreadCount > 0 && <span className="nav-badge">{unreadCount > 99 ? "99+" : unreadCount}</span>}
             </button>
-          )))}
+          ))}
         </nav>
         <UserMenu name={session.name} isAdmin={isAdmin} isDeveloper={isDeveloper} devMode={devMode} toggleDevMode={toggleDevMode} logout={logout} />
       </header>
@@ -389,6 +420,13 @@ export default function App() {
         {page}
       </main>
       <footer className="app-footer"><span>Poto Timide · Espace privé du groupe</span><span>{online} membre{online > 1 ? "s" : ""} en ligne · synchronisation temps réel</span></footer>
+      <Modal
+        open={Boolean(popup)}
+        title={popup?.title}
+        message={popup?.message}
+        variant={popup?.variant}
+        onClose={() => setPopup(null)}
+      />
     </div>
   );
 

@@ -1846,7 +1846,70 @@ async function syncPresenceLogFromOnline(onlineList) {
 
 
   // Ajout membre + compte de connexion (fiable)
-  app.post("/api/members/add", requireAuth, async (req, res) => {
+  
+  // Marquer une notification comme lue (fiable)
+  app.post("/api/notifications/read", requireAuth, async (req, res) => {
+    try {
+      const actorId = String(req.session.userId || "");
+      const notifId = String(req.body?.id || "");
+      if (!notifId) return res.status(400).json({ error: "Notification invalide." });
+      const list = unwrapStored(await getData("poto-timide-notifications")) || [];
+      const rows = Array.isArray(list) ? list : [];
+      let found = false;
+      const now = new Date().toISOString();
+      const next = rows.map((row) => {
+        if (String(row?.id) !== notifId) return row;
+        if (String(row.memberId) !== actorId) return row;
+        found = true;
+        return { ...row, read: true, updatedAt: now };
+      });
+      if (!found) return res.status(404).json({ error: "Notification introuvable." });
+      await setData("poto-timide-notifications", next);
+      broadcastLive("data", { keys: ["poto-timide-notifications"], at: now });
+      res.json({ ok: true, data: { "poto-timide-notifications": next } });
+    } catch (err) {
+      console.error("notifications/read:", err);
+      res.status(500).json({ error: "Impossible de marquer comme lue." });
+    }
+  });
+
+  // Accusé de lecture rapport
+  app.post("/api/communication/read", requireAuth, async (req, res) => {
+    try {
+      const actor = await findMemberById(req.session.userId);
+      if (!actor) return res.status(403).json({ error: "Membre introuvable." });
+      if (actor.kind === "nouveau") {
+        return res.status(403).json({ error: "Les nouveaux n’accusent pas lecture des rapports." });
+      }
+      const postId = String(req.body?.id || "");
+      if (!postId) return res.status(400).json({ error: "Publication invalide." });
+      const list = unwrapStored(await getData("poto-timide-communication")) || [];
+      const rows = Array.isArray(list) ? list : [];
+      const index = rows.findIndex((row) => String(row?.id) === postId && !row.deletedAt);
+      if (index < 0) return res.status(404).json({ error: "Publication introuvable." });
+      const post = { ...rows[index] };
+      const readBy =
+        post.readBy && typeof post.readBy === "object" && !Array.isArray(post.readBy)
+          ? { ...post.readBy }
+          : {};
+      const now = new Date().toISOString();
+      if (!readBy[String(actor.id)]) {
+        readBy[String(actor.id)] = now;
+      }
+      post.readBy = readBy;
+      post.readReceiptUpdatedAt = now;
+      post.updatedAt = now;
+      rows[index] = post;
+      await setData("poto-timide-communication", rows);
+      broadcastLive("data", { keys: ["poto-timide-communication"], at: now });
+      res.json({ ok: true, data: { "poto-timide-communication": rows } });
+    } catch (err) {
+      console.error("communication/read:", err);
+      res.status(500).json({ error: "Impossible d’enregistrer la lecture." });
+    }
+  });
+
+app.post("/api/members/add", requireAuth, async (req, res) => {
     try {
       const sync = await buildSyncActor(req.session.userId);
       if (!sync) return res.status(403).json({ error: "Membre introuvable." });
