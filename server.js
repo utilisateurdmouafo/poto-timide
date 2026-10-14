@@ -2526,44 +2526,65 @@ app.post("/api/permissions", requireAuth, async (req, res) => {
     try {
       const sync = await buildSyncActor(req.session.userId);
       if (!sync) return res.status(403).json({ error: "Membre introuvable." });
-      if (!sync.isAdmin && !(await isOwnerId(sync.id))) {
-        return res.status(403).json({ error: "Seul le propriétaire peut modifier les accès." });
+      // Fondateur OU admin nommé
+      const owner = await isOwnerId(sync.id);
+      if (!sync.isAdmin && !owner) {
+        return res.status(403).json({ error: "Seul le propriétaire ou un admin peut modifier les accès." });
       }
       const body = req.body || {};
       let next = body.permissions;
       if (!next || typeof next !== "object" || Array.isArray(next)) {
         return res.status(400).json({ error: "Payload permissions invalide." });
       }
-      // Nettoyage
+      // Partir de l’existant en base pour ne jamais perdre une section
+      const existing = (await getData("poto-timide-tab-permissions")) || {};
       const cleaned = {};
+      const TAB_KEYS = [
+        "membres", "bureau", "tournee", "ancienne-tournee", "caisse",
+        "prets", "amendes", "evenements", "communication", "loi",
+      ];
+      // Copie de base
+      for (const tab of TAB_KEYS) {
+        const fromNext = Array.isArray(next[tab]) ? next[tab] : null;
+        const fromExisting = Array.isArray(existing[tab]) ? existing[tab] : [];
+        cleaned[tab] = fromNext
+          ? [...new Set(fromNext.map(String).filter(Boolean))]
+          : [...new Set(fromExisting.map(String).filter(Boolean))];
+      }
+      // Sections supplémentaires éventuelles
       for (const [tab, roles] of Object.entries(next)) {
-        if (tab === "updatedAt" || tab === "finance") continue;
+        if (tab === "updatedAt" || tab === "finance" || TAB_KEYS.includes(tab)) continue;
         if (!Array.isArray(roles)) continue;
         cleaned[tab] = [...new Set(roles.map(String).filter(Boolean))];
       }
-      // Unifie finance → caisse si fourni
       if (Array.isArray(next.finance) && next.finance.length) {
         cleaned.caisse = [...new Set([...(cleaned.caisse || []), ...next.finance.map(String)])];
       }
       cleaned.updatedAt = new Date().toISOString();
+
       await setData("poto-timide-tab-permissions", cleaned);
-      // invalide cache explicite
-      if (typeof dataCache !== "undefined" && dataCache?.set) {
-        dataCache.set("poto-timide-tab-permissions", JSON.stringify(cleaned));
+      // Force cache + relecture pour confirmer
+      dataCache.set("poto-timide-tab-permissions", JSON.stringify(cleaned));
+      const verified = await getData("poto-timide-tab-permissions");
+      if (!verified || typeof verified !== "object") {
+        return res.status(500).json({ error: "Écriture permissions non confirmée." });
       }
+
       broadcastLive("data", {
         keys: ["poto-timide-tab-permissions"],
         at: cleaned.updatedAt,
       });
       res.json({
         ok: true,
-        data: { "poto-timide-tab-permissions": cleaned },
+        data: { "poto-timide-tab-permissions": verified },
+        message: "Accès enregistrés.",
       });
     } catch (err) {
       console.error("Permissions save:", err);
       res.status(500).json({ error: "Impossible d’enregistrer les accès." });
     }
   });
+
 
 app.post("/api/communication", requireAuth, async (req, res) => {
     try {

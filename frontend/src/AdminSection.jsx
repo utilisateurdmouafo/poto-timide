@@ -464,15 +464,32 @@ export function AccessAdmin({ data, members, saveData, mergeData }) {
   };
 
   const toggle = async (tab, role, checked) => {
-    const current = Array.isArray(permissions[tab]) ? permissions[tab] : [];
+    const base = {
+      membres: [],
+      bureau: [],
+      tournee: [],
+      "ancienne-tournee": [],
+      caisse: [],
+      prets: [],
+      amendes: [],
+      evenements: [],
+      communication: [],
+      loi: [],
+      ...rawPermissions,
+      ...Object.fromEntries(
+        Object.entries(permissions).map(([k, v]) => [k, Array.isArray(v) ? v : []]),
+      ),
+    };
+    delete base.finance;
+    delete base.updatedAt;
+    const current = Array.isArray(base[tab]) ? base[tab] : [];
     const nextRoles = checked
-      ? [...new Set([...current, role])]
-      : current.filter((value) => value !== role);
-    const next = { ...rawPermissions, [tab]: nextRoles };
-    delete next.finance;
-    delete next.updatedAt;
-    if (tab === "caisse") {
-      // already on caisse key
+      ? [...new Set([...current.map(String), String(role)])]
+      : current.map(String).filter((value) => value !== String(role));
+    const next = { ...base, [tab]: nextRoles };
+    // Optimistic UI
+    if (typeof mergeData === "function") {
+      mergeData({ [KEYS.permissions]: { ...next, updatedAt: new Date().toISOString() } }, "Enregistrement…");
     }
     try {
       const result = await request("/api/permissions", {
@@ -485,12 +502,22 @@ export function AccessAdmin({ data, members, saveData, mergeData }) {
         return;
       }
       if (typeof mergeData === "function") {
-        mergeData({ [KEYS.permissions]: saved }, "Autorisations mises à jour.");
+        mergeData({ [KEYS.permissions]: saved }, "Autorisations enregistrées.");
       } else {
-        await saveData({ [KEYS.permissions]: saved }, "Autorisations mises à jour.");
+        await saveData({ [KEYS.permissions]: saved }, "Autorisations enregistrées.");
       }
+      showPopup({ title: "Accès", message: "Modification enregistrée en base.", variant: "success" });
     } catch (err) {
       showPopup({ title: "Erreur", message: err.message || "Échec de l’enregistrement des accès.", variant: "error" });
+      // Recharge depuis le serveur pour ne pas laisser un état faux
+      try {
+        const full = await request("/api/data");
+        if (full?.[KEYS.permissions] && typeof mergeData === "function") {
+          mergeData({ [KEYS.permissions]: full[KEYS.permissions] }, "Accès rechargés.");
+        }
+      } catch {
+        /* ignore */
+      }
     }
   };
 
