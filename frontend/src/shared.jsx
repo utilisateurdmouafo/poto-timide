@@ -135,7 +135,8 @@ export const loanPaid = (loan) =>
 export const loanRemaining = (loan) =>
   Math.max(0, (Number(loan.amount) || 0) + (Number(loan.interestAmount) || 0) - loanPaid(loan));
 export const fineOriginal = (row) => Number(row.originalAmount) || (Number(row.amount) || 0) + (Number(row.repaidAmount) || 0);
-export const loanCapital = (loan) => Math.max(0, (Number(loan.amount) || 0) - loanPaid(loan));
+export const loanCapital = (loan) =>
+  Math.max(0, (Number(loan.amount) || 0) + (Number(loan.interestAmount) || 0) - loanPaid(loan));
 export const isEventFine = (fine) => Boolean(fine.evenementId || fine.eventId) || fine.type === "dette";
 
 const sumRows = (rows, pick) => rows.reduce((total, row) => total + (Number(pick(row)) || 0), 0);

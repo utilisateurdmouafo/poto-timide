@@ -232,10 +232,23 @@ export function LoansPage({ data, member, members, names, canManage, runAction, 
           <Stat label="Argent empruntable" value={money(borrowable)} note={`(Caisse disponible − ${money(reserve)}) ÷ 2`} tone="stat-blue" />
           <Stat label="Caisse disponible" value={money(availableCash)} note="Amendes + dons − prêts sortis + remboursements" />
           <Stat label="Caisse brute" value={money(brute)} note={`Caisse disponible + événements (${money(eventsInCash)})`} />
-          <Stat label={`Prêts sortis · ${groupActiveLoans.length} prêt${groupActiveLoans.length === 1 ? "" : "s"}`} value={money(loansCapital)} note="Capital encore dehors (prêt − remboursé)" tone="stat-gold" />
+          <Stat label={`Prêts sortis · ${groupActiveLoans.length} prêt${groupActiveLoans.length === 1 ? "" : "s"}`} value={money(loansCapital)} note="Reste dû (capital + intérêts − remboursé)" tone="stat-gold" />
           <Stat label="Caisse total" value={money(totalCash)} note={`Caisse disponible ${money(availableCash)} + dehors ${money(outside)}`} tone="stat-blue" />
         </div>
-        {groupActiveLoans.length > 0 && <div className="meeting-presence-list">{groupActiveLoans.map((loan) => <span className="meeting-presence loan-borrower" key={loan.id}>{names[loan.borrowerId] || "Membre"}<strong>{money(loanCapital(loan))}</strong><small>{loan.status === "defaulted" ? "En retard" : "En cours"}</small></span>)}</div>}
+        {groupActiveLoans.length > 0 && <div className="meeting-presence-list">{groupActiveLoans.map((loan) => {
+          const reste = loanRemaining(loan);
+          const interet = Number(loan.interestAmount) || 0;
+          const label = loan.status === "defaulted"
+            ? (interet > 0 ? `Retard · intérêts ${money(interet)}` : "En retard")
+            : "En cours";
+          return (
+            <span className="meeting-presence loan-borrower" key={loan.id}>
+              {names[loan.borrowerId] || "Membre"}
+              <strong>{money(reste)}</strong>
+              <small>{label}</small>
+            </span>
+          );
+        })}</div>}
       </section>
       <section className="panel loan-request-panel"><PanelTitle title="Initier un prêt" />
         <p className="muted">Une demande en vote à la fois. Le plafond dépend de la caisse et de la réserve par membre.</p>
