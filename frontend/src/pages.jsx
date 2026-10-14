@@ -255,7 +255,24 @@ export function LoansPage({ data, member, members, names, canManage, runAction, 
           { key: "paid", label: "Déjà versé", render: () => "—" },
           { key: "remaining", label: "Reste", render: (row) => money(loanRemaining(row)) },
           { key: "status", label: "Statut", render: (row) => <div className="table-status"><Status value={statusNames[row.status] || row.status} /><small>{Object.values(row.votes || {}).filter((vote) => vote === "yes").length} oui · {Object.values(row.votes || {}).filter((vote) => vote === "no").length} non</small></div> },
-          { key: "actions", label: "Actions", render: (row) => <div className="row-actions">{row.borrowerId !== member.id && !row.votes?.[member.id] && <><Button variant="primary" onClick={() => runAction({ domain: "loan", type: "vote", loanId: row.id, vote: "yes" }, "Vote enregistré.")}>Oui</Button><Button variant="danger" onClick={() => runAction({ domain: "loan", type: "vote", loanId: row.id, vote: "no" }, "Vote enregistré.")}>Non</Button></>}{canManage && <Button variant="danger" onClick={() => confirmAction({ domain: "loan", type: "delete", loanId: row.id }, "Supprimer cette demande de prêt ?")}>Supprimer</Button>}</div> },
+          { key: "actions", label: "Actions", render: (row) => {
+            const myId = String(member?.id || "");
+            const isBorrower = String(row.borrowerId) === myId;
+            const already = Boolean((row.votes || {})[myId]);
+            const canVote = Boolean(myId) && !isBorrower && !already && member?.kind !== "nouveau";
+            return (
+              <div className="row-actions">
+                {canVote && (
+                  <>
+                    <Button variant="primary" onClick={() => runAction({ domain: "loan", type: "vote", loanId: row.id, vote: "yes" }, "Vote enregistré.")}>Oui</Button>
+                    <Button variant="danger" onClick={() => runAction({ domain: "loan", type: "vote", loanId: row.id, vote: "no" }, "Vote enregistré.")}>Non</Button>
+                  </>
+                )}
+                {already && <Status value="Déjà voté" />}
+                {canManage && <Button variant="danger" onClick={() => confirmAction({ domain: "loan", type: "delete", loanId: row.id }, "Supprimer cette demande de prêt ?")}>Supprimer</Button>}
+              </div>
+            );
+          } },
         ]} rows={voting} empty="Aucune demande en vote." />
       </section>
       {canManage && awaiting.length > 0 && <section className="panel"><PanelTitle title="Validation du financier" />

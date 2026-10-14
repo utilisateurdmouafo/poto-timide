@@ -270,7 +270,13 @@ export default function App() {
       setNotice(success);
       return result.result;
     } catch (reason) {
-      setError(reason.message);
+      const msg = reason?.message || "Action impossible.";
+      setError(msg);
+      try {
+        showPopup({ title: "Action impossible", message: msg, variant: "error" });
+      } catch {
+        /* ignore */
+      }
       return false;
     }
   }
