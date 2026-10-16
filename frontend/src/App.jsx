@@ -40,6 +40,7 @@ function UserMenu({ name, isAdmin, isDeveloper, devMode, toggleDevMode, logout }
 
 export default function App() {
   const [session, setSession] = useState(null);
+  const [writeBusy, setWriteBusy] = useState(false);
   const [data, setData] = useState(EMPTY);
   const initialTab = location.hash.slice(1).split("/")[0];
   const [activeTab, setActiveTab] = useState(APP_TABS.includes(initialTab) ? initialTab : "reunion");
@@ -256,16 +257,22 @@ export default function App() {
   const canOpenAdmin = adminSections.some((id) => id !== "connexions");
   const can = (tab) => isAdmin || roleIds.some((roleId) => Array.isArray(permissionMap[tab]) && permissionMap[tab].includes(roleId));
 
+    /**
+   * Règle site entière : jamais de mise à jour visuelle avant la base.
+   * - runAction / saveData : attendent le serveur, puis appliquent result.data uniquement
+   * - mergeData : uniquement après une réponse API déjà validée (jamais avant un fetch)
+   */
   async function runAction(action, success = "Action enregistrée.") {
+    if (writeBusy) return false;
+    setWriteBusy(true);
     setError("");
-    setNotice("");
+    setNotice("Enregistrement en base…");
     try {
       const silent = Boolean(session?.isAdmin && devMode);
       const result = await request("/api/actions", {
         method: "POST",
         body: JSON.stringify({ ...action, silent }),
       });
-      // Uniquement la vérité serveur (pas d’affichage optimiste)
       if (result?.data && typeof result.data === "object") {
         setData((previous) => ({ ...previous, ...result.data }));
       } else {
@@ -276,44 +283,62 @@ export default function App() {
     } catch (reason) {
       const msg = reason?.message || "Action impossible.";
       setError(msg);
+      setNotice("");
       try {
         showPopup({ title: "Action impossible", message: msg, variant: "error" });
       } catch {
         /* ignore */
       }
       return false;
+    } finally {
+      setWriteBusy(false);
     }
   }
 
+  /** Appliquer un payload déjà renvoyé par le serveur (après succès API uniquement). */
   function mergeData(payload, success = "Modification enregistrée.") {
+    if (!payload || typeof payload !== "object") return;
     setData((previous) => ({ ...previous, ...payload }));
     setNotice(success);
     setError("");
   }
 
   async function saveData(payload, success = "Modification enregistrée.") {
+    if (writeBusy) return false;
+    setWriteBusy(true);
     setError("");
-    setNotice("");
+    setNotice("Enregistrement en base…");
     try {
-      // Mode Dev (Dario) : pas de notifications pour les autres
       const silent = Boolean(session?.isAdmin && devMode);
       const result = await request("/api/data", {
         method: "PUT",
         body: JSON.stringify(payload),
         headers: silent ? { "X-Poto-Silent": "1" } : undefined,
       });
-      setData((previous) => ({
-        ...previous,
-        ...payload,
-        ...(result?.data || {}),
-      }));
+      // Uniquement la vérité serveur (pas le payload local)
+      if (result?.data && typeof result.data === "object" && Object.keys(result.data).length) {
+        setData((previous) => ({ ...previous, ...result.data }));
+      } else {
+        // Fallback : recharger tout si le serveur n’a pas renvoyé les clés
+        await refresh();
+      }
       setNotice(success);
       return result;
     } catch (reason) {
-      setError(reason.message);
+      const msg = reason?.message || "Enregistrement impossible.";
+      setError(msg);
+      setNotice("");
+      try {
+        showPopup({ title: "Erreur", message: msg, variant: "error" });
+      } catch {
+        /* ignore */
+      }
       return false;
+    } finally {
+      setWriteBusy(false);
     }
   }
+
 
   async function login(values) {
     setError("");
@@ -446,7 +471,7 @@ export default function App() {
         <UserMenu name={session.name} isAdmin={isAdmin} isDeveloper={isDeveloper} devMode={devMode} toggleDevMode={toggleDevMode} logout={logout} />
       </header>
       <main className="page-main">
-        {(error || notice) && <div className={`notice ${error ? "notice-error" : noticeIsWarning ? "notice-warning" : "notice-success"}`} role="status">{error || notice}<button aria-label="Fermer" onClick={() => { setError(""); setNotice(""); }}>×</button></div>}
+        {writeBusy && <div className="notice notice-warning" role="status">Enregistrement en base de données…</div>}{(error || notice) && !writeBusy && <div className={`notice ${error ? "notice-error" : noticeIsWarning ? "notice-warning" : "notice-success"}`} role="status">{error || notice}<button aria-label="Fermer" onClick={() => { setError(""); setNotice(""); }}>×</button></div>}
         {selectedTab !== "reunion" && !isNouveau && <div className="reunion-back-bar"><Button onClick={() => navigate("reunion")}>← Réunion</Button></div>}
         {page}
       </main>
