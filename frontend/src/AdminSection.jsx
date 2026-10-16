@@ -436,6 +436,7 @@ export function TourneeAdmin({ data, members, saveData, mergeData }) {
   </>;
 }
 export function AccessAdmin({ data, members, saveData, mergeData }) {
+  const [busyKey, setBusyKey] = useState(null); // "tab:role" en cours d’enregistrement
   const roles = data[KEYS.roles] || {};
   const rawPermissions = data[KEYS.permissions] || {};
   // Unifie finance → caisse (même fonction)
@@ -464,6 +465,10 @@ export function AccessAdmin({ data, members, saveData, mergeData }) {
   };
 
   const toggle = async (tab, role, checked) => {
+    const key = `${tab}:${role}`;
+    if (busyKey) return; // une seule écriture à la fois
+    setBusyKey(key);
+
     const base = {
       membres: [],
       bureau: [],
@@ -487,10 +492,8 @@ export function AccessAdmin({ data, members, saveData, mergeData }) {
       ? [...new Set([...current.map(String), String(role)])]
       : current.map(String).filter((value) => value !== String(role));
     const next = { ...base, [tab]: nextRoles };
-    // Optimistic UI
-    if (typeof mergeData === "function") {
-      mergeData({ [KEYS.permissions]: { ...next, updatedAt: new Date().toISOString() } }, "Enregistrement…");
-    }
+
+    // PAS d’update optimiste : le visuel change seulement après la base
     try {
       const result = await request("/api/permissions", {
         method: "POST",
@@ -501,15 +504,16 @@ export function AccessAdmin({ data, members, saveData, mergeData }) {
         showPopup({ title: "Erreur", message: "Réponse serveur invalide pour les accès.", variant: "error" });
         return;
       }
+      // Visuel = vérité serveur uniquement
       if (typeof mergeData === "function") {
-        mergeData({ [KEYS.permissions]: saved }, "Autorisations enregistrées.");
+        mergeData({ [KEYS.permissions]: saved }, "Autorisations enregistrées en base.");
       } else {
-        await saveData({ [KEYS.permissions]: saved }, "Autorisations enregistrées.");
+        await saveData({ [KEYS.permissions]: saved }, "Autorisations enregistrées en base.");
       }
-      showPopup({ title: "Accès", message: "Modification enregistrée en base.", variant: "success" });
+      showPopup({ title: "Accès", message: "Enregistré en base de données.", variant: "success" });
     } catch (err) {
       showPopup({ title: "Erreur", message: err.message || "Échec de l’enregistrement des accès.", variant: "error" });
-      // Recharge depuis le serveur pour ne pas laisser un état faux
+      // Recharge la vérité serveur (case reste comme avant)
       try {
         const full = await request("/api/data");
         if (full?.[KEYS.permissions] && typeof mergeData === "function") {
@@ -518,6 +522,8 @@ export function AccessAdmin({ data, members, saveData, mergeData }) {
       } catch {
         /* ignore */
       }
+    } finally {
+      setBusyKey(null);
     }
   };
 
@@ -533,7 +539,9 @@ export function AccessAdmin({ data, members, saveData, mergeData }) {
     <p className="access-page-hint">
       Coche un rôle pour lui donner le droit de <strong>gérer</strong> cette section dans <strong>Admin</strong>.
       Les onglets du menu en haut restent en lecture seule. Le <strong>financier</strong> a aussi automatiquement Caisse, Prêts et Dettes.
+      {" "}Chaque case est enregistrée en base avant de changer à l’écran.
     </p>
+    {busyKey && <p className="muted" role="status">Enregistrement en base…</p>}
     <section className="panel inset-panel">
       <h3>Bureau actuel</h3>
       <div className="role-grid">
@@ -561,14 +569,22 @@ export function AccessAdmin({ data, members, saveData, mergeData }) {
                 <small>{roleHolder(role)}</small>
               </span>
             ),
-            render: (row) => (
-              <input
-                aria-label={`${row.label}: ${roleLabel(role)}`}
-                type="checkbox"
-                checked={Array.isArray(row.ids) && row.ids.includes(role)}
-                onChange={(event) => toggle(row.tab, role, event.target.checked)}
-              />
-            ),
+            render: (row) => {
+              const key = `${row.tab}:${role}`;
+              const busy = busyKey === key || Boolean(busyKey);
+              return (
+                <input
+                  aria-label={`${row.label}: ${roleLabel(role)}`}
+                  type="checkbox"
+                  disabled={busy}
+                  checked={Array.isArray(row.ids) && row.ids.includes(role)}
+                  onChange={(event) => {
+                    event.preventDefault();
+                    toggle(row.tab, role, event.target.checked);
+                  }}
+                />
+              );
+            },
           })),
         ]}
         rows={permissionRows}
