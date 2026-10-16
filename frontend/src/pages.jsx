@@ -198,6 +198,7 @@ export function FundPage({ data, members, member }) {
 }
 
 export function LoansPage({ data, member, members, names, canManage, runAction, confirmAction }) {
+  const [voteBusy, setVoteBusy] = useState(null); // loanId en cours de vote
   const loans = list(data, KEYS.loans).filter(active).sort(byNewest);
   const voting = loans.filter((loan) => loan.status === "voting");
   const awaiting = loans.filter((loan) => loan.status === "awaiting_financier");
@@ -272,17 +273,38 @@ export function LoansPage({ data, member, members, names, canManage, runAction, 
             const myId = String(member?.id || "");
             const isBorrower = String(row.borrowerId) === myId;
             const already = Boolean((row.votes || {})[myId]);
-            const canVote = Boolean(myId) && !isBorrower && !already && member?.kind !== "nouveau";
+            const busy = voteBusy === row.id;
+            const canVote = Boolean(myId) && !isBorrower && !already && member?.kind !== "nouveau" && !busy;
+            const castVote = async (vote) => {
+              if (voteBusy) return;
+              setVoteBusy(row.id);
+              try {
+                const ok = await runAction(
+                  { domain: "loan", type: "vote", loanId: row.id, vote },
+                  vote === "yes" ? "Vote Oui enregistré par le serveur." : "Vote Non enregistré par le serveur.",
+                );
+                if (ok === false) {
+                  // erreur déjà affichée par runAction — on ne change rien localement
+                }
+              } finally {
+                setVoteBusy(null);
+              }
+            };
             return (
               <div className="row-actions">
                 {canVote && (
                   <>
-                    <Button variant="primary" onClick={() => runAction({ domain: "loan", type: "vote", loanId: row.id, vote: "yes" }, "Vote enregistré.")}>Oui</Button>
-                    <Button variant="danger" onClick={() => runAction({ domain: "loan", type: "vote", loanId: row.id, vote: "no" }, "Vote enregistré.")}>Non</Button>
+                    <Button variant="primary" disabled={busy} onClick={() => castVote("yes")}>
+                      {busy ? "Envoi…" : "Oui"}
+                    </Button>
+                    <Button variant="danger" disabled={busy} onClick={() => castVote("no")}>
+                      {busy ? "…" : "Non"}
+                    </Button>
                   </>
                 )}
+                {busy && !already && <Status value="Validation serveur…" />}
                 {already && <Status value="Déjà voté" />}
-                {canManage && <Button variant="danger" onClick={() => confirmAction({ domain: "loan", type: "delete", loanId: row.id }, "Supprimer cette demande de prêt ?")}>Supprimer</Button>}
+                {canManage && <Button variant="danger" disabled={busy} onClick={() => confirmAction({ domain: "loan", type: "delete", loanId: row.id }, "Supprimer cette demande de prêt ?")}>Supprimer</Button>}
               </div>
             );
           } },

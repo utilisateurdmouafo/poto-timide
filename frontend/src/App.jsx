@@ -265,10 +265,14 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({ ...action, silent }),
       });
-      if (result.data) setData((previous) => ({ ...previous, ...result.data }));
-      else await refresh();
+      // Uniquement la vérité serveur (pas d’affichage optimiste)
+      if (result?.data && typeof result.data === "object") {
+        setData((previous) => ({ ...previous, ...result.data }));
+      } else {
+        await refresh();
+      }
       setNotice(success);
-      return result.result;
+      return result?.result !== undefined ? result.result : true;
     } catch (reason) {
       const msg = reason?.message || "Action impossible.";
       setError(msg);

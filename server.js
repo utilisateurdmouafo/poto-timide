@@ -2261,12 +2261,21 @@ app.post("/api/members/add", requireAuth, async (req, res) => {
         }
       }
       await backupDatabase();
+      // Renvoyer la vérité relue en base (surtout votes prêts)
+      const outData = {};
+      for (const key of applied.changedKeys) {
+        try {
+          outData[key] = await getData(key);
+        } catch {
+          outData[key] = applied.data[key];
+        }
+      }
       broadcastLive("data", {
         keys: applied.changedKeys,
         at: new Date().toISOString(),
         action: `${action.domain}.${action.type}`,
       });
-      res.json({ ok: true, result: applied.result, data: applied.data });
+      res.json({ ok: true, result: applied.result, data: outData });
     };
 
     const queued = groupActionQueue.then(runAction, runAction);
