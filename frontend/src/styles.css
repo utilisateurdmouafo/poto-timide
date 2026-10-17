@@ -393,28 +393,50 @@ td strong { color: #203846; }
   background: #fff;
   box-shadow: 0 6px 18px rgba(12, 35, 64, 0.08);
 }
-.table-wrap table { border-collapse: separate; border-spacing: 0; width: 100%; min-width: 640px; }
+/* Colonnes serrées : largeur selon le contenu, pas d’espace vide forcé */
+.table-wrap table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  max-width: 100%;
+  min-width: 100%;
+  table-layout: auto;
+}
 .table-wrap th {
   color: #fff !important;
   background: #0c2340 !important;
-  font-size: 12px !important;
+  font-size: 11px !important;
   font-weight: 800 !important;
   text-transform: uppercase;
-  letter-spacing: .04em;
-  padding: 12px 14px !important;
+  letter-spacing: .03em;
+  padding: 7px 8px !important;
   white-space: nowrap;
   border-bottom: 0;
+  width: 1%;
 }
 .table-wrap th:first-child { border-radius: 11px 0 0 0; }
-.table-wrap th:last-child { border-radius: 0 11px 0 0; }
+.table-wrap th:last-child { border-radius: 0 11px 0 0; width: auto; }
 .table-wrap td {
-  padding: 11px 14px !important;
+  padding: 5px 8px !important;
   color: #0f2740 !important;
-  font-size: 13.5px !important;
+  font-size: 13px !important;
   font-weight: 600;
   border-bottom: 1px solid #e2ebf2;
   vertical-align: middle;
+  width: 1%;
+  white-space: nowrap;
+  line-height: 1.25;
 }
+/* Seule une phrase longue peut élargir / passer à la ligne */
+.table-wrap td.table-wrap-text,
+.table-wrap td:last-child {
+  width: auto;
+  white-space: normal;
+  word-break: break-word;
+  max-width: 14rem;
+}
+.table-wrap.table-dense th { padding: 6px 6px !important; }
+.table-wrap.table-dense td { padding: 4px 6px !important; font-size: 12.5px !important; }
 .table-wrap th.table-right,
 .table-wrap td.table-right { text-align: right; font-variant-numeric: tabular-nums; }
 .table-wrap tbody tr:nth-child(even) { background: #f4f8fb; }

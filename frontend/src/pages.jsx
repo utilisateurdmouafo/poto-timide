@@ -125,7 +125,7 @@ export function MembersPage({ data, members, roles, online, onlineMembers, membe
       })}</div>
     </section>
     <section className="panel"><PanelTitle title="Liste des membres" meta={`${members.length} membres`} />
-      <Table columns={[
+      <Table className="table-dense" columns={[
         { key: "name", label: "Membre", render: (row) => <strong>{row.name}</strong> },
         { key: "kind", label: "Statut", render: (row) => row.kind === "nouveau" ? "Nouveau membre" : "Membre actif" },
         { key: "office", label: "Fonction", render: (row) => Object.entries(roles || {}).filter(([, id]) => String(id) === String(row.id)).map(([role]) => ROLE_NAMES[role] || role).join(", ") || "Membre" },
