@@ -125,7 +125,7 @@ export function MembersPage({ data, members, roles, online, onlineMembers, membe
       })}</div>
     </section>
     <section className="panel"><PanelTitle title="Liste des membres" meta={`${members.length} membres`} />
-      <Table className="table-dense" columns={[
+      <Table columns={[
         { key: "name", label: "Membre", render: (row) => <strong>{row.name}</strong> },
         { key: "kind", label: "Statut", render: (row) => row.kind === "nouveau" ? "Nouveau membre" : "Membre actif" },
         { key: "office", label: "Fonction", render: (row) => Object.entries(roles || {}).filter(([, id]) => String(id) === String(row.id)).map(([role]) => ROLE_NAMES[role] || role).join(", ") || "Membre" },
@@ -146,11 +146,11 @@ export function TourneePage({ data, members, canManage, saveData }) {
     {!canManage && <>
       <div className="year-select"><label htmlFor="public-tournee-year">Année</label><select id="public-tournee-year" value={year} onChange={(event) => setYear(event.target.value)}>{yearOptions.map((item) => <option key={item}>{item}</option>)}</select></div>
       <section className="panel"><PanelTitle title="Organisation de la tournée" meta={`Année ${year}`} />
-        <Table className="table-tournee" columns={[
+        <Table columns={[
           { key: "number", label: "N°", render: (row) => row.index + 1 },
           { key: "month", label: "Mois", render: (row) => <strong>{row.month}</strong> },
-          { key: "reception", label: "Réception", render: (row) => <MemberChips ids={record.reception?.[row.key] || record.reception?.[Number(row.key)] || []} members={members} flags={record.receptionOk || {}} flagLabel="Reçu" empty="—" /> },
-          { key: "ristourne", label: "Ristourne", render: (row) => <MemberChips ids={record.ristourne?.[row.key] || record.ristourne?.[Number(row.key)] || []} members={members} flags={record.bouffeOk || record.ristourneOk || {}} flagLabel="Déjà bouffé" amounts={data[KEYS.cotisations] || {}} empty="—" /> },
+          { key: "reception", label: "Ordre de réception", render: (row) => <MemberChips ids={record.reception?.[row.key] || record.reception?.[Number(row.key)] || []} members={members} flags={record.receptionOk || {}} flagLabel="Reçu" empty="Aucun membre défini." /> },
+          { key: "ristourne", label: "Ordre de ristourne", render: (row) => <MemberChips ids={record.ristourne?.[row.key] || record.ristourne?.[Number(row.key)] || []} members={members} flags={record.bouffeOk || record.ristourneOk || {}} flagLabel="Déjà bouffé" amounts={data[KEYS.cotisations] || {}} empty="Aucun membre défini." /> },
         ]} rows={TOURNEE_MONTHS.map((monthIndex, index) => ({ id: `tournee-${monthIndex}`, key: String(monthIndex), index, month: new Intl.DateTimeFormat("fr-BE", { month: "long" }).format(new Date(2020, monthIndex, 1)) }))} />
       </section>
     </>}
