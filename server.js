@@ -2672,6 +2672,8 @@ app.post("/api/communication", requireAuth, async (req, res) => {
     } catch (err) {
       console.error("Publication communication impossible :", err);
       res.status(500).json({ error: "Erreur serveur" });
+    }
+  });
 
   app.post("/api/communication/delete", requireAuth, async (req, res) => {
     try {
@@ -2715,7 +2717,7 @@ app.post("/api/communication", requireAuth, async (req, res) => {
       if (!found) return res.status(404).json({ error: "Publication introuvable." });
       await setData("poto-timide-communication", next);
       try {
-        await entities.upsertEntity(db, "communication", entry);
+        if (entry) await entities.upsertEntity(db, "communication", entry);
       } catch (err) {
         console.warn("entities communication delete:", err.message || err);
       }
@@ -2726,10 +2728,6 @@ app.post("/api/communication", requireAuth, async (req, res) => {
     } catch (err) {
       console.error("communication/delete:", err);
       res.status(500).json({ error: "Impossible de supprimer la publication." });
-    }
-  });
-
-
     }
   });
 
