@@ -417,7 +417,7 @@ export default function App() {
       case "loi":
         return <ReferencePage data={data} canManageLaw={false} canManageGuide={false} saveData={saveData} />;
       case "notifications":
-        return <NotificationsPage data={data} member={session} saveData={saveData} mergeData={mergeData} />;
+        return <NotificationsPage data={data} member={session} saveData={saveData} mergeData={mergeData} navigate={navigate} />;
       case "amendes":
         return <DebtsPage data={data} member={session} members={members} names={memberNames} canManage={false} runAction={runAction} confirmAction={confirmAction} />;
       case "finance":

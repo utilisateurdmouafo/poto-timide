@@ -1641,3 +1641,7 @@ td strong {
   background: #ffe4e6 !important;
   border: 1px solid #fda4af;
 }
+
+.notification-clickable { cursor: pointer; }
+.notification-clickable:hover { background: #f0f7fb; }
+.notification-go { display: inline-block; margin-top: 6px; color: #0284c7; font-size: 11px; font-weight: 700; }

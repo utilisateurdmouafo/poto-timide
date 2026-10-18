@@ -1162,7 +1162,7 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
   );
 }
 
-export function NotificationsPage({ data, member, saveData, mergeData }) {
+export function NotificationsPage({ data, member, saveData, mergeData, navigate }) {
   const rows = list(data, KEYS.notifications).filter((row) => String(row.memberId) === String(member.id) && !row.deletedAt).sort(byNewest);
   const unread = rows.filter((row) => !row.read).length;
 
@@ -1189,6 +1189,68 @@ export function NotificationsPage({ data, member, saveData, mergeData }) {
         variant: "error",
       });
     }
+  };
+
+  /** Ouvre l’onglet / l’élément lié à la notification */
+  const openTarget = async (row) => {
+    if (!row.read) {
+      try {
+        await markRead(row);
+      } catch {
+        /* ignore */
+      }
+    }
+    const raw = String(row.tab || row.type || "").toLowerCase();
+    const map = {
+      prets: "prets",
+      pret: "prets",
+      loan: "prets",
+      amendes: "amendes",
+      amende: "amendes",
+      dette: "amendes",
+      dettes: "amendes",
+      communication: "communication",
+      communique: "communication",
+      rapport: "communication",
+      agenda: "communication",
+      finance: "finance",
+      caisse: "finance",
+      evenements: "evenements",
+      evenement: "evenements",
+      tournee: "tournee",
+      "fond-caisse": "fond-caisse",
+      fond: "fond-caisse",
+      loi: "loi",
+      membres: "membres",
+      reunion: "reunion",
+      admin: "admin",
+    };
+    let tab = map[raw] || map[raw.replace(/_/g, "-")] || "";
+    if (!tab) {
+      // Heuristique sur le type / titre
+      const blob = `${row.type || ""} ${row.title || ""} ${row.message || ""}`.toLowerCase();
+      if (/prêt|pret|vote|emprunt/.test(blob)) tab = "prets";
+      else if (/amende|dette|ex.?tourn/.test(blob)) tab = "amendes";
+      else if (/communication|communiqu|rapport|ordre du jour/.test(blob)) tab = "communication";
+      else if (/événement|evenement/.test(blob)) tab = "evenements";
+      else if (/fond de caisse|fond caisse/.test(blob)) tab = "fond-caisse";
+      else if (/caisse|finance|rembours/.test(blob)) tab = "finance";
+      else tab = "reunion";
+    }
+    try {
+      sessionStorage.setItem(
+        "poto-notif-focus",
+        JSON.stringify({
+          tab,
+          item: row.item || "",
+          loanId: row.loanId || "",
+          at: Date.now(),
+        }),
+      );
+    } catch {
+      /* ignore */
+    }
+    if (typeof navigate === "function") navigate(tab);
   };
 
   const deleteOne = async (row) => {
@@ -1235,13 +1297,32 @@ export function NotificationsPage({ data, member, saveData, mergeData }) {
         </div>
       )}
       {!rows.length && <p className="muted">Vous n’avez aucune notification.</p>}
-      <div className="notification-list">{rows.map((row) => <article className={row.read ? "notification-item" : "notification-item notification-unread"} key={row.id}>
-        <div className="notification-copy"><strong>{row.title || row.type || "Information"}</strong><small>{date(row.createdAt || row.at)}</small><p>{row.message || "—"}</p></div>
-        <div className="row-actions">
-          {!row.read && <Button onClick={() => markRead(row)}>Marquer comme lue</Button>}
-          <Button variant="danger" onClick={() => deleteOne(row)}>Supprimer</Button>
-        </div>
-      </article>)}</div>
+      <div className="notification-list">{rows.map((row) => (
+        <article
+          className={row.read ? "notification-item notification-clickable" : "notification-item notification-unread notification-clickable"}
+          key={row.id}
+          role="button"
+          tabIndex={0}
+          onClick={() => openTarget(row)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              openTarget(row);
+            }
+          }}
+        >
+          <div className="notification-copy">
+            <strong>{row.title || row.type || "Information"}</strong>
+            <small>{date(row.createdAt || row.at)}</small>
+            <p>{row.message || "—"}</p>
+            <span className="notification-go">Ouvrir →</span>
+          </div>
+          <div className="row-actions" onClick={(event) => event.stopPropagation()}>
+            {!row.read && <Button onClick={() => markRead(row)}>Marquer comme lue</Button>}
+            <Button variant="danger" onClick={() => deleteOne(row)}>Supprimer</Button>
+          </div>
+        </article>
+      ))}</div>
     </section>
   </div>;
 }
