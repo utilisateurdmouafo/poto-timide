@@ -2672,6 +2672,64 @@ app.post("/api/communication", requireAuth, async (req, res) => {
     } catch (err) {
       console.error("Publication communication impossible :", err);
       res.status(500).json({ error: "Erreur serveur" });
+
+  app.post("/api/communication/delete", requireAuth, async (req, res) => {
+    try {
+      const sync = await buildSyncActor(req.session.userId);
+      if (!sync) return res.status(403).json({ error: "Membre introuvable." });
+      if (!sync.isAdmin && !hasSyncTabPermission("communication", sync)) {
+        return res.status(403).json({ error: "Vous n’avez pas accès à la suppression des publications." });
+      }
+      const postId = String(req.body?.id || "").trim();
+      const source = String(req.body?.source || "communication").trim();
+      if (!postId) return res.status(400).json({ error: "Identifiant manquant." });
+
+      const now = new Date().toISOString();
+      if (source === "guide") {
+        const existing = unwrapStored(await getData("poto-timide-guide")) || [];
+        const list = Array.isArray(existing) ? existing : [];
+        let found = false;
+        const next = list.map((row) => {
+          if (String(row?.id) !== postId) return row;
+          found = true;
+          return { ...row, deletedAt: now, updatedAt: now };
+        });
+        if (!found) return res.status(404).json({ error: "Article du guide introuvable." });
+        await setData("poto-timide-guide", next);
+        dataCache.set("poto-timide-guide", JSON.stringify(next));
+        const verified = await getData("poto-timide-guide");
+        broadcastLive("data", { keys: ["poto-timide-guide"], at: now });
+        return res.json({ ok: true, data: { "poto-timide-guide": verified } });
+      }
+
+      const existing = unwrapStored(await getData("poto-timide-communication")) || [];
+      const list = Array.isArray(existing) ? existing : [];
+      let found = false;
+      let entry = null;
+      const next = list.map((row) => {
+        if (String(row?.id) !== postId) return row;
+        found = true;
+        entry = { ...row, deletedAt: now, updatedAt: now };
+        return entry;
+      });
+      if (!found) return res.status(404).json({ error: "Publication introuvable." });
+      await setData("poto-timide-communication", next);
+      try {
+        await entities.upsertEntity(db, "communication", entry);
+      } catch (err) {
+        console.warn("entities communication delete:", err.message || err);
+      }
+      dataCache.set("poto-timide-communication", JSON.stringify(next));
+      const verified = await getData("poto-timide-communication");
+      broadcastLive("data", { keys: ["poto-timide-communication"], at: now });
+      res.json({ ok: true, data: { "poto-timide-communication": verified } });
+    } catch (err) {
+      console.error("communication/delete:", err);
+      res.status(500).json({ error: "Impossible de supprimer la publication." });
+    }
+  });
+
+
     }
   });
 

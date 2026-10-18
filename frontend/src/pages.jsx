@@ -690,6 +690,7 @@ export function FinancePage({ data, members, names, canManage, runAction, confir
 }
 
 export function CommunicationPage({ data, member, members = [], canManage, saveData, mergeData }) {
+  const [deleteBusy, setDeleteBusy] = useState(null);
   const [category, setCategory] = useState("communique");
   const [query, setQuery] = useState("");
   const [openId, setOpenId] = useState(null);
@@ -1113,34 +1114,42 @@ export function CommunicationPage({ data, member, members = [], canManage, saveD
                     </Button>
                     <Button
                       variant="danger"
-                      onClick={() => {
+                      disabled={Boolean(deleteBusy)}
+                      onClick={async () => {
+                        if (deleteBusy) return;
                         if (!confirm("Supprimer cette publication ?")) return;
-                        if (item._source === "guide") {
-                          saveData(
-                            {
-                              [KEYS.guide]: list(data, KEYS.guide).map((row) =>
-                                row.id === item.id
-                                  ? { ...row, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-                                  : row,
-                              ),
-                            },
-                            "Article supprimé.",
-                          );
-                          return;
+                        setDeleteBusy(item.id);
+                        try {
+                          const result = await request("/api/communication/delete", {
+                            method: "POST",
+                            body: JSON.stringify({
+                              id: item.id,
+                              source: item._source === "guide" ? "guide" : "communication",
+                            }),
+                          });
+                          if (result?.data && typeof mergeData === "function") {
+                            mergeData(result.data, "Publication supprimée.");
+                          } else if (result?.data && typeof saveData === "function") {
+                            // merge local only — déjà en base
+                            mergeData?.(result.data, "Publication supprimée.");
+                          }
+                          showPopup({
+                            title: "Supprimé",
+                            message: "La publication a été retirée en base.",
+                            variant: "success",
+                          });
+                        } catch (err) {
+                          showPopup({
+                            title: "Suppression impossible",
+                            message: err.message || "Le serveur a refusé la suppression.",
+                            variant: "error",
+                          });
+                        } finally {
+                          setDeleteBusy(null);
                         }
-                        saveData(
-                          {
-                            [KEYS.communication]: list(data, KEYS.communication).map((row) =>
-                              row.id === item.id
-                                ? { ...row, deletedAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
-                                : row,
-                            ),
-                          },
-                          "Publication supprimée.",
-                        );
                       }}
                     >
-                      Supprimer
+                      {deleteBusy === item.id ? "Suppression…" : "Supprimer"}
                     </Button>
                   </div>
                 )}
